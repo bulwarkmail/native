@@ -11,6 +11,7 @@ import { servedLoginOf } from '../lib/draft-login';
 import type { VacationAudience, VacationForward } from '../lib/sieve/types';
 import { withVacationPeriod } from '../lib/sieve/vacation-forward';
 import { readVacationFilters, syncVacationWithFilters, type VacationFilters } from './filter-store';
+import type { ReplyState } from '../lib/vacation-calendar';
 
 /** What the vacation card sets for forwarding; the period comes from the vacation. */
 export type VacationForwardSettings = Pick<VacationForward, 'enabled' | 'to' | 'keepCopy'>;
@@ -113,6 +114,11 @@ function fromFilters(filters: VacationFilters) {
   };
 }
 
+/** The reply as the calendar block reads it. */
+function replyOf(state: Pick<VacationState, 'isEnabled' | 'fromDate' | 'toDate' | 'subject'>): ReplyState {
+  return { isEnabled: state.isEnabled, fromDate: state.fromDate, toDate: state.toDate, subject: state.subject };
+}
+
 export const useVacationStore = create<VacationState>((set, get) => ({
   ...INITIAL,
 
@@ -148,6 +154,9 @@ export const useVacationStore = create<VacationState>((set, get) => ({
         isLoading: false,
         hasLoaded: true,
       });
+      // The reply may have been set in another client: its busy event follows.
+      const loadedReply = replyOf(get());
+      void import('../lib/vacation-calendar').then((m) => m.vacationReplyLoaded(accountId, loadedReply), () => undefined);
     } catch (err) {
       if (stale()) return;
       set({
@@ -168,6 +177,7 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     const loginChanged = () => servedLoginOf(jmapClient) !== login;
     // What the save leaves in the store is dropped once another account took over.
     const superseded = () => (get().accountId ?? undefined) !== accountId || loginChanged();
+    const before = replyOf(get());
     set({ isSaving: true, error: null });
     try {
       await setVacationResponse(vacationUpdates, accountId);
@@ -235,6 +245,11 @@ export const useVacationStore = create<VacationState>((set, get) => ({
     set((s) => (superseded()
       ? { ...s, isSaving: false }
       : { ...s, ...vacationUpdates, ...filtersState, isSaving: false }));
+    // Block my calendar: the busy event follows the switch, the dates and the subject.
+    if (!superseded()) {
+      const after = replyOf(get());
+      void import('../lib/vacation-calendar').then((m) => m.vacationReplySaved(accountId, before, after), () => undefined);
+    }
     // The reply itself is saved even when its filters part failed.
     if (filtersError) throw filtersError;
   },

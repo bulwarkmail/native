@@ -20,7 +20,7 @@ import {
   getContactKeywords, getContactDisplayName, getContactPrimaryEmail, getContactPhotoRef,
   stringToPartialDate, type ContactPhotoRef,
 } from '../lib/contact-utils';
-import { blankForm, contactToForm, formToPatch, type FormState } from '../lib/contact-form';
+import { blankForm, contactToForm, formToPatch, PHONE_LABEL, type FormState } from '../lib/contact-form';
 import { ContactMediaUnreadError, mediaForFormSave } from '../lib/contact-media';
 import { splitMailbox } from '../lib/rfc5322-mailbox';
 import Dialog from '../components/Dialog';
@@ -120,6 +120,15 @@ async function processPickedImage(asset: ImagePicker.ImagePickerAsset): Promise<
   const mime = asset.mimeType || 'image/jpeg';
   if (asset.base64) return { uri: `data:${mime};base64,${asset.base64}`, mediaType: mime };
   return { uri: asset.uri, mediaType: mime };
+}
+
+/**
+ * The options plus a value the card had that they don't offer, such as a
+ * phone's "car" context or its own label, so the row shows it as stored.
+ */
+function withStored(options: Option[], value: string | undefined, label?: string): Option[] {
+  if (!value || options.some((o) => o.value === value)) return options;
+  return [...options, { value, label: label || value }];
 }
 
 function Pills({
@@ -299,6 +308,9 @@ export default function ContactFormScreen() {
     }
     return init;
   });
+  // The form as it was read from the card: a save sends only what changed
+  // since, and list rows the user didn't touch go back as the card had them.
+  const initialForm = React.useRef<FormState | undefined>(existing ? form : undefined);
   const [keywordInput, setKeywordInput] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [dirty, setDirty] = React.useState(!!prefill || !!initialMemberIds?.length);
@@ -325,7 +337,9 @@ export default function ContactFormScreen() {
     const members = asGroup
       ? selectGroupMembers({ contacts: allContacts }, existing.id).map((m) => m.id)
       : [];
-    setForm(contactToForm(existing, members));
+    const loaded = contactToForm(existing, members);
+    initialForm.current = loaded;
+    setForm(loaded);
   }, [existing, dirty, asGroup, allContacts]);
 
   React.useEffect(() => {
@@ -334,6 +348,10 @@ export default function ContactFormScreen() {
       if (fallback) setForm((f) => ({ ...f, addressBookId: fallback }));
     }
   }, [addressBooks, form.addressBookId, getDefaultAddressBookId]);
+
+  /** A list row as the card had it when the form opened. */
+  const storedRow = <K extends 'emails' | 'phones' | 'addresses'>(list: K, key: string | undefined) =>
+    (key ? initialForm.current?.[list].find((r) => r.key === key) : undefined) as FormState[K][number] | undefined;
 
   const updateForm = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setDirty(true);
@@ -427,7 +445,9 @@ export default function ContactFormScreen() {
     }
     setSaving(true);
     try {
-      const patch = formToPatch(form, existing, !!asGroup || existing?.kind === 'group', allContacts);
+      const patch = formToPatch(
+        form, existing, !!asGroup || existing?.kind === 'group', allContacts, initialForm.current,
+      );
       // `media` goes out only when the photo changed, built on the card as the
       // server has it now: a blobId from an older copy of the card, say of a
       // logo changed elsewhere since, makes Stalwart 1.0 refuse the whole
@@ -518,7 +538,7 @@ export default function ContactFormScreen() {
             style={[styles.pill, form.addressBookId === book.id && styles.pillActive]}
           >
             <Text style={[styles.pillText, form.addressBookId === book.id && styles.pillTextActive]}>
-              {addressBookLabel(book)}
+              {addressBookLabel(book, t('uxs_wording.default_address_book', 'Contacts'))}
             </Text>
           </Pressable>
         ))}
@@ -986,7 +1006,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={e.context}
-                  options={opts.contexts}
+                  options={withStored(opts.contexts, storedRow('emails', e.key)?.context)}
                   onChange={(v) => {
                     const next = [...form.emails];
                     next[i] = { ...e, context: v };
@@ -1023,7 +1043,12 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={p.feature}
-                  options={opts.phoneFeatures}
+                  options={withStored(
+                    opts.phoneFeatures,
+                    storedRow('phones', p.key)?.feature,
+                    storedRow('phones', p.key)?.feature === PHONE_LABEL && p.key
+                      ? existing?.phones?.[p.key]?.label : undefined,
+                  )}
                   onChange={(v) => {
                     const next = [...form.phones];
                     next[i] = { ...p, feature: v };
@@ -1032,7 +1057,7 @@ export default function ContactFormScreen() {
                 />
                 <Pills
                   value={p.context}
-                  options={opts.contexts}
+                  options={withStored(opts.contexts, storedRow('phones', p.key)?.context)}
                   onChange={(v) => {
                     const next = [...form.phones];
                     next[i] = { ...p, context: v };
@@ -1211,7 +1236,7 @@ export default function ContactFormScreen() {
                 </View>
                 <Pills
                   value={a.context}
-                  options={opts.contexts}
+                  options={withStored(opts.contexts, storedRow('addresses', a.key)?.context)}
                   onChange={(v) => {
                     const next = [...form.addresses];
                     next[i] = { ...a, context: v };

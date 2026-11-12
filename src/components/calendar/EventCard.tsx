@@ -14,6 +14,7 @@ import {
 } from '../../lib/calendar-utils';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { isInactiveEvent } from '../../lib/calendar-participants';
+import { gridTitle } from '../../lib/calendar-reply-state';
 
 interface EventCardProps {
   event: CalendarEvent;
@@ -63,7 +64,7 @@ export function EventCard({ event, calendars, timeFormat, currentUserEmails, onP
       <View style={styles.body}>
         <View style={styles.headerRow}>
           <Text style={[styles.title, inactive && styles.titleInactive]} numberOfLines={1}>
-            {event.title || t('calendar.events.no_title', '(No title)')}
+            {gridTitle(event, event.title || t('calendar.events.no_title', '(No title)'), currentUserEmails)}
           </Text>
           {allDay && (
             <View style={styles.allDayBadge}>

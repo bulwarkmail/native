@@ -9,8 +9,10 @@ import type { RootStackParamList } from '../../navigation/types';
 import { getEmails, queryEmailsByFilter } from '../../api/email';
 import { getEvents, queryEvents } from '../../api/calendar';
 import { useCalendarStore } from '../../stores/calendar-store';
-import { useLocaleStore, type TranslateFn } from '../../stores/locale-store';
+import { useLocaleStore } from '../../stores/locale-store';
 import { getEventColor } from '../../lib/calendar-utils';
+import { formatContactEventTime } from '../../lib/contact-utils';
+import { useSettingsStore } from '../../stores/settings-store';
 import { getDateFnsLocale } from '../../lib/calendar-locale';
 import { hasCalendarCapability } from '../../lib/capabilities';
 import { singleLine } from '../../lib/single-line';
@@ -77,15 +79,6 @@ function formatRelativeDate(iso: string, locale: Locale): string {
   }
 }
 
-function formatEventTime(event: CalendarEvent, t: TranslateFn): string {
-  if (event.showWithoutTime) return t('contacts.activity.all_day', 'All day');
-  try {
-    return format(parseISO(event.start), 'HH:mm');
-  } catch {
-    return '';
-  }
-}
-
 interface Props {
   contact: ContactCard;
 }
@@ -96,6 +89,7 @@ export function ContactActivity({ contact }: Props) {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const t = useLocaleStore((s) => s.t);
+  const timeFormat = useSettingsStore((s) => s.timeFormat);
   const dateLocale = getDateFnsLocale(useLocaleStore((s) => s.locale));
   const calendarEvents = useCalendarStore((s) => s.events);
   const calendars = useCalendarStore((s) => s.calendars);
@@ -257,7 +251,7 @@ export function ContactActivity({ contact }: Props) {
                 <View
                   style={[styles.eventDot, { backgroundColor: paint(getEventColor(event, calendars)) }]}
                 />
-                <Text style={styles.eventTime}>{formatEventTime(event, t)}</Text>
+                <Text style={styles.eventTime}>{formatContactEventTime(event, timeFormat, t('contacts.activity.all_day', 'All day'))}</Text>
                 <View style={styles.eventInfo}>
                   <Text style={styles.eventTitle} numberOfLines={1}>
                     {event.title || t('contacts.activity.no_title', '(No title)')}

@@ -30,6 +30,8 @@ import {
 } from '../../lib/vacation-dates';
 import { STALWART_VACATION_LIMITS, vacationOversize } from '../../lib/vacation-limits';
 import { vacationStatus } from '../../lib/vacation-status';
+import { isBlankReply, vacationMessageBlocksSave, vacationMessageEmpty } from '../../lib/vacation-message';
+import { VacationCalendarBlock } from './VacationCalendarBlock';
 import { jmapClient } from '../../api/jmap-client';
 import { getSieveCapabilities } from '../../api/sieve';
 
@@ -59,8 +61,20 @@ export function VacationSettings() {
   const [enabled, setEnabled] = useState(store.isEnabled);
   const [fromDate, setFromDate] = useState(utcIsoToLocalInput(store.fromDate));
   const [toDate, setToDate] = useState(utcIsoToLocalInput(store.toDate));
-  const [subject, setSubject] = useState(store.subject);
-  const [body, setBody] = useState(store.textBody);
+  // A reply with nothing written yet starts with real text in the user's
+  // language, which they can change, so switching on never sends a blank
+  // reply. Saved with the first change the user makes, not by opening it.
+  const seedMessage = (s: { isEnabled: boolean; subject: string; textBody: string; htmlBody?: string | null }) => (isBlankReply(s)
+    ? {
+      subject: t('uxs_vacation.default_subject', 'Out of office'),
+      body: t('uxs_vacation.default_message', "Thank you for your email. I'm out of the office and will reply when I'm back."),
+    }
+    : { subject: s.subject, body: s.textBody });
+  const [seed, setSeed] = useState(() => seedMessage(store));
+  const [subject, setSubject] = useState(seed.subject);
+  const [body, setBody] = useState(seed.body);
+  // Switching on was tried with no message: say what is missing.
+  const [needMessage, setNeedMessage] = useState(false);
   const [htmlEnabled, setHtmlEnabled] = useState(!!store.htmlBody);
   const [htmlBody, setHtmlBody] = useState(store.htmlBody || '');
   const [showPreview, setShowPreview] = useState(false);
@@ -90,8 +104,11 @@ export function VacationSettings() {
     setEnabled(store.isEnabled);
     setFromDate(utcIsoToLocalInput(store.fromDate));
     setToDate(utcIsoToLocalInput(store.toDate));
-    setSubject(store.subject);
-    setBody(store.textBody);
+    const next = seedMessage(store);
+    setSeed(next);
+    setSubject(next.subject);
+    setBody(next.body);
+    setNeedMessage(false);
     setHtmlEnabled(!!store.htmlBody);
     setHtmlBody(store.htmlBody || '');
     setEditorSeed(store.htmlBody || '');
@@ -144,7 +161,12 @@ export function VacationSettings() {
   const status = vacationStatus(enabled, fromParsed, toParsed);
   const htmlText = htmlEnabled ? htmlToPlainText(htmlBody).trim() : '';
   const hasHtmlContent = htmlText.length > 0;
-  const emptyBody = enabled && !body.trim() && !hasHtmlContent;
+  // An empty message never goes live: the switch won't turn on, and a reply
+  // that is on can't be saved with its text deleted.
+  const messageEmpty = vacationMessageEmpty(body, htmlEnabled, htmlBody);
+  const messageError = (enabled || needMessage) && messageEmpty
+    ? t('uxs_vacation.write_message_first', 'Write a message first. Without one, people would get an empty reply.')
+    : null;
   const startInPast = useMemo(() => {
     if (!fromParsed) return false;
     const todayStart = new Date();
@@ -172,7 +194,6 @@ export function VacationSettings() {
   if (endBeforeStart) warnings.push(t('settings.vacation.warnings.end_before_start', 'End date must be after start date'));
   if (startInPast) warnings.push(t('settings.vacation.warnings.start_in_past', 'Start date is in the past'));
   if (formatError) warnings.push(t('settings.vacation.warnings.date_format', 'Dates must be "YYYY-MM-DD" or "YYYY-MM-DD HH:MM"'));
-  if (emptyBody) warnings.push(t('settings.vacation.warnings.empty_body', 'Message body is empty - recipients will receive a blank reply'));
 
   // Mirrors the webmail's hasChanges: Save stays disabled until something
   // actually differs from what the server holds.
@@ -180,13 +201,14 @@ export function VacationSettings() {
     enabled !== store.isEnabled ||
     (formatError ? true : localInputToUtcIso(fromDate) !== normalizeUtcIso(store.fromDate)) ||
     (formatError ? true : localInputToUtcIso(toDate) !== normalizeUtcIso(store.toDate)) ||
-    subject !== store.subject ||
-    body !== store.textBody ||
+    subject !== seed.subject ||
+    body !== seed.body ||
     (htmlEnabled ? htmlBody : '') !== (store.htmlBody || '') ||
     forwardChanged ||
     audienceChanged;
 
   const canSave = hasChanges && !endBeforeStart && !formatError && !forwardInvalid
+    && !vacationMessageBlocksSave(enabled, body, htmlEnabled, htmlBody)
     && !oversize.subject && !oversize.body && !store.isSaving;
 
   const handleSave = useCallback(async () => {
@@ -301,7 +323,16 @@ export function VacationSettings() {
                       : t('settings.vacation.status.inactive', 'Inactive')}
               </Text>
             </View>
-            <ToggleSwitch checked={enabled} onChange={setEnabled} />
+            <ToggleSwitch
+              checked={enabled}
+              onChange={(on) => {
+                if (on && messageEmpty) {
+                  setNeedMessage(true);
+                  return;
+                }
+                setEnabled(on);
+              }}
+            />
           </View>
         </SettingItem>
         {canNarrow && (
@@ -366,6 +397,7 @@ export function VacationSettings() {
             autoCorrect={false}
           />
         </SettingItem>
+        <VacationCalendarBlock hasDates={!!fromParsed && !!toParsed} accountId={managedAccountId ?? undefined} />
       </SettingsSection>
 
       <SettingsSection
@@ -394,14 +426,13 @@ export function VacationSettings() {
             accessibilityLabel={t('settings.vacation.message.body_label', 'Message Body')}
             value={body}
             onChangeText={setBody}
-            placeholder={t('settings.vacation.message.body_placeholder', 'Thank you for your email. I am currently out of the office and will respond when I return.')}
-            placeholderTextColor={c.mutedForeground}
-            style={[styles.bodyInput, !body && styles.placeholderShown, oversize.body && styles.inputInvalid]}
+            style={[styles.bodyInput, (oversize.body || !!messageError) && styles.inputInvalid]}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
           />
           {bodyTooLong && <Text style={styles.fieldError}>{bodyTooLong}</Text>}
+          {messageError && !bodyTooLong ? <Text style={styles.fieldError}>{messageError}</Text> : null}
         </View>
         <SettingItem
           label={t('settings.vacation.message.html_label', 'Formatted message (HTML)')}

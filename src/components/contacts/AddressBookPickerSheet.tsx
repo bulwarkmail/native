@@ -11,6 +11,7 @@ import { useContactsStore } from '../../stores/contacts-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 interface Props {
   visible: boolean;
@@ -25,6 +26,7 @@ export default function AddressBookPickerSheet({
   visible, onClose, currentBookId, onPick, title,
 }: Props) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const t = useLocaleStore((s) => s.t);
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
@@ -118,7 +120,7 @@ export default function AddressBookPickerSheet({
               >
                 <BookUser size={16} color={canTarget ? c.textSecondary : c.textMuted} />
                 <Text style={[styles.rowLabel, !canTarget && styles.rowLabelDisabled]} numberOfLines={1}>
-                  {book.name}
+                  {collectionNames.addressBook(book)}
                 </Text>
                 {isCurrent && <Check size={14} color={c.textMuted} />}
               </Pressable>

@@ -21,6 +21,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -39,6 +40,7 @@ function isSameCategory(a: ContactCategory, b: ContactCategory): boolean {
 
 export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const t = useLocaleStore((s) => s.t);
@@ -182,7 +184,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
     <CategoryRow
       key={book.id}
       icon={<BookUser size={16} color={c.textSecondary} />}
-      label={book.name}
+      label={collectionNames.addressBook(book)}
       count={book.count}
       badge={book.isDefault ? t('contacts.address_books.default', 'Default') : undefined}
       active={isSameCategory(selectedCategory, { type: 'addressBook', addressBookId: book.id })}

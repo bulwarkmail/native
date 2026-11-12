@@ -38,32 +38,47 @@ export function isCancellation(n: Pick<CalendarEventNotification, 'type' | 'even
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
 
+/** At most this many are read, so a server ignoring `position` can't keep the loop going. */
+export const MAX_EVENT_NOTIFICATIONS = 20000;
+
 /**
  * Pending event notifications, oldest first. `event` is asked for its title
  * only; Stalwart 0.16 doesn't return it, so the titles it lacks are read from
  * the events themselves (a cancelled event is gone and stays untitled).
  * Throws when the server refuses the listing.
+ *
+ * Read a page of maxObjectsInGet at a time: unacknowledged notifications
+ * pile up, and a get of more ids than that fails as a whole, so none would
+ * ever be shown and acknowledged again (webmail f7d71929b).
  */
 export async function getCalendarEventNotifications(): Promise<CalendarEventNotification[]> {
   const accountId = jmapClient.accountId;
-  const response = await jmapClient.request([
-    ['CalendarEventNotification/query', {
-      accountId,
-      sort: [{ property: 'created', isAscending: true }],
-    }, '0'],
-    ['CalendarEventNotification/get', {
-      accountId,
-      '#ids': { resultOf: '0', name: 'CalendarEventNotification/query', path: '/ids' },
-      properties: ['id', 'created', 'changedBy', 'comment', 'type', 'calendarEventId', 'isDraft', 'event', 'eventPatch'],
-    }, '1'],
-  ], USING);
-  const responses = (response.methodResponses ?? []) as [string, any, string][];
-  const getResp = responses.find((r) => r[0] === 'CalendarEventNotification/get');
-  if (!getResp) {
-    const error = responses.find((r) => r[0] === 'error')?.[1] as { description?: string } | undefined;
-    throw new Error(error?.description || 'Failed to load calendar event notifications');
+  const limit = Math.max(1, jmapClient.getMaxObjectsInGet());
+  const list: CalendarEventNotification[] = [];
+  for (let position = 0; position < MAX_EVENT_NOTIFICATIONS; position += limit) {
+    const response = await jmapClient.request([
+      ['CalendarEventNotification/query', {
+        accountId,
+        sort: [{ property: 'created', isAscending: true }],
+        position,
+        limit,
+      }, '0'],
+      ['CalendarEventNotification/get', {
+        accountId,
+        '#ids': { resultOf: '0', name: 'CalendarEventNotification/query', path: '/ids' },
+        properties: ['id', 'created', 'changedBy', 'comment', 'type', 'calendarEventId', 'isDraft', 'event', 'eventPatch'],
+      }, '1'],
+    ], USING);
+    const responses = (response.methodResponses ?? []) as [string, any, string][];
+    const queryResp = responses.find((r) => r[0] === 'CalendarEventNotification/query');
+    const getResp = responses.find((r) => r[0] === 'CalendarEventNotification/get');
+    if (!queryResp || !getResp) {
+      const error = responses.find((r) => r[0] === 'error')?.[1] as { description?: string } | undefined;
+      throw new Error(error?.description || 'Failed to load calendar event notifications');
+    }
+    list.push(...((getResp[1]?.list ?? []) as CalendarEventNotification[]));
+    if (((queryResp[1]?.ids ?? []) as string[]).length < limit) break;
   }
-  const list = (getResp[1]?.list ?? []) as CalendarEventNotification[];
   await fillMissingTitles(accountId, list);
   return list;
 }

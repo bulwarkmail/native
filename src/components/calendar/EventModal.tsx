@@ -84,6 +84,8 @@ import { editorKeyboardInset } from '../../lib/calendar-editor-keyboard';
 import ToggleSwitch from '../ToggleSwitch';
 import { askBeforeDiscard, editorFormChanged, editorFormSnapshot, editorTimesSnapshot } from '../../lib/calendar-editor-discard';
 import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-denied';
+import { descriptionAsText, descriptionFieldsToSave } from '../../lib/calendar-description';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -189,6 +191,7 @@ export function EventModal({
   onClose,
 }: EventModalProps) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
@@ -296,7 +299,8 @@ export function EventModal({
     setBaseline(null);
     if (event) {
       setTitle(event.title || '');
-      setDescription(event.description || '');
+      // An HTML description is shown and edited as its text.
+      setDescription(descriptionAsText(event));
       // In the calendar's time zone, like the grid and the detail sheet.
       const times = editorTimesFromEvent(event);
       setAllDay(times.allDay);
@@ -409,7 +413,9 @@ export function EventModal({
         .flatMap((cal) => [...Object.keys(cal.defaultAlertsWithTime ?? {}), ...Object.keys(cal.defaultAlertsWithoutTime ?? {})]);
       const data: Partial<CalendarEvent> = {
         title: title.trim(),
-        description: description.trim() || (isEdit && event?.description ? '' : undefined),
+        // An HTML description the user did not touch stays as it was; an
+        // edited one is saved as text, labelled text/plain.
+        ...descriptionFieldsToSave(event, description, isEdit),
         // The times shown are in the calendar's zone; this converts them back
         // into the event's own zone and keeps untouched ones as stored.
         ...eventTimeFieldsToSave({ allDay, start, end }, event),
@@ -618,7 +624,7 @@ export function EventModal({
                         { backgroundColor: paint(getCalendarColor(c)) },
                       ]}
                     />
-                    <Text style={styles.popoverRowText}>{c.name}</Text>
+                    <Text style={styles.popoverRowText}>{collectionNames.calendar(c)}</Text>
                   </Pressable>
                 ))}
               </View>

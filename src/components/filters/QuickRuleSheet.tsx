@@ -10,6 +10,7 @@ import { forwardsAround, inRunOrder } from '../../lib/sieve/forward-limit';
 import { jmapClient } from '../../api/jmap-client';
 import { servedLoginOf } from '../../lib/draft-login';
 import { supportsPeriods } from '../../lib/sieve/period';
+import { supportsRegex } from '../../lib/sieve/regex';
 import {
   applyQuickRule,
   buildPrefillRule,
@@ -87,6 +88,7 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
   const targets = React.useMemo(() => ruleTargetMailboxes(mailboxes), [mailboxes]);
   const junk = React.useMemo(() => findJunkMailbox(mailboxes), [mailboxes]);
   const periodsSupported = supportsPeriods(getSieveCapabilities()?.sieveExtensions);
+  const regexSupported = supportsRegex(getSieveCapabilities()?.sieveExtensions);
 
   // Where the new rule runs among the account's rules, for the server's
   // redirect limit: at the top, behind the out of office forwarding
@@ -269,6 +271,7 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
         initialRule={step.kind === 'editor' ? step.rule : undefined}
         mailboxes={mailboxes}
         periodsSupported={periodsSupported}
+        regexSupported={regexSupported}
         forwardContext={{
           maxRedirects: getSieveCapabilities(openedIn.current.accountId ?? undefined)?.maxNumberRedirects,
           ...forwards,

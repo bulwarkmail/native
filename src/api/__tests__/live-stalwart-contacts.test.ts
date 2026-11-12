@@ -54,13 +54,19 @@ import { readVacationFilters, useFilterStore } from '../../stores/filter-store';
 import { useToastStore } from '../../stores/toast-store';
 import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import { generateVCard, parseVCard } from '../../lib/vcard';
+import { contactToForm, formToPatch } from '../../lib/contact-form';
 import { generateScript } from '../../lib/sieve/generator';
 import { parseScript } from '../../lib/sieve/parser';
+import { applyRuleToMailbox, planRuleOnMailbox } from '../../lib/sieve/retroactive-run';
+import { OOO_KEYWORD, oooUid, syncVacationBlock } from '../../lib/vacation-calendar';
 import { applyQuickRule, buildPresetRule, toRuleMailbox } from '../../lib/sieve/quick-rules';
 import { readWebmailFixture, WEBMAIL_FIXTURES } from '../../lib/sieve/__tests__/fixtures/webmail';
 import { getMailboxes } from '../email';
-import type { ContactCard } from '../types';
-import type { SieveScript } from '../../lib/sieve/types';
+import type { AddressBook, ContactCard } from '../types';
+import { isContactReadOnly } from '../../lib/contact-read-only';
+import { findRelatedContact } from '../../lib/contact-related';
+import { selectionRecipients } from '../../lib/contact-bulk';
+import type { FilterRule, SieveScript } from '../../lib/sieve/types';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -203,6 +209,87 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       await useContactsStore.getState().addKeyword(tag, ids);
       expect((await getContact(one.id))?.keywords).toEqual({ [tag]: true, keep: true });
       expect((await getContact(two.id))?.keywords).toEqual({ [tag]: true });
+    }, 60_000);
+
+    // #1515: a save rebuilt every list under new keys with only the form's fields.
+    it('saving a name change through the form keeps every detail the form does not show', async () => {
+      const card = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual',
+        name: { components: [{ kind: 'given', value: 'Live' }, { kind: 'surname', value: `Keep${RUN}` }], isOrdered: true, full: `Live Keep${RUN}` },
+        emails: { home: { address: `keep-${RUN}@example.org`, contexts: { private: true }, pref: 1 } },
+        phones: {
+          boat: { number: '+49 30 1111', label: 'Boat', features: { voice: true }, pref: 1 },
+          w: { number: '+49 30 2222', contexts: { work: true, private: true }, features: { mobile: true, text: true } },
+        },
+        addresses: {
+          office: {
+            components: [
+              { kind: 'name', value: 'Hauptstraße' }, { kind: 'number', value: '1' },
+              { kind: 'apartment', value: '3. OG' },
+              { kind: 'postcode', value: '10115' }, { kind: 'locality', value: 'Berlin' },
+              { kind: 'district', value: 'Mitte' },
+              { kind: 'country', value: 'Germany' },
+            ],
+            contexts: { work: true },
+          },
+        },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(card.id);
+      const stored = (await getContact(card.id))!;
+      expect(Object.keys(stored.phones ?? {}).length).toBe(2);
+
+      const form = contactToForm(stored, []);
+      form.given = 'Livia';
+      await updateContact(card.id, formToPatch(form, stored, false, [stored], contactToForm(stored, [])));
+
+      const back = (await getContact(card.id))!;
+      expect(back.name?.components?.find((c) => c.kind === 'given')?.value).toBe('Livia');
+      expect(back.emails).toEqual(stored.emails);
+      expect(back.phones).toEqual(stored.phones);
+      expect(back.addresses).toEqual(stored.addresses);
+    }, 60_000);
+
+    // #1578: a related contact showed as its uid.
+    it('finds a related contact by the uid the server keeps under relatedTo', async () => {
+      const anna = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Anna ${RUN}` },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(anna.id);
+      const annaUid = (await getContact(anna.id))!.uid!;
+      const ben = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Ben ${RUN}` },
+        relatedTo: { [annaUid]: { relation: { spouse: true } } },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(ben.id);
+      await useContactsStore.getState().fetchContacts();
+      const contacts = useContactsStore.getState().contacts;
+      const benBack = contacts.find((c) => c.id === ben.id)!;
+      const [key] = Object.keys(benBack.relatedTo ?? {});
+      expect(findRelatedContact(key, benBack, contacts)?.id).toBe(anna.id);
+    }, 60_000);
+
+    // Ticked contacts go into a group in one step.
+    it('adds two ticked contacts to a group and writes one message to them', async () => {
+      const one = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Tick One ${RUN}` },
+        emails: { e: { address: `tick-one-${RUN}@example.org` } },
+      } as Partial<ContactCard>, bookId);
+      const two = await createContact({
+        '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Tick Two ${RUN}` },
+        emails: { e: { address: `tick-two-${RUN}@example.org` } },
+      } as Partial<ContactCard>, bookId);
+      createdCards.push(one.id, two.id);
+      await useContactsStore.getState().fetchContacts();
+      const group = await useContactsStore.getState().createGroup(`Live Tick Group ${RUN}`, [], bookId);
+      createdCards.push(group.id);
+
+      await useContactsStore.getState().addContactsToGroup(group.id, [one.id, two.id]);
+
+      await useContactsStore.getState().fetchContacts();
+      const recipients = useContactsStore.getState().getGroupRecipients(group.id).map((r) => r.email).sort();
+      expect(recipients).toEqual([`tick-one-${RUN}@example.org`, `tick-two-${RUN}@example.org`]);
+      const ticked = useContactsStore.getState().contacts.filter((c) => c.id === one.id || c.id === two.id);
+      expect(selectionRecipients(ticked).map((r) => r.email).sort()).toEqual(recipients);
     }, 60_000);
 
     it('deletes an address book that still holds contacts', async () => {
@@ -375,6 +462,121 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       expect(useFilterStore.getState().rules.map((r) => r.name)).toEqual([`Keep ${RUN}`, `Gone ${RUN}`]);
       expect(useToastStore.getState().toasts.some((x) => x.type === 'error')).toBe(false);
     }, 60_000);
+
+    // Webmail #885: a regex rule made the next save throw (header) or turned
+    // into `body :contains` (body).
+    it('saves the filters with a webmail regex rule and keeps it a regex rule', async () => {
+      expect(getSieveCapabilities()?.sieveExtensions).toContain('regex');
+      const regexRule: FilterRule = {
+        id: `regex-${RUN}`, name: `Regex ${RUN}`, enabled: true, matchType: 'any',
+        conditions: [
+          { field: 'subject', comparator: 'regex', value: `^Cron-${RUN}.*|mailman` },
+          { field: 'header', headerName: 'List-Id', comparator: 'regex', value: 'dev-[0-9]+\\.example\\.org' },
+          { field: 'body', comparator: 'regex', value: 'inv[0-9]{4,6}' },
+        ],
+        actions: [{ type: 'mark_read', value: '' }],
+        stopProcessing: false,
+      };
+      const content = generateScript([regexRule]);
+      expect(await validateSieveScript(content)).toEqual({ isValid: true });
+      if (created) await updateSieveScript(created, content, true);
+      else created = (await createSieveScript(`live-filters-${RUN}`, content, true)).id;
+
+      await useFilterStore.getState().selectAccount(null);
+      expect(useFilterStore.getState().rules[0]?.conditions).toEqual(regexRule.conditions);
+      useFilterStore.getState().addRule({
+        id: `plain-${RUN}`, name: `Plain ${RUN}`, enabled: true, matchType: 'all',
+        conditions: [{ field: 'from', comparator: 'contains', value: `plain-${RUN}@example.com` }],
+        actions: [{ type: 'star', value: '' }],
+        stopProcessing: false,
+      });
+      await useFilterStore.getState().saveFilters();
+      expect(useFilterStore.getState().error).toBeNull();
+
+      const saved = await getSieveScriptContent((await getSieveScripts()).find((x) => x.id === created)!.blobId);
+      expect(saved).toMatch(/^require \[[^\]]*"regex"/m);
+      expect(saved).toContain(`header :regex "Subject" "^Cron-${RUN}.*|mailman"`);
+      expect(saved).toContain('body :regex "inv[0-9]{4,6}"');
+      expect(saved).not.toContain('body :contains');
+      const back = parseScript(saved);
+      expect(back.rules.find((r) => r.id === regexRule.id)?.conditions).toEqual(regexRule.conditions);
+      expect(back.rules.some((r) => r.id === `plain-${RUN}`)).toBe(true);
+    }, 60_000);
+
+    // Webmail 1.21: a rule could only sort new mail; the editor now offers to
+    // run it over what is in the Inbox already.
+    it('runs a rule over the messages already in the Inbox', async () => {
+      const MAIL = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'];
+      const inbox = (await getMailboxes()).find((m) => m.role === 'inbox' && !m.isShared)!;
+      const make = (key: string, subject: string) => ({
+        mailboxIds: { [inbox.id]: true }, keywords: {},
+        from: [{ email: `retro-${RUN}@example.net` }], to: [{ email: USER }], subject,
+        bodyStructure: { type: 'text/plain', partId: 'b' }, bodyValues: { b: { value: `${key} body` } },
+      });
+      const [[, created]] = (await client.request([['Email/set', {
+        accountId: client.accountId,
+        create: { hit: make('hit', `Retro ${RUN} weekly news`), miss: make('miss', `Retro ${RUN} invoice`) },
+      }, '0']], MAIL)).methodResponses as [string, Record<string, any>, string][];
+      const hit = created.created?.hit?.id as string;
+      const miss = created.created?.miss?.id as string;
+      expect(hit && miss, JSON.stringify(created.notCreated)).toBeTruthy();
+      try {
+        const rule: FilterRule = {
+          id: `retro-${RUN}`, name: `Retro ${RUN}`, enabled: true, matchType: 'all',
+          conditions: [{ field: 'subject', comparator: 'contains', value: `Retro ${RUN} weekly` }],
+          actions: [{ type: 'mark_read', value: '' }, { type: 'star', value: '' }],
+          stopProcessing: false,
+        };
+        expect((await planRuleOnMailbox(rule, inbox.id)).ids).toEqual([hit]);
+        expect(await applyRuleToMailbox(rule, inbox.id)).toBe(1);
+
+        const [[, got]] = (await client.request([['Email/get', {
+          accountId: client.accountId, ids: [hit, miss], properties: ['keywords', 'mailboxIds'],
+        }, '0']], MAIL)).methodResponses as [string, Record<string, any>, string][];
+        const byId = new Map((got.list as Array<{ id: string; keywords: Record<string, boolean> }>).map((e) => [e.id, e]));
+        expect(byId.get(hit)?.keywords).toMatchObject({ $seen: true, $flagged: true });
+        expect(byId.get(miss)?.keywords?.$seen).toBeFalsy();
+        // Run again, nothing is left to change.
+        expect(await applyRuleToMailbox(rule, inbox.id)).toBe(0);
+      } finally {
+        await client.request([['Email/set', { accountId: client.accountId, destroy: [hit, miss].filter(Boolean) }, '0']], MAIL)
+          .catch(() => undefined);
+      }
+    }, 60_000);
+
+    // Webmail 1.20 "Block my calendar": a reply with dates keeps a busy event
+    // in the default calendar, and switching it off takes the event away.
+    it('keeps a busy event for an out-of-office reply with dates and removes it when switched off', async () => {
+      const CAL = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:calendars'];
+      const byUid = async () => {
+        const res = await client.request([
+          ['CalendarEvent/query', { accountId: client.accountId, filter: { uid: oooUid(client.accountId) } }, '0'],
+          ['CalendarEvent/get', {
+            accountId: client.accountId, '#ids': { resultOf: '0', name: 'CalendarEvent/query', path: '/ids' },
+            properties: ['id', 'title', 'freeBusyStatus', 'utcStart', 'utcEnd', 'keywords'],
+          }, '1'],
+        ], CAL);
+        return ((res.methodResponses[1][1] as { list?: Array<Record<string, any>> }).list) ?? [];
+      };
+      // An account that has one already (a person set it up) is left alone.
+      if ((await byUid()).length > 0) return;
+      const reply = {
+        isEnabled: true, fromDate: '2027-07-05T07:00:00Z', toDate: '2027-07-09T15:00:00Z', subject: `Away ${RUN}`,
+      };
+      try {
+        expect(await syncVacationBlock(undefined, reply, 'save', new Date())).toBe('create');
+        const [event] = await byUid();
+        expect(event).toMatchObject({ title: `Away ${RUN}`, freeBusyStatus: 'busy', keywords: { [OOO_KEYWORD]: true } });
+        expect(Date.parse(event.utcStart)).toBe(Date.parse(reply.fromDate));
+        expect(Date.parse(event.utcEnd)).toBe(Date.parse(reply.toDate));
+
+        expect(await syncVacationBlock(undefined, { ...reply, isEnabled: false }, 'save', new Date(), reply)).toBe('destroy');
+        expect(await byUid()).toEqual([]);
+      } finally {
+        const left = (await byUid().catch(() => [])).map((e) => e.id);
+        if (left.length) await client.request([['CalendarEvent/set', { accountId: client.accountId, destroy: left }, '0']], CAL).catch(() => undefined);
+      }
+    }, 60_000);
   });
 });
 
@@ -428,6 +630,28 @@ liveTwo('live Stalwart: address book sharing (0.16 and 1.0)', () => {
     expect((await getAddressBooks()).find((b) => b.id === bookId)?.shareWith?.[principal]).toMatchObject({ mayWrite: true });
     await setAddressBookShare(bookId, principal, null);
     expect((await getAddressBooks()).find((b) => b.id === bookId)?.shareWith?.[principal]).toBeUndefined();
+  }, 60_000);
+
+  // 8dfaa3960: the contact screen offered Edit, Move and Delete, which the
+  // server then refused.
+  it('reads a book shared read-only as read-only for its contacts, and one shared to write as editable', async () => {
+    const principal = other.accountId;
+    const owner = getContactsAccountId();
+    const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+    const booksSeenByOther = async () => {
+      await other.connect(SERVER!, USER2!, PASS2);
+      const [[, got]] = (await other.request([['AddressBook/get', { accountId: owner, ids: null, properties: ['id', 'myRights'] }, '0']],
+        ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'])).methodResponses as [string, { list?: AddressBook[] }, string][];
+      return got.list ?? [];
+    };
+    try {
+      await setAddressBookShare(bookId, principal, read);
+      expect(isContactReadOnly({ addressBookIds: { [bookId]: true } }, await booksSeenByOther())).toBe(true);
+      await setAddressBookShare(bookId, principal, { ...read, mayWrite: true });
+      expect(isContactReadOnly({ addressBookIds: { [bookId]: true } }, await booksSeenByOther())).toBe(false);
+    } finally {
+      await setAddressBookShare(bookId, principal, null).catch(() => undefined);
+    }
   }, 60_000);
 
   it('lists a shared account for contacts only as far as its capabilities go', async () => {

@@ -40,8 +40,10 @@ describe('the out-of-office pane', () => {
     expect(source).toContain("t('settings.vacation.status.scheduled', 'Scheduled')");
   });
 
-  it('sets an empty subject or body placeholder apart from typed text', () => {
-    expect(source).toContain('!body && styles.placeholderShown');
+  // The body has no sample text as a placeholder any more: a blank reply
+  // starts with real text (webmail 2094cca38).
+  it('sets an empty subject placeholder apart from typed text', () => {
+    expect(source).not.toContain('!body && styles.placeholderShown');
     expect(source).toContain('!subject && styles.placeholderShown');
     expect(source).toMatch(/placeholderShown: \{ fontStyle: 'italic' \}/);
   });

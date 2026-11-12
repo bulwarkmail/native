@@ -24,6 +24,7 @@ import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 /** A calendar view listed at the top of the drawer. */
 export interface DrawerViewOption {
@@ -39,6 +40,11 @@ interface CalendarSidebarDrawerProps {
   onSelectView?: (key: string) => void;
   onRefresh?: () => void;
   calendars: Calendar[];
+  /**
+   * Task-only lists, listed below the calendars with the same tick, which
+   * also steers their tasks on the grid (webmail calendar-sidebar-panel).
+   */
+  taskLists?: Calendar[];
   hiddenCalendarIds: string[];
   onToggle: (id: string) => void;
   onClose: () => void;
@@ -69,6 +75,7 @@ export function CalendarSidebarDrawer({
   onSelectView,
   onRefresh,
   calendars,
+  taskLists = [],
   hiddenCalendarIds,
   onToggle,
   onClose,
@@ -237,6 +244,15 @@ export function CalendarSidebarDrawer({
               <Section title={t('calendar.drawer.subscribed', 'Subscribed')} calendars={subscribed} {...sectionProps} />
             )}
 
+            {taskLists.length > 0 && (
+              <Section
+                title={t('ux_pim_calendar.task_lists', 'Task lists')}
+                calendars={taskLists}
+                {...sectionProps}
+                onSetDefault={undefined}
+              />
+            )}
+
             {(onImport || onManageSubscriptions || onCreate) && (
               <View style={styles.actionsSection}>
                 {onCreate && (
@@ -309,6 +325,7 @@ function Section({
   isSubscriptionCalendar?: (calendarId: string) => boolean;
 }) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -361,7 +378,7 @@ function Section({
                 {visible && <Check size={12} color={c.textInverse} />}
               </View>
               <Text style={[styles.rowName, !visible && styles.rowNameMuted]} numberOfLines={1}>
-                {cal.name}
+                {collectionNames.calendar(cal)}
               </Text>
               {cal.isDefault && !cal.isShared && (
                 <Star size={14} color={c.textMuted} fill={c.textMuted} />

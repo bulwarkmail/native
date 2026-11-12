@@ -500,6 +500,8 @@ export interface CalendarEvent {
   calendarIds: Record<string, boolean>;
   title: string;
   description?: string;
+  /** "text/html" when another client stored the description as HTML. */
+  descriptionContentType?: string | null;
   start: string;
   duration?: string;
   // `null` on write clears a field the server holds (JSON drops `undefined`,

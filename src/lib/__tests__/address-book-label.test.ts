@@ -15,7 +15,7 @@ describe('addressBookLabel', () => {
   it('names a shared book once when Stalwart already put the account in its name', () => {
     // As Stalwart 0.16 and 1.0 name a group's default book.
     expect(addressBookLabel({ name: 'Stalwart Address Book (team@example.org)', isShared: true, accountName: 'team@example.org' }))
-      .toBe('Stalwart Address Book (team@example.org)');
+      .toBe('Contacts (team@example.org)');
   });
 
   it('adds the account to a shared book whose name does not say where it is from', () => {
@@ -26,7 +26,7 @@ describe('addressBookLabel', () => {
   it('is what the contacts settings list shows', () => {
     // The shared book read "Stalwart Address Book (team@example.org) (team@example.org)".
     const settings = fs.readFileSync(path.resolve(__dirname, '../../components/settings/ContactsSettings.tsx'), 'utf8');
-    expect(settings).toMatch(/\{addressBookLabel\(book\)\}/);
+    expect(settings).toMatch(/\{addressBookLabel\(book, t\('uxs_wording\.default_address_book', 'Contacts'\)\)\}/);
     expect(settings).not.toMatch(/\$\{book\.name\} \(\$\{book\.accountName\}\)/);
   });
 
@@ -38,7 +38,7 @@ describe('addressBookLabel', () => {
 
   it('is what the contact form shows', () => {
     const form = fs.readFileSync(path.resolve(__dirname, '../../screens/ContactFormScreen.tsx'), 'utf8');
-    expect(form).toMatch(/\{addressBookLabel\(book\)\}/);
+    expect(form).toMatch(/\{addressBookLabel\(book, t\('uxs_wording\.default_address_book', 'Contacts'\)\)\}/);
     expect(form).not.toMatch(/\$\{book\.name\} \(\$\{book\.accountName\}\)/);
   });
 });

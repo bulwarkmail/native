@@ -49,6 +49,7 @@ import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import { SafeAreaModal } from './SafeAreaModal';
+import { VacationDrawerBanner } from './VacationDrawerBanner';
 import { setPendingSettingsTab } from '../navigation/pending-settings-tab';
 import {
   isAccountMuted, isMailboxMuted, mailboxOverridesForAccount, resetMailboxMutes, setAccountMuted, setMailboxMuted,
@@ -1182,6 +1183,9 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
           </View>
         )}
 
+        <VacationDrawerBanner
+          onOpenSettings={() => { onClose(); setPendingSettingsTab('vacation'); navigation.navigate('MainTabs', { screen: 'Settings' } as never); }}
+        />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
           {/* Quick views */}
           {showUnified && (

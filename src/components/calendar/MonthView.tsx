@@ -24,6 +24,8 @@ import {
 } from '../../lib/calendar-utils';
 import { dayIndexIn, monthChipShowsTime, monthKeyOf, monthMask } from '../../lib/calendar-month-scroll';
 import { isInactiveEvent } from '../../lib/calendar-participants';
+import { gridTitle } from '../../lib/calendar-reply-state';
+import { monthEventLook } from '../../lib/calendar-month-timed-style';
 import { TINTED_BAR_WIDTH, eventBlockColors } from '../../lib/event-colors';
 import { useCalendarLocale } from '../../lib/calendar-locale';
 import { dayCellAccessibilityLabel } from '../../lib/calendar-a11y';
@@ -157,6 +159,8 @@ function MonthWeekRowInner({
   const { width } = useWindowDimensions();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
+  // Bar, coloured text, or dot and text for events with a start time (#1449).
+  const timedStyle = useSettingsStore((s) => s.calendarMonthTimedEvents);
   const paint = useCvdColor();
   const chipTime = monthChipShowsTime(true, width / 7);
   if (variant === 'full') {
@@ -257,21 +261,27 @@ function MonthWeekRowInner({
                   // cancelled events outlined (repos/branding/APP.md).
                   const inactive = isInactiveEvent(event, currentUserEmails);
                   const colors = eventBlockColors(paint(getEventColor(event, calendars)), inactive, c, tinted);
+                  const look = monthEventLook(event, timedStyle);
+                  const calendarColor = paint(getEventColor(event, calendars));
                   return (
                     <View
                       key={`${event.id}-${idx}`}
-                      style={[
+                      style={look === 'bar' ? [
                         styles.chip,
                         { backgroundColor: colors.fill },
                         colors.bar ? { borderStartWidth: TINTED_BAR_WIDTH, borderStartColor: colors.bar } : null,
                         colors.border !== null && [styles.chipInactive, { borderColor: colors.border }],
-                      ]}
+                      ] : styles.chip}
                     >
-                      <Text style={[styles.chipText, { color: colors.text }]} numberOfLines={1}>
+                      <Text
+                        style={[styles.chipText, { color: look === 'bar' ? colors.text : look === 'text' ? calendarColor : c.text }]}
+                        numberOfLines={1}
+                      >
+                        {look === 'dot' ? <Text style={{ color: calendarColor }}>{'● '}</Text> : null}
                         {event.showWithoutTime || !chipTime
                           ? null
                           : `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `}
-                        <Text style={inactive && styles.chipTextInactive}>{event.title || ''}</Text>
+                        <Text style={inactive && styles.chipTextInactive}>{gridTitle(event, event.title || '', currentUserEmails)}</Text>
                       </Text>
                     </View>
                   );
@@ -332,6 +342,8 @@ function FullWeekRow({
   const { t, system } = useCalendarLocale();
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
+  // Bar, coloured text, or dot and text for events with a start time (#1449).
+  const timedStyle = useSettingsStore((s) => s.calendarMonthTimedEvents);
   const paint = useCvdColor();
   const showTime = monthChipShowsTime(showTimeInMonthView, width / 7);
   return (
@@ -374,6 +386,8 @@ function FullWeekRow({
             {dayEvents.slice(0, shown).map((event, idx) => {
               const inactive = isInactiveEvent(event, currentUserEmails);
               const colors = eventBlockColors(paint(getEventColor(event, calendars)), inactive, c, tinted);
+              const look = monthEventLook(event, timedStyle);
+              const calendarColor = paint(getEventColor(event, calendars));
               // No time on events that fill the whole day.
               const time = showTime && !event.showWithoutTime && !isTimedEventFullDayOnDate(event, d)
                 ? `${format(getEventStartDate(event), timePattern(timeFormat), { locale })} `
@@ -381,19 +395,24 @@ function FullWeekRow({
               return (
                 <View
                   key={`${event.id}-${idx}`}
-                  style={[
+                  style={look === 'bar' ? [
                     styles.fullChip,
                     { backgroundColor: colors.fill },
                     colors.bar ? { borderStartWidth: TINTED_BAR_WIDTH, borderStartColor: colors.bar } : null,
                     colors.border !== null && [styles.chipInactive, { borderColor: colors.border }],
-                  ]}
+                  ] : styles.fullChip}
                 >
                   <Text
-                    style={[styles.fullChipText, { color: colors.text }, inactive && styles.chipTextInactive]}
+                    style={[
+                      styles.fullChipText,
+                      { color: look === 'bar' ? colors.text : look === 'text' ? calendarColor : c.text },
+                      inactive && styles.chipTextInactive,
+                    ]}
                     numberOfLines={1}
                     ellipsizeMode="clip"
                   >
-                    {time}{event.title || ''}
+                    {look === 'dot' ? <Text style={{ color: calendarColor }}>{'● '}</Text> : null}
+                    {time}{gridTitle(event, event.title || '', currentUserEmails)}
                   </Text>
                 </View>
               );

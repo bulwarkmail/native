@@ -205,7 +205,7 @@ function buildInCalendarFilter(calendarIds: string[]): Record<string, unknown> {
 // for them together with `utcStart` or `utcEnd` (invalidArguments, before any
 // id is read). getEvents reads them with a get of their own.
 const CALENDAR_EVENT_PROPERTIES = [
-  'id', '@type', 'uid', 'calendarIds', 'title', 'description',
+  'id', '@type', 'uid', 'calendarIds', 'title', 'description', 'descriptionContentType',
   'start', 'duration', 'timeZone', 'showWithoutTime',
   'utcStart', 'utcEnd', 'status', 'freeBusyStatus',
   'participants', 'alerts', 'useDefaultAlerts', 'recurrenceRule',

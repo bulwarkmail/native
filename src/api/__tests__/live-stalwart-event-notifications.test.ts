@@ -16,7 +16,7 @@
  *
  * Verified against Stalwart 0.16.27 and 1.0.1.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import { CAPABILITIES } from '../types';
@@ -31,6 +31,7 @@ const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
 const USER2 = process.env.BULWARK_LIVE_USER2;
 const PASS = process.env.BULWARK_LIVE_PASS ?? '';
+const PASS2 = process.env.BULWARK_LIVE_PASS2 ?? PASS;
 const liveTwo = SERVER && PASS && USER2 ? describe : describe.skip;
 
 const USING = [CAPABILITIES.CORE, CAPABILITIES.CALENDARS];
@@ -89,7 +90,7 @@ liveTwo('live Stalwart calendar event notifications', () => {
     await client.connect(SERVER!, USER, PASS);
     (mod.jmapClient as unknown as JMAPClient).restoreSnapshot(client.snapshot());
     other = new JMAPClient();
-    await other.connect(SERVER!, USER2!, PASS);
+    await other.connect(SERVER!, USER2!, PASS2);
     // Whatever is pending already belongs to someone else's run.
     before = new Set((await getCalendarEventNotifications()).map((n) => n.id));
   }, 60_000);
@@ -164,6 +165,19 @@ liveTwo('live Stalwart calendar event notifications', () => {
     const toast = eventNotificationToast(cancel!, t)!;
     expect(toast.type, JSON.stringify(cancel)).toBe('warning');
     expect(toast.title).toContain(`cancelled "${RUN} review"`);
+
+    // #1567: read a page of maxObjectsInGet at a time; one per page here, so
+    // the invitation and the cancellation take two pages at least.
+    const all = (await getCalendarEventNotifications()).map((n) => n.id);
+    const singleton = (await import('../jmap-client')).jmapClient;
+    const pageOfOne = vi.spyOn(singleton, 'getMaxObjectsInGet').mockReturnValue(1);
+    try {
+      const paged = (await getCalendarEventNotifications()).map((n) => n.id);
+      expect(paged).toEqual(all);
+      for (const id of ours) expect(paged).toContain(id);
+    } finally {
+      pageOfOne.mockRestore();
+    }
 
     await destroyCalendarEventNotifications([...ours]);
     const after = (await getCalendarEventNotifications()).map((n) => n.id);

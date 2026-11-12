@@ -37,6 +37,7 @@ import {
 import type { CalendarFocus, DayRange } from '../../lib/calendar-scroll-window';
 import { displayNow, displayNowMinutes } from '../../lib/calendar-timezone';
 import { isInactiveEvent } from '../../lib/calendar-participants';
+import { gridTitle } from '../../lib/calendar-reply-state';
 import { eventBlockColors } from '../../lib/event-colors';
 import {
   allDayRowsInView,
@@ -454,7 +455,7 @@ function TimeGridScrollViewInner({
             {visibleSegments.map((segment) => (
               <AllDayEventBar
                 key={`${segment.event.id}:${segment.startIndex}:${segment.row}`}
-                title={segment.event.title || t('calendar.events.no_title', '(No title)')}
+                title={gridTitle(segment.event, segment.event.title || t('calendar.events.no_title', '(No title)'), currentUserEmails)}
                 colors={eventBlockColors(
                   paint(getEventColor(segment.event, calendars)),
                   isInactiveEvent(segment.event, currentUserEmails),
@@ -647,7 +648,7 @@ const DayColumn = React.memo(function DayColumn({
         return (
           <TimedEventBlock
             key={event.id}
-            title={event.title || t('calendar.events.no_title', '(No title)')}
+            title={gridTitle(event, event.title || t('calendar.events.no_title', '(No title)'), currentUserEmails)}
             timeLabel={endMinutes - startMinutes >= TIME_LINE_MIN_MINUTES
               ? minutesToTimeLabel(startMinutes, timeFormat)
               : null}

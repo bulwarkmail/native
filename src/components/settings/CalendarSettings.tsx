@@ -12,6 +12,7 @@ import { AUTO_TIME_ZONE, getDeviceTimeZone, isValidTimeZone } from '../../lib/ca
 import { deviceSyncAvailable } from '../../device-sync/app/available';
 import { CALENDAR_AUTHORITY } from '../../device-sync/types';
 import { DeviceSyncSection } from './device-sync/DeviceSyncSection';
+import type { MonthTimedEventStyle } from '../../lib/calendar-month-timed-style';
 
 // A compact list of IANA zones for the picker (#755). The device zone and
 // any previously stored value are always offered too.
@@ -45,6 +46,7 @@ export function CalendarSettings() {
   const timeZone = useSettingsStore((s) => s.calendarTimeZone);
   const showTimeInMonth = useSettingsStore((s) => s.calendarShowTimeInMonth);
   const showWeekNumbers = useSettingsStore((s) => s.calendarShowWeekNumbers);
+  const monthTimedEvents = useSettingsStore((s) => s.calendarMonthTimedEvents);
   const tintedEvents = useSettingsStore((s) => s.calendarTintedEvents);
   const freeScroll = useSettingsStore((s) => s.calendarFreeScroll);
   const birthdayCal = useSettingsStore((s) => s.showBirthdayCalendar);
@@ -151,6 +153,24 @@ export function CalendarSettings() {
           <ToggleSwitch
             checked={tintedEvents}
             onChange={(v) => update('calendarTintedEvents', v)}
+          />
+        </SettingItem>
+
+        <SettingItem
+          label={t('calendar.settings.month_timed_events', 'Timed events in month view')}
+          description={t(
+            'calendar.settings.month_timed_events_desc',
+            'How events with a start time look in the month view. All-day and multi-day events stay bars.',
+          )}
+        >
+          <Select
+            value={monthTimedEvents}
+            onChange={(v) => update('calendarMonthTimedEvents', v as MonthTimedEventStyle)}
+            options={[
+              { value: 'bar', label: t('calendar.settings.month_timed_events_bar', 'Bar') },
+              { value: 'text', label: t('calendar.settings.month_timed_events_text', 'Colored text') },
+              { value: 'dot', label: t('calendar.settings.month_timed_events_dot', 'Dot and text') },
+            ]}
           />
         </SettingItem>
 

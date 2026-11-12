@@ -10,6 +10,7 @@ import type {
 import { PERIOD_REQUIRES, hasPeriod, periodTests } from './period';
 import { VACATION_FORWARD_MARKER, isValidVacationForward, normalizeVacationForward } from './vacation-forward';
 import { isValidVacationAudience, normalizeVacationAudience } from './vacation-audience';
+import { usesRegex } from './regex';
 
 // Ported from the webmail's lib/sieve/generator.ts. Emits an RFC 5228 Sieve
 // script with a leading `@metadata` JSON comment that lets the parser round-trip
@@ -91,7 +92,7 @@ function generateCondition(condition: FilterCondition): string {
   const values = toValueList(value);
 
   if (field === 'body') {
-    const matchType = comparator === 'is' ? ':is' : ':contains';
+    const matchType = comparator === 'is' ? ':is' : comparator === 'regex' ? ':regex' : ':contains';
     return `body ${matchType} ${formatStringArg(values)}`;
   }
 
@@ -155,6 +156,8 @@ function generateCondition(condition: FilterCondition): string {
       return `header :matches "${headerName}" ${formatStringArg(values, (v) => `*${v}`)}`;
     case 'matches':
       return `header :matches "${headerName}" ${formatStringArg(values)}`;
+    case 'regex':
+      return `header :regex "${headerName}" ${formatStringArg(values)}`;
     default:
       // As with an unknown field: a comparator from a newer client written
       // as `header :contains` would quietly broaden the rule ("is the
@@ -256,6 +259,7 @@ function computeRequires(
     for (const condition of rule.conditions) {
       if (condition.field === 'body') extensions.add('body');
       if (condition.field === 'attachment') extensions.add('mime');
+      if (usesRegex(condition)) extensions.add('regex');
     }
     for (const action of rule.actions) {
       switch (action.type) {
@@ -379,8 +383,14 @@ export function generateScript(
   // write it back without what it does not know: a rule without its period
   // forwards for good, the auto-reply goes to everyone. It leaves version 2
   // alone. A forward that is off only loses its remembered address that way,
-  // so it stays version 1, as the webmail writes it.
-  if (metadata.rules.some(hasPeriod) || metadata.vacationForward?.enabled || metadata.vacationAudience) {
+  // so it stays version 1, as the webmail writes it. A regex condition would
+  // come back from those as a plain "contains".
+  if (
+    metadata.rules.some(hasPeriod)
+    || metadata.rules.some((r) => r.conditions.some(usesRegex))
+    || metadata.vacationForward?.enabled
+    || metadata.vacationAudience
+  ) {
     metadata.version = 2;
   }
   // The rules ride in a `/* */` comment, which the first `*/` ends: one in a

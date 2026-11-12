@@ -276,165 +276,165 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Calendar
 
-- [ ] **An HTML event description shows its markup, and editing keeps it marked as HTML** — `P2` — `bug`
+- [x] **An HTML event description shows its markup, and editing keeps it marked as HTML** — `P2` — `bug` — fixed in 227974f6
   - What WEB does: shows an HTML description as text, saves an edit as plain text, and duplicating keeps the format (`lib/calendar-description.ts:11`, `:35`). Changelog 1.20.0.
   - What RN does: shows `event.description` as text with the tags in it (`src/components/calendar/EventDetailSheet.tsx:363-366`); the editor loads it raw (`src/components/calendar/EventModal.tsx:299`) and saves `description` without touching `descriptionContentType` (`:412`). Device sync already converts (`src/device-sync/calendar/image.ts:66`).
   - Fix hint: port lib/calendar-description.ts: htmlToPlainText for display and editing, and send `descriptionContentType: 'text/plain'` with an edited description.
 
-- [ ] **No "Suggest times" in the event editor** — `P3` — `missing`
+- [ ] **No "Suggest times" in the event editor** — `P3` — `missing` — not done: decision 14
   - What WEB does: finds the next slots free for every attendee whose calendar can be checked, and says who couldn't be checked (`components/calendar/find-a-time.tsx`). Changelog 1.20.0 (#1164).
   - What RN does: shows invitees' free/busy (`src/components/calendar/ParticipantAvailability.tsx`) but suggests no slot.
   - Fix hint: port the slot search on top of src/lib/calendar-free-busy.ts.
 
-- [ ] **Unanswered invitations aren't marked in the grid** — `P3` — `missing`
+- [x] **Unanswered invitations aren't marked in the grid** — `P3` — `missing` — fixed in d8985c11
   - What WEB does: a "?" / "Reply" marker on unanswered invitations in month, week, day and agenda that opens the answers (`components/calendar/calendar-month-view.tsx:42`, `components/calendar/calendar-app.tsx:979`, `:1986`). Changelog 1.21.0.
   - What RN does: only declined and cancelled events are drawn differently (`src/lib/calendar-participants.ts:148-153`); RSVP is in the detail sheet only (`src/components/calendar/EventDetailSheet.tsx:232`).
   - Fix hint: a needs-action marker on event chips; tapping opens the detail sheet at the RSVP row.
 
-- [ ] **No time zone picker for an event** — `P3` — `partial`
+- [ ] **No time zone picker for an event** — `P3` — `partial` — not done: the editor edits wall clocks in the calendar zone (src/lib/event-editor-times.ts); a zone of its own per event changes that time model and its save path, a larger change
   - What WEB does: events keep their own time zone, picked by city in the editor (`components/calendar/event-modal.tsx:24`, `:1456`). Changelog 1.21.0.
   - What RN does: keeps an event's zone when its times are untouched, but edits wall clock in the calendar zone and offers no zone choice (`src/lib/event-editor-times.ts:18-24`, `src/components/calendar/EventModal.tsx:45`).
   - Fix hint: a zone row in the editor using the zone list behind the calendar time zone setting.
 
-- [ ] **The calendar shows only the active sign-in's calendars** — `P3` — `missing`
+- [ ] **The calendar shows only the active sign-in's calendars** — `P3` — `missing` — not done: needs per-login clients in the calendar store, a larger change
   - What WEB does: every signed-in account's calendars and tasks show together (`stores/calendar-store.ts:609`, `stores/task-store.ts`). Changelog 1.21.0; the 1.21.1 fix for an account added second (#1618) belongs to this.
   - What RN does: the store holds one login and resets on a switch (`src/stores/calendar-store.ts:313-357`).
   - Fix hint: needs per-login clients in the calendar store; a larger change.
 
-- [ ] **An invitation in a calendar shared with the user can't be answered as its owner** — `P3` — `missing`
+- [ ] **An invitation in a calendar shared with the user can't be answered as its owner** — `P3` — `missing` — not done: needs calendar-delegate ported and the answer target in CalendarInvitationBanner (src/components/email, outside this agent's files), a larger change
   - What WEB does: answers as the owner with SENT-BY naming the user; group calendars answer as the group (`lib/calendar-delegate.ts`, `stores/calendar-store.ts:333`). Changelog 1.20.0 (#634).
   - What RN does: the banner imports only into the user's own calendars (`src/components/email/CalendarInvitationBanner.tsx:166-171`); no SENT-BY handling outside recurrence copying (`src/lib/recurrence-instances.ts:423`).
   - Fix hint: port calendar-delegate and offer the shared owner's calendar as an answer target.
 
-- [ ] **Invitations from another of the organisation's domains warn about missing authentication** — `P3` — `bug`
+- [ ] **Invitations from another of the organisation's domains warn about missing authentication** — `P3` — `bug` — not done: the policy's internal domains are dropped by sanitizePolicy in src/lib/org-policy.ts, which this wave may not edit; goes with the External sender chip
   - What WEB does: treats mail without Authentication-Results from the domains the External sender chip counts as internal (identity domains plus the policy's list) as internal (`lib/calendar-invitation.ts`, `lib/external-mail.ts:61`). 400dfb9c6 (#1593).
   - What RN does: only the domains of the user's own addresses count (`src/lib/calendar-invitation.ts:528-543`); the policy's internal domains aren't read.
   - Fix hint: read the internal domains from the organisation policy (the same list the External sender chip needs) and pass them in.
 
-- [ ] **The default calendar and address book show as "Stalwart Calendar (address)"** — `P3` — `bug`
+- [x] **The default calendar and address book show as "Stalwart Calendar (address)"** — `P3` — `bug` — fixed in 0460bb80
   - What WEB does: shows Stalwart's default collection names as plain "Calendar" and "Contacts", and a colleague's as "Calendar (bob@...)" (`lib/default-collection-name.ts`). e403478a0.
   - What RN does: shows the server name (`src/components/calendar/CalendarSidebarDrawer.tsx:364`, `src/components/contacts/ContactsSidebarDrawer.tsx:185`); `src/lib/address-book-label.ts:1-20` only avoids doubling the address.
   - Fix hint: port collectionLabel and use it in the drawers, pickers and settings.
 
-- [ ] **No choice how timed events look in the month view** — `P3` — `missing`
+- [x] **No choice how timed events look in the month view** — `P3` — `missing` — fixed in e3ad5339
   - What WEB does: bar, coloured text, or dot and text (`stores/settings-store.ts:485-486`, `:804`). Changelog 1.20.0 (#1449).
   - What RN does: always a filled chip (`src/components/calendar/MonthView.tsx:374-399`).
   - Fix hint: a setting in Calendar settings and two more chip styles.
 
-- [ ] **No company calendars and no one-step free/busy share with a group** — `P3` — `missing`
+- [ ] **No company calendars and no one-step free/busy share with a group** — `P3` — `missing` — not done: decision 14
   - What WEB does: read-only company calendars the admin lists under "Organisation" (`lib/company-calendars.ts`), and sharing free/busy with a group in one click, or by admin at sign-in (`lib/free-busy-share.ts`, `components/settings/free-busy-share-setting.tsx`). Changelog 1.20.0.
   - What RN does: free/busy is a per-calendar share preset (`src/components/calendar/CalendarShareSheet.tsx:6-23`); no company calendars.
   - Fix hint: both come from the organisation policy the app already reads (`src/lib/org-policy.ts`).
 
-- [ ] **Many calendar notifications at once come as a stack of separate toasts** — `P3` — `bug`
+- [x] **Many calendar notifications at once come as a stack of separate toasts** — `P3` — `bug` — fixed in 0ff300c6
   - What WEB does: pages through them and shows many as one toast; share toasts name the collection. Changelog 1.21.0 (#1567, #1552).
   - What RN does: one toast per notification in a loop (`src/lib/calendar-event-notifications.ts:110-115`).
   - Fix hint: above two or three, one summary toast that opens the calendar.
 
 ### Tasks
 
-- [ ] **A repeating task shows only once in the calendar, and checking it off completes the whole series** — `P2` — `bug`
+- [x] **A repeating task shows only once in the calendar, and checking it off completes the whole series** — `P2` — `bug` — fixed in 7dbf2908
   - What WEB does: expands repeating tasks in month, week and day, honours overrides, ticks one occurrence through recurrenceOverrides, and moves a series to its next due (or start) date when it is checked off; reads Stalwart's singular `recurrenceRule` for tasks (`lib/calendar-tasks.ts:51`, `:60`, `:126`, `stores/task-store.ts:249`). 7ee54fa10, dbdf9efed, 4049ad2a8, 57f294f01 (#1621).
   - What RN does: task chips drop the rules (`src/screens/CalendarScreen.tsx:344-366`, `recurrenceRules: undefined` at `:362`), and the tick sets `progress: completed` on the task itself (`src/stores/calendar-store.ts:1588-1605`), so a weekly task is gone for good after one tick. RN's getEvents already normalises recurrenceRule (`src/api/calendar.ts:989`).
   - Fix hint: port the occurrence expansion and the toggle logic from task-store, keeping RN's own `originalId` for shared tasks (the web's later seriesId fix).
 
-- [ ] **Task lists can't be ticked on and off in the calendar drawer** — `P3` — `partial`
+- [x] **Task lists can't be ticked on and off in the calendar drawer** — `P3` — `partial` — fixed in 200f07a0
   - What WEB does: task-only lists show below the calendars in month, week and day with the same tick as in Tasks, and their tasks show on the grid accordingly; the agenda's sidebar leaves them out (`components/calendar/calendar-sidebar-panel.tsx`, `lib/calendar-tasks.ts:16`). c476b5839, 903969a5a (#1589).
   - What RN does: hides task lists from the drawer (`src/screens/CalendarScreen.tsx:375-384`) and shows every task with a due date on the grid regardless of list (`:344-348`).
   - Fix hint: list task lists in CalendarSidebarDrawer and filter taskEvents by hidden ids.
 
-- [ ] **Empty task lists, and task lists made in iOS, Thunderbird or DAVx5, count as event calendars; the app can't make a task list** — `P3` — `partial`
+- [ ] **Empty task lists, and task lists made in iOS, Thunderbird or DAVx5, count as event calendars; the app can't make a task list** — `P3` — `partial` — not done: needs a CalDAV PROPFIND/MKCALENDAR client for the component set, which the app does not have yet
   - What WEB does: reads `supported-calendar-component-set` over CalDAV once per account, and remembers a calendar made for tasks while it is still empty (`lib/webdav/calendar-collection.ts:5`, `:94`, `lib/calendar-targets.ts`). ae1c1bef7 (#1605), 91f211723 (#1595).
   - What RN does: decides only from the objects a calendar holds (`src/lib/calendar-component-detection.ts:1-10`), so an empty list is an event calendar; the calendar editor has no kind choice (`src/components/calendar/CalendarEditSheet.tsx`). File 10 left the component set for lack of a CalDAV client.
   - Fix hint: a PROPFIND against Stalwart's DAV endpoint for the component set; a "Tasks" kind on create.
 
-- [ ] **Tasks are off by default** — `P3` — `partial`
+- [x] **Tasks are off by default** — `P3` — `partial` — fixed in ffa3a3c8
   - What WEB does: tasks in task lists show and are on by default (`stores/settings-store.ts:1184-1185`). Changelog 1.21.0.
   - What RN does: `enableCalendarTasks: false` (`src/stores/settings-store.ts:493`). The 2026-09 audit listed the default as an open question.
   - Fix hint: turn it on for new installs once the task rows above are in.
 
 ### Contacts
 
-- [ ] **Saving a contact drops details the editor doesn't show** — `P1` — `bug`
+- [x] **Saving a contact drops details the editor doesn't show** — `P1` — `bug` — fixed in 245825fc
   - What WEB does: an entry the user didn't touch goes back exactly as the card had it, under its key; an edited one is built on the card's entry, so properties the form doesn't show stay; a phone's custom type such as "car" shows and is kept (`components/contacts/contact-form.tsx:174-213`). Changelog 1.21.0 (Saving no longer rewrites fields you didn't touch), 1.21.0 (#1515).
   - What RN does: rebuilds every list from the form under new keys `e1`, `p1`, `a1`... with only the fields the form has (`src/lib/contact-form.ts:281-310`). The form keeps one context and one phone feature per entry (`:135-150`), so a save loses phone and email labels, `pref`, extra contexts and features, and address parts other than street, locality, region, postcode and country, on every entry, also the untouched ones.
   - Fix hint: keep the original entry and key per row and only rebuild rows the user changed, as entriesToSave does.
 
-- [ ] **Contacts in a read-only address book offer Edit, Move and Delete** — `P3` — `bug`
+- [x] **Contacts in a read-only address book offer Edit, Move and Delete** — `P3` — `bug` — fixed in a60ada1f
   - What WEB does: leaves them out of the detail, list and context menu (`components/contacts/contact-detail.tsx`, `contact-context-menu.tsx`). 8dfaa3960.
   - What RN does: the Edit button and the Move and Delete entries are always there (`src/screens/ContactDetailScreen.tsx:354-370`, `:393`); only the form's address book list checks `mayWrite` (`src/screens/ContactFormScreen.tsx:514`). The server refuses the change afterwards.
   - Fix hint: hide them when the contact's address book has `myRights.mayWrite === false`.
 
-- [ ] **Related contacts show as an id** — `P3` — `bug`
+- [x] **Related contacts show as an id** — `P3` — `bug` — fixed in 7fa42606
   - What WEB does: looks up the related card by uid and shows its name, which opens it (`lib/contact-related.ts:17`). 83c6e5eef (#1578).
   - What RN does: prints the `relatedTo` key, a uid (`src/screens/ContactDetailScreen.tsx:680-688`).
   - Fix hint: port findRelatedContact and push ContactDetail on tap.
 
-- [ ] **Contact event times are always 24-hour, and birthdays use English month names** — `P3` — `bug`
+- [x] **Contact event times are always 24-hour, and birthdays use English month names** — `P3` — `bug` — fixed in 010c0968 (the app has no date order setting)
   - What WEB does: contact activity follows the 12/24-hour setting; birthdays and anniversaries use the UI language and the date order setting (`lib/contact-dates.ts:8`). f73bd8837, 91e80b92d (#1616).
   - What RN does: `format(..., 'HH:mm')` (`src/components/contacts/ContactActivity.tsx:83`); partial dates use a fixed English month list (`src/lib/contact-utils.ts:259-277`).
   - Fix hint: use timePattern(timeFormat) and Intl.DateTimeFormat with the app locale.
 
-- [ ] **No CSV import** — `P3` — `missing`
+- [ ] **No CSV import** — `P3` — `missing` — not done: decision 14
   - What WEB does: imports CSV from Outlook and Google with a column-matching step (`lib/contacts/csv-import.ts`, `components/contacts/contact-import-dialog.tsx:11`). Changelog 1.21.0.
   - What RN does: vCard only (`src/components/contacts/ContactImportSheet.tsx:140`, `:261-262`).
   - Fix hint: port csv-import.ts (pure) and add a column-matching step.
 
-- [ ] **No merging of duplicate contacts** — `P3` — `missing`
+- [ ] **No merging of duplicate contacts** — `P3` — `missing` — not done: decision 14
   - What WEB does: merge duplicates with Undo (`lib/contacts/merge.ts`, `components/contacts/contact-merge-dialog.tsx`). Changelog 1.21.0.
   - What RN does: detects duplicates only on import (`src/components/contacts/ContactImportSheet.tsx:9`).
   - Fix hint: port merge.ts and offer Merge for two or more ticked contacts.
 
-- [ ] **Ticked contacts can't be written to or added to a group** — `P3` — `partial`
+- [x] **Ticked contacts can't be written to or added to a group** — `P3` — `partial` — fixed in cc577c93
   - What WEB does: acts on all ticked contacts, Send email included. Changelog 1.21.0.
   - What RN does: Export, Move, Add tag and Delete (`src/screens/ContactsScreen.tsx:446`, `:456`, `:466`, `:475`).
   - Fix hint: a "Send email" action that opens Compose with the addresses, and "Add to group".
 
-- [ ] **The directory can't be turned off, and the admin's same-domain rule isn't applied** — `P3` — `missing`
+- [ ] **The directory can't be turned off, and the admin's same-domain rule isn't applied** — `P3` — `missing` — partly in e3446c72 (the directory can be turned off); not done: the same-domain rule, sanitizePolicy in src/lib/org-policy.ts drops directorySameDomainOnly and directoryHiddenLocalparts and may not be edited in this wave
   - What WEB does: users and admins can turn the directory off (#1457, changelog 1.20.0); the policy can limit every account list (directory, suggestions, sharing, delegation, free/busy) to the user's own domains and hide names such as noreply (`lib/directory-scope.ts`). a236eb555.
   - What RN does: handles a server refusal (`src/lib/contact-directory.ts:20`) but has no setting and reads no directory rule from the policy (`src/lib/org-policy.ts`).
   - Fix hint: a Contacts setting, and apply `directorySameDomainOnly` from the public policy in principal-directory.
 
 ### Files
 
-- [ ] **Search finds files in the Files trash** — `P3` — `bug`
+- [x] **Search finds files in the Files trash** — `P3` — `bug` — fixed in 1d7304fc
   - What WEB does: leaves the `.Trash` subtree out of search hits (`lib/global-search/providers/files.ts:97-101`). Changelog 1.20.0.
   - What RN does: filterNodes skips only discoverable-only nodes and symlinks (`src/api/global-search.ts:469-485`).
   - Fix hint: drop nodes under findTrashFolder (`src/lib/files-trash.ts`).
 
-- [ ] **Uploading a name that exists always keeps both** — `P3` — `partial`
+- [x] **Uploading a name that exists always keeps both** — `P3` — `partial` — fixed in 97cf79f0
   - What WEB does: asks Replace, Keep both or Skip (`components/files/upload-conflict-dialog.tsx`). Changelog 1.21.0.
   - What RN does: numbers the new file " (1)" without asking (`src/api/files.ts:687`, `src/screens/FilesScreen.tsx:826-833`).
   - Fix hint: ask before the batch when a name exists; Replace can go through the trash as a delete does.
 
-- [ ] **An attached message without a file name is titled by that name, not its subject** — `P3` — `bug`
+- [x] **An attached message without a file name is titled by that name, not its subject** — `P3` — `bug` — fixed in 17ce8106 (the header; the share and download name come from use-file-preview.ts, not changed)
   - What WEB does: calls an unnamed message part ("attachment", "Email.eml") by its subject and saves it under it (`components/files/file-preview-modal.tsx:60`, `:388`). 4f00deffe.
   - What RN does: the preview header shows `item.name` (`src/components/email/AttachmentPreviewModal.tsx:397`); the subject is only used for the body view (`:219`).
   - Fix hint: use the parsed subject in the header and as the share/download name for unnamed message parts.
 
 ### Filters and vacation
 
-- [ ] **A webmail rule with a regular expression stops the app from saving filters, or changes a body rule** — `P2` — `bug`
+- [x] **A webmail rule with a regular expression stops the app from saving filters, or changes a body rule** — `P2` — `bug` — fixed in 1ff9421e
   - What WEB does: conditions can use Sieve `:regex` on headers and the body (`lib/jmap/sieve-types.ts:29-31`, `lib/sieve/regex.ts`). Changelog 1.20.0 (#885).
   - What RN does: accepts the rule from the metadata without checking the comparator (`src/lib/sieve/parser.ts:51-59`); on the next save of any rule the generator throws for a header condition (`src/lib/sieve/generator.ts:158-162`) and writes a body condition as `body :contains` (`:93-95`), which matches the pattern as plain text. The rule editor offers no regex (`src/lib/sieve/types.ts:29-33`). Read from the code, not tried on a server.
   - Fix hint: support `regex` in types, generator, parser and FilterRuleModal (with the `regex` require), or at least keep such rules read-only and write them back verbatim.
 
-- [ ] **A new rule can't be run on the Inbox's existing mail** — `P3` — `missing`
+- [x] **A new rule can't be run on the Inbox's existing mail** — `P3` — `missing` — fixed in 0a3d1b66
   - What WEB does: the rule editor offers "Also apply to existing messages" with a count (`components/filters/filter-rule-modal.tsx:42-48`, `:346-377`, `components/settings/filter-settings.tsx:405-424`). bc955be10 (root commit; changelog 1.21.0).
   - What RN does: onSave takes only the rule (`src/components/filters/FilterRuleModal.tsx:86`, `:285`).
   - Fix hint: query the Inbox with the rule's conditions as an Email/query filter and apply the move or keyword actions in batch.
 
-- [ ] **Out of office can be switched on with an empty message** — `P3` — `bug`
+- [x] **Out of office can be switched on with an empty message** — `P3` — `bug` — fixed in cd93d10d
   - What WEB does: starts a blank reply with real text in the user's language, and an empty message never goes live (`components/settings/vacation-settings.tsx:249-255`, `:380-384`). Changelog 1.21.0; 2094cca38 removed the sample-text placeholder.
   - What RN does: only warns (`src/components/settings/VacationSettings.tsx:147`, `:175`); Save stays enabled (`:189-190`). The sample text is a placeholder in italics (`:397`, `:618`).
   - Fix hint: prefill an empty reply with the translated default and block Save while on with an empty body.
 
-- [ ] **The mail drawer doesn't say out of office is on** — `P3` — `missing`
+- [x] **The mail drawer doesn't say out of office is on** — `P3` — `missing` — fixed in aaf76949
   - What WEB does: a banner in the sidebar while it is on, which opens the settings and has "Turn off" (`components/layout/sidebar.tsx:1356-1406`). Changelog 1.21.0.
   - What RN does: SidebarDrawer has no vacation state; only Settings shows it.
   - Fix hint: a row at the top of the drawer from useVacationStore with a Turn off button.
 
-- [ ] **Out of office has no "Block my calendar" and no organisation templates** — `P3` — `missing`
+- [ ] **Out of office has no "Block my calendar" and no organisation templates** — `P3` — `missing` — partly in e19398ea (Block my calendar); not done: the organisation templates, left for a later agent
   - What WEB does: a reply with dates puts a busy event in the calendar, on by default, lockable by the admin (`components/settings/vacation-calendar-block.tsx`); admins keep a template library that fills in name, dates and deputy (`components/settings/vacation-template-picker.tsx`); the date fields use the app's time zone. Changelog 1.20.0.
   - What RN does: none of these (`src/components/settings/VacationSettings.tsx`); dates are read in the device zone (`src/lib/vacation-dates.ts:1-16`).
   - Fix hint: the calendar block first; the templates come from the organisation policy.
@@ -488,7 +488,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: prints `$label:{id}` on every tag card (`src/components/settings/KeywordSettings.tsx:170`).
   - Fix hint: drop the line, or show it only with advanced settings on.
 
-- [ ] **Calendars can't be made or listed for a shared or group account from the settings** — `P3` — `missing`
+- [ ] **Calendars can't be made or listed for a shared or group account from the settings** — `P3` — `missing` — not done: Settings has no calendar management section to add it to, and createCalendar takes no account; a larger change
   - What WEB does: while managing a shared account, a new calendar is created in that account and listed under it, offered only where the account allows one, with the server's refusal shown; the settings group shared calendars by account (`stores/calendar-store.ts`, `components/settings/calendar-management-settings.tsx`). 6a6398fed, 5afa9e66f, df2ae1966, 6ee7e1b7a (#1617).
   - What RN does: createCalendar takes no account and creates in the own account (`src/stores/calendar-store.ts:1416`, `src/api/calendar.ts:1247`, `src/screens/CalendarScreen.tsx:941`). The managed-account scope covers filters and out of office only (`src/stores/managed-account-store.ts:3-8`); Settings > Calendar has no calendar management (`src/components/settings/CalendarSettings.tsx`).
   - Fix hint: pass an account id through createCalendar and check `mayCreateChild`-style rights before offering it. May overlap the calendar inventory.
@@ -500,7 +500,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: Mark as read, Delete and Reply (`src/lib/push-background-task.ts:130-138`, `:649-651`, `:750`).
   - Fix hint: add an `archive` action to the notification payload and handler; respect the `archiveActionEnabled` gate (`src/lib/org-policy.ts:92`).
 
-- [ ] **Calendar event notifications fail for good once more pile up than the server returns in one get, and each shows its own toast** — `P3` — `bug`
+- [x] **Calendar event notifications fail for good once more pile up than the server returns in one get, and each shows its own toast** — `P3` — `bug` — fixed in 0ff300c6
   - What WEB does: queries and gets `CalendarEventNotification` a page of maxObjectsInGet at a time, capped at 20,000, and sums many up in one toast (`lib/jmap/client.ts` getCalendarEventNotifications, `components/layout/calendar-event-notification-toaster.tsx`). f7d71929b, f3de8898e, 6f93d81f5 (#1567).
   - What RN does: one unpaged query and get (`src/api/calendar-event-notifications.ts:46-67`); past maxObjectsInGet Stalwart refuses the get, nothing is shown or acknowledged and the error repeats. Each fresh notification gets its own toast (`src/lib/calendar-event-notifications.ts:110-115`).
   - Fix hint: page with `position`/`limit` from `jmapClient.getMaxObjectsInGet()` and a cap; one summary toast above a few notifications.

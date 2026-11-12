@@ -1,4 +1,5 @@
 import type { FilterComparator, FilterCondition, FilterConditionField, FilterRule } from './types';
+import { REGEX_FIELDS } from './regex';
 
 // Helpers for the string | string[] condition value (1.7.3 "extended rules").
 // Mirrors the webmail's filter-rule-modal.tsx: conditions are stored as
@@ -41,13 +42,23 @@ const ATTACHMENT_COMPARATORS: FilterComparator[] = ['has_any', 'has_type'];
 // "All messages" (#1154): Sieve `true`, nothing to compare.
 const ALL_MESSAGES_COMPARATORS: FilterComparator[] = ['any'];
 
-/** The comparators the rule editor offers for a field (webmail filter-rule-modal.tsx). */
-export function comparatorsFor(field: FilterConditionField): FilterComparator[] {
+function baseComparatorsFor(field: FilterConditionField): FilterComparator[] {
   if (field === 'size') return SIZE_COMPARATORS;
   if (field === 'attachment') return ATTACHMENT_COMPARATORS;
   if (field === 'all') return ALL_MESSAGES_COMPARATORS;
   if (field === 'from' || field === 'to' || field === 'cc') return ADDRESS_COMPARATORS;
   return TEXT_COMPARATORS;
+}
+
+/**
+ * The comparators the rule editor offers for a field (webmail
+ * filter-rule-modal.tsx). "matches regex" only where the server can run it,
+ * or on a row that already uses it, so editing such a rule does not change
+ * its comparator.
+ */
+export function comparatorsFor(field: FilterConditionField, regex = false): FilterComparator[] {
+  const base = baseComparatorsFor(field);
+  return regex && REGEX_FIELDS.has(field) ? [...base, 'regex'] : base;
 }
 
 type Translate = (key: string, fallback?: string) => string;

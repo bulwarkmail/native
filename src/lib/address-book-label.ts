@@ -1,4 +1,5 @@
 import type { AddressBook } from '../api/types';
+import { collectionLabel } from './default-collection-name';
 
 /**
  * A shared collection's name with the account it comes from, unless the name
@@ -12,10 +13,14 @@ export function nameWithAccount(name: string, accountName: string | null | undef
 }
 
 /**
- * How an address book is named in a picker: a shared one with the account
- * it comes from, unless its name already says so. Webmail contact-form.tsx.
+ * How an address book is named in a picker: Stalwart's own default name as
+ * `plainName` ("Contacts"), a shared one with the account it comes from,
+ * unless its name already says so. Webmail contact-form.tsx.
  */
-export function addressBookLabel(book: Pick<AddressBook, 'name' | 'isShared' | 'accountName'>): string {
-  const name = book.name ?? '';
+export function addressBookLabel(
+  book: Pick<AddressBook, 'name' | 'isShared' | 'accountName'>,
+  plainName = 'Contacts',
+): string {
+  const name = collectionLabel({ name: book.name ?? '', isShared: book.isShared }, 'addressBook', plainName);
   return book.isShared ? nameWithAccount(name, book.accountName) : name;
 }

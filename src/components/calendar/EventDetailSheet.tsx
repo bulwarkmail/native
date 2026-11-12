@@ -64,6 +64,8 @@ import type { TranslateFn } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { descriptionAsText } from '../../lib/calendar-description';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 
@@ -140,6 +142,7 @@ export function EventDetailSheet({
   onSaveNote,
 }: EventDetailSheetProps) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const { locale, t } = useCalendarLocale();
   const [rsvpBusy, setRsvpBusy] = React.useState(false);
@@ -306,7 +309,7 @@ export function EventDetailSheet({
                 <Text style={[styles.title, isCancelled && styles.titleCancelled]}>
                   {event.title || t('calendar.events.no_title', '(No title)')}
                 </Text>
-                {calendar && <Text style={styles.subtitle}>{calendar.name}</Text>}
+                {calendar && <Text style={styles.subtitle}>{collectionNames.calendar(calendar)}</Text>}
               </View>
               <Pressable
                 onPress={onClose}
@@ -363,7 +366,7 @@ export function EventDetailSheet({
             {event.description ? (
               <DetailRow
                 icon={<AlignLeft size={16} color={c.textMuted} />}
-                text={event.description}
+                text={descriptionAsText(event)}
                 multiline
                 linkify
               />
@@ -415,7 +418,7 @@ export function EventDetailSheet({
             {calendar && (
               <DetailRow
                 icon={<CalendarIcon size={16} color={c.textMuted} />}
-                text={calendar.name}
+                text={collectionNames.calendar(calendar)}
               />
             )}
 

@@ -169,6 +169,9 @@ export interface PersistedSettings {
   // Sort (and group) the contact list by surname instead of given name so
   // family members sit together (#963).
   sortContactsByLastName: boolean;
+  // The Directory entry in Contacts (webmail #1457). Recipient suggestions,
+  // sharing and free/busy use the directory either way.
+  showContactsDirectory: boolean;
 
   // Appearance
   theme: ThemeMode;
@@ -298,6 +301,8 @@ export interface PersistedSettings {
   calendarTimeFormat: TimeFormat;
   calendarShowTimeInMonth: boolean;
   calendarShowWeekNumbers: boolean;
+  // How the month view draws events with a start time (#1449). Same key as the webmail's.
+  calendarMonthTimedEvents: 'bar' | 'text' | 'dot';
   // Scroll continuously through months, weeks and days (#759) instead of
   // one period at a time. Same key as the webmail's setting.
   calendarFreeScroll: boolean;
@@ -407,6 +412,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
 
   groupContactsByLetter: true,
   sortContactsByLastName: false,
+  showContactsDirectory: true,
 
   theme: 'system',
   fontSize: 'medium',
@@ -511,11 +517,14 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   calendarTimeFormat: '24h',
   calendarShowTimeInMonth: true,
   calendarShowWeekNumbers: false,
+  calendarMonthTimedEvents: 'bar',
   calendarFreeScroll: true,
   calendarHoverPreview: 'delay-500ms',
   calendarTimeZone: 'auto',
   showBirthdayCalendar: false,
-  enableCalendarTasks: false,
+  // On for new installs, as in the webmail 1.21: tasks show where the server
+  // has calendars (Stalwart keeps them as CalendarEvent objects of @type Task).
+  enableCalendarTasks: true,
   showTasksOnCalendar: true,
   sharedCalendarColors: {},
 
@@ -726,6 +735,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   calendarFirstDayOfWeek: oneOf([0, 1, 6]),
   calendarTimeFormat: oneOf(['12h', '24h']),
   calendarHoverPreview: oneOf(['instant', 'delay-500ms', 'delay-1s', 'delay-2s', 'off']),
+  calendarMonthTimedEvents: oneOf(['bar', 'text', 'dot']),
   filesFolderLayout: oneOf(['inline', 'sidebar']),
   filesDefaultViewMode: oneOf(['list', 'grid']),
   filesDefaultSortKey: oneOf(['name', 'size', 'modified']),

@@ -89,6 +89,8 @@ import Dialog from '../components/Dialog';
 import ShareSheet from '../components/files/ShareSheet';
 import { FilePreviewModal, canPreviewInApp } from '../components/files/FilePreviewModal';
 import { previewNeighbours } from '../lib/files-preview-neighbours';
+import { UploadConflictDialog, type UploadConflictQuestion } from '../components/files/UploadConflictDialog';
+import { uploadChoices, type ConflictAnswer } from '../lib/files-upload-conflicts';
 import {
   RECENT_FILES_SHOWN, folderPathOf, nodePlace, resolveFolderPath, type FolderStep,
 } from '../lib/files-places';
@@ -248,6 +250,8 @@ export default function FilesScreen() {
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  // A name the upload would take is there already: Replace, Keep both or Skip.
+  const [conflictQuestion, setConflictQuestion] = useState<UploadConflictQuestion | null>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const [batchBusy, setBatchBusy] = useState<string | null>(null);
 
@@ -823,17 +827,34 @@ export default function FilesScreen() {
     }
     if (accepted.length === 0) return;
 
+    const parentId = currentParentId;
+    const siblingNodes = allNodes.filter((n) => (n.parentId ?? null) === parentId);
+    const plan = await uploadChoices(
+      accepted.map((a) => a.name),
+      siblingNodes.map((n) => ({ id: n.id, name: n.name, isDirectory: isFolder(n), isSymlink: isSymlink(n) })),
+      (conflict, index, total) => new Promise<ConflictAnswer>((resolve) => {
+        setConflictQuestion({
+          conflict,
+          remaining: total - index,
+          answer: (answer) => { setConflictQuestion(null); resolve(answer); },
+        });
+      }),
+    );
+    if (!plan) return;
+    const toUpload = accepted.filter((a) => !plan.skip.has(a.name));
+    if (toUpload.length === 0) return;
+
     const controller = new AbortController();
     uploadAbortRef.current = controller;
-    const parentId = currentParentId;
-    const siblings = allNodes.filter((n) => (n.parentId ?? null) === parentId).map((n) => n.name);
+    const siblings = siblingNodes.map((n) => n.name);
     // A file picked as ".Trash" gets a number at the root, where the name is the trash's.
     if (takesTrashName(TRASH_FOLDER_NAME, parentId)) siblings.push(TRASH_FOLDER_NAME);
     // A refused file no longer stops the rest; the ones that failed are
     // reported once the batch is done.
-    const { failed } = await uploadFileBatch(accepted, parentId, siblings, {
+    const { failed } = await uploadFileBatch(toUpload, parentId, siblings, {
+      replace: plan.replace,
       signal: controller.signal,
-      onFile: (index, name) => setUploadProgress({ current: index + 1, total: accepted.length, name, percent: 0 }),
+      onFile: (index, name) => setUploadProgress({ current: index + 1, total: toUpload.length, name, percent: 0 }),
       onProgress: (sent, total) =>
         setUploadProgress((p) => (p ? { ...p, percent: total > 0 ? sent / total : 0 } : p)),
     }).finally(() => {
@@ -1713,6 +1734,7 @@ export default function FilesScreen() {
         />
       )}
 
+      <UploadConflictDialog question={conflictQuestion} />
       <ShareSheet
         node={shareTarget}
         onClose={() => setShareTarget(null)}

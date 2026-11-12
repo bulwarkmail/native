@@ -12,6 +12,7 @@ import { CAPABILITIES, type CalendarEvent, type ContactCard, type Email, type Fi
 import { fetchWithDeadline } from './unified-inbox';
 import { getAllFileNodesAcrossAccounts, fileNodeKind } from './files';
 import { namespaceId } from './contacts';
+import { findTrashFolder, trashSubtreeIds } from '../lib/files-trash';
 import { freshStoredCredentials } from '../lib/stored-token-refresh';
 import { generateAccountId } from '../lib/account-utils';
 import { accountSupports } from '../lib/account-capability';
@@ -468,8 +469,10 @@ function fileListing(account: SearchAccount, login: LoginSession): FileListing {
 
 function filterNodes(parsed: ParsedQuery, nodes: FileNode[], account: SearchAccount, limit: number, source: 'local' | 'remote', primary: string): FileHit[] {
   const hits: FileHit[] = [];
+  // The Files trash (.Trash, one folder per delete, what was deleted) is no hit.
+  const trashed = trashSubtreeIds(nodes, findTrashFolder(nodes)?.id);
   for (const node of nodes) {
-    if (node.discoverableOnly) continue;
+    if (node.discoverableOnly || trashed.has(node.id)) continue;
     const kind = fileNodeKind(node);
     if (kind === 'symlink') continue;
     if (!matchesTerms(parsed.terms, [node.name, kind === 'directory' ? 'folder' : node.type])) continue;

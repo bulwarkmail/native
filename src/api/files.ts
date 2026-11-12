@@ -487,6 +487,25 @@ export async function updateFileNode(
   if (notUpdated) throw fileSetError(notUpdated, 'Update failed');
 }
 
+/**
+ * New content for the file node that is there: same id, same shares, same
+ * links. `modified: null` has the server stamp the change: Stalwart 1.0
+ * leaves a client-set `modified` alone on a content change; 0.16 bumps it
+ * anyway (webmail replaceFileNodeBlob).
+ */
+export async function replaceFileNodeBlob(id: string, blobId: string): Promise<void> {
+  const node = resolveFileNodeId(id);
+  const nodeId = node.id as string;
+  // No `type`: Stalwart 1.0 refuses it in an update (invalidProperties).
+  const patch: Record<string, unknown> = { blobId, modified: null };
+  const res = await jmapClient.request(
+    [['FileNode/set', { accountId: node.accountId, update: { [nodeId]: patch } }, '0']],
+    fileUsing(),
+  );
+  const notUpdated = requireMethodResult(res, '0', 'FileNode/set').notUpdated?.[nodeId];
+  if (notUpdated) throw fileSetError(notUpdated, "Failed to replace the file's content");
+}
+
 export interface FileNodeUpdateResult {
   updated: string[];
   notUpdated: Record<string, JMAPSetError>;
@@ -658,6 +677,8 @@ export interface UploadAsset {
 
 export interface UploadBatchResult {
   uploaded: FileNode[];
+  /** Ids of the files whose content an upload replaced. */
+  replaced: string[];
   /** The files the server refused, by their name on the device, in upload order. */
   failed: Array<{ name: string; error: unknown }>;
 }
@@ -680,16 +701,35 @@ export async function uploadFileBatch(
     /** A file starts uploading, under the name it will have. */
     onFile?: (index: number, name: string) => void;
     onProgress?: (sent: number, total: number) => void;
+    /**
+     * Files to upload as new content of a file that is there, by their name
+     * on the device: the id of the node to replace.
+     */
+    replace?: ReadonlyMap<string, string>;
   } = {},
 ): Promise<UploadBatchResult> {
-  const { signal, onFile, onProgress } = options;
+  const { signal, onFile, onProgress, replace } = options;
   const rules = getFileNameRules();
   // Duplicate names get " (1)", " (2)", ... so two nodes never share a name.
   const existing = new Set(existingNames);
-  const result: UploadBatchResult = { uploaded: [], failed: [] };
+  const result: UploadBatchResult = { uploaded: [], replaced: [], failed: [] };
   for (let i = 0; i < assets.length; i++) {
     if (signal?.aborted) break;
     const asset = assets[i];
+    const replaceId = replace?.get(asset.name);
+    if (replaceId) {
+      onFile?.(i, asset.name);
+      try {
+        const mimeType = asset.mimeType || 'application/octet-stream';
+        const blob = await uploadBlob(asset.uri, mimeType, { signal, onProgress });
+        await replaceFileNodeBlob(replaceId, blob.blobId);
+        result.replaced.push(replaceId);
+      } catch (err) {
+        if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) break;
+        result.failed.push({ name: asset.name, error: err });
+      }
+      continue;
+    }
     const name = getUniqueName(acceptedFileName(asset.name, rules), existing);
     existing.add(name);
     onFile?.(i, name);
