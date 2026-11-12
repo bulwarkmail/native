@@ -264,7 +264,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: one field for the URL; without a selection the link text is the URL (`src/screens/ComposeScreen.tsx:2310-2321`, `src/lib/editor-html.ts:548-575`). The editor bridge already takes a label (`src/components/RichTextEditor.tsx:209`).
   - Fix hint: add a text field to the link prompt and pass it as the label.
 
-- [ ] **Send warnings come as several questions in a row** — `P3` — `partial`
+- [x] **Send warnings come as several questions in a row** — `P3` — `partial` — fixed in c68f0eed
   - What WEB does: one question before sending lists everything that's missing (`components/email/send-warnings-dialog.tsx`). Changelog 1.21.0.
   - What RN does: empty subject, placeholders, attachment and confirm each open their own Alert (`src/screens/ComposeScreen.tsx:2498`, `:2542`, `:2570`, `:2728-2729`).
   - Fix hint: collect the findings first and show one sheet with "Send anyway".
