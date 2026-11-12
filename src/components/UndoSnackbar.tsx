@@ -161,9 +161,13 @@ export function UndoSnackbar() {
       <View style={styles.bar} accessibilityLiveRegion="polite">
         {/* The spoken label stays the first one, so the live region is not
             read out again every second of the countdown. */}
-        <Text style={styles.label} numberOfLines={1} accessibilityLabel={shown.label}>
+        <Text style={styles.label} numberOfLines={2} accessibilityLabel={shown.label}>
           {shown.send ? undoSendLabel(shown.send, now) : shown.label}
         </Text>
+        {/* Next to the text while it keeps a readable width; long labels
+            (Russian "ОТПРАВИТЬ СЕЙЧАС") take the line below instead of
+            squeezing it (webmail toast.tsx, #1599). */}
+        <View style={styles.actions}>
         {shown.send && (
           <Pressable
             onPress={onSendNow}
@@ -186,10 +190,14 @@ export function UndoSnackbar() {
         >
           <Text style={styles.undoText}>{t('common.undo', 'Undo').toUpperCase()}</Text>
         </Pressable>
+        </View>
       </View>
     </Animated.View>
   );
 }
+
+/** The narrowest the bar's text gets before the buttons go below it (webmail min-w-[6rem]). */
+export const UNDO_LABEL_MIN_WIDTH = 96;
 
 function makeStyles(c: ThemePalette) {
   const colors = undoSnackbarColors(c);
@@ -200,7 +208,9 @@ function makeStyles(c: ThemePalette) {
     },
     bar: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       alignItems: 'center',
+      rowGap: spacing.xs,
       paddingVertical: spacing.sm + 2,
       paddingLeft: spacing.lg,
       paddingRight: spacing.sm,
@@ -212,10 +222,23 @@ function makeStyles(c: ThemePalette) {
       shadowOffset: { width: 0, height: 6 },
       elevation: 8,
     },
+    // Grows into the room the buttons leave, never narrower than this: the
+    // buttons wrap below it first.
     label: {
       ...typography.body,
       color: colors.label,
-      flex: 1,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 0,
+      minWidth: UNDO_LABEL_MIN_WIDTH,
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      marginLeft: 'auto',
+      maxWidth: '100%',
     },
     undoBtn: {
       paddingHorizontal: spacing.md,
