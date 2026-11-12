@@ -2095,6 +2095,24 @@ export async function createDraft(
   return (await saveDraftVersion(email, draftsMailboxId, previousDraftId, accountIdOverride)).id;
 }
 
+/**
+ * A conversation's drafts with what it takes to tell which message each one
+ * answers (webmail lib/reply-drafts.ts threadDrafts). One round trip.
+ */
+export async function getThreadDrafts(threadId: string, accountIdOverride?: string): Promise<Email[]> {
+  const accountId = accountIdOverride ?? jmapClient.accountId;
+  const res = await jmapClient.request([
+    ['Thread/get', { accountId, ids: [threadId] }, 't'],
+    ['Email/get', {
+      accountId,
+      '#ids': { resultOf: 't', name: 'Thread/get', path: '/list/*/emailIds' },
+      properties: ['id', 'threadId', 'keywords', 'mailboxIds', 'inReplyTo', 'receivedAt'],
+    }, 'e'],
+  ]);
+  const list = (requireMethodResult(res, 'e', 'Email/get').list as Email[] | undefined) ?? [];
+  return list.filter((e) => e.keywords?.$draft);
+}
+
 export interface ScheduledEmail {
   /** Account holding the submission: a shared account for a send from its identity. */
   accountId: string;

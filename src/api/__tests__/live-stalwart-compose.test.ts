@@ -23,7 +23,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import {
-  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreadDrafts, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
 } from '../email';
 import { uploadBytes } from '../blob';
 import { deleteFileNodes } from '../files';
@@ -38,6 +38,7 @@ import { htmlToPlainText } from '../../lib/compose-html';
 import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature-utils';
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
+import { findReplyDraftContext } from '../../lib/reply-draft-resume';
 import { mergeRecipientSuggestions } from '../../lib/recipient-suggestions';
 import { useContactsStore } from '../../stores/contacts-store';
 import { useAccountStore } from '../../stores/account-store';
@@ -258,6 +259,43 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       const withBlob = await singleton.request([call as never], [CAPABILITIES.CORE, CAPABILITIES.BLOB]);
       expect(withBlob.methodResponses[0][0]).toBe('Blob/copy');
     }, 30_000);
+  });
+
+  describe('reply drafts', () => {
+    // Reply on a message with a saved reply opens that draft (webmail 1.21).
+    it('finds the saved reply to a message in its conversation', async () => {
+      const inbox = (await getMailboxes()).find((b) => b.role === 'inbox')!.id;
+      const msgId = `orig-${RUN}@example.org`;
+      const res = await singleton.request([['Email/set', {
+        accountId: singleton.accountId,
+        create: {
+          o: {
+            mailboxIds: { [inbox]: true }, keywords: { $seen: true },
+            from: [{ email: 'ann@example.org', name: 'Ann' }], to: [{ email: USER }], cc: [{ email: 'bob@example.org' }],
+            subject: `orig ${tag}`, messageId: [msgId], receivedAt: new Date(Date.now() - 60_000).toISOString(),
+            bodyValues: { b: { value: 'hello' } }, textBody: [{ partId: 'b', type: 'text/plain' }],
+          },
+        },
+      }, '0']]);
+      const origId = res.methodResponses[0][1].created.o.id as string;
+      createdEmails.push(origId);
+      const reply = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: 'ann@example.org' }], subject: `Re: orig ${tag}`, textBody: 'draft reply',
+        inReplyTo: [msgId], references: [msgId],
+      }, drafts);
+      createdEmails.push(reply.id);
+      const [original] = await getFullEmails([origId]);
+
+      const threadDrafts = await getThreadDrafts(original.threadId);
+      expect(threadDrafts.map((d) => d.id)).toContain(reply.id);
+      expect(threadDrafts.find((d) => d.id === reply.id)?.inReplyTo).toEqual([msgId]);
+
+      const ctx = await findReplyDraftContext('reply', original);
+      expect(ctx?.id).toBe(reply.id);
+      expect(ctx?.textBody).toContain('draft reply');
+      const all = await findReplyDraftContext('replyAll', original);
+      expect(all?.cc?.map((r) => r.email)).toEqual(['bob@example.org']);
+    }, 60_000);
   });
 
   describe('identities', () => {

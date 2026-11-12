@@ -53,6 +53,7 @@ import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
 } from '../lib/mailbox-tree';
 import { replyComposeParams } from '../lib/reply-compose';
+import { findReplyDraftContext } from '../lib/reply-draft-resume';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
@@ -618,9 +619,17 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   };
 
   // Reply / forward the given message (a thread card's own, or the active one).
-  const navigateCompose = React.useCallback((mode: 'reply' | 'replyAll' | 'forward', target?: Email, typed?: string) => {
+  // A reply already saved as a draft opens again instead of a second one.
+  const navigateCompose = React.useCallback(async (mode: 'reply' | 'replyAll' | 'forward', target?: Email, typed?: string) => {
     const source = target ?? email;
     if (!source) return;
+    if (mode !== 'forward' && !typed?.trim()) {
+      const draft = await findReplyDraftContext(mode, source, ownerAccountId);
+      if (draft) {
+        navigation.navigate('Compose', { draft });
+        return;
+      }
+    }
     const params = replyComposeParams(mode, source, ownerAccountId, typed);
     if (params) navigation.navigate('Compose', params);
   }, [email, navigation, ownerAccountId]);
@@ -631,7 +640,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   React.useEffect(() => {
     if (!replyPending.current || email?.id !== route.params.emailId) return;
     replyPending.current = false;
-    navigateCompose('reply', email);
+    void navigateCompose('reply', email);
   }, [email, route.params.emailId, navigateCompose]);
 
   // Forward the raw message as a message/rfc822 attachment (webmail 1.8.1).
@@ -665,19 +674,19 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     reply: {
       label: t('email_viewer.reply', 'Reply'),
       icon: (s, col) => <Reply size={s} color={col} />,
-      onPress: () => navigateCompose('reply'),
+      onPress: () => void navigateCompose('reply'),
       available: true,
     },
     replyAll: {
       label: t('email_viewer.reply_all', 'Reply All'),
       icon: (s, col) => <ReplyAll size={s} color={col} />,
-      onPress: () => navigateCompose('replyAll'),
+      onPress: () => void navigateCompose('replyAll'),
       available: true,
     },
     forward: {
       label: t('email_viewer.forward', 'Forward'),
       icon: (s, col) => <Forward size={s} color={col} />,
-      onPress: () => navigateCompose('forward'),
+      onPress: () => void navigateCompose('forward'),
       available: true,
     },
     delete: {
