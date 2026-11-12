@@ -45,6 +45,14 @@ export const QUOTE_SEPARATOR_SELECTORS = [
   // quoted message body follows as siblings.
   '#divRplyFwdMsg',
   '#appendonsend',
+  // Outlook for Windows: the same header block without the id, marked only by
+  // its top rule (webmail #1476). Older versions draw it in #B5C4DF.
+  'div[style*="border-top:solid #E1E1E1" i]',
+  'div[style*="border-top: solid #E1E1E1" i]',
+  'div[style*="border-top:solid #B5C4DF" i]',
+  'div[style*="border-top: solid #B5C4DF" i]',
+  // Outlook for iOS and Android.
+  '#mail-editor-reference-message-container',
   // Thunderbird attribution line ("On …, X wrote:"); the blockquote follows.
   'div.moz-cite-prefix',
 ];
@@ -92,6 +100,26 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
     }
     return false;
   }
+  // True when every visible piece of content after the marker sits inside a
+  // quote container. iPhone Mail puts its attribution line in a cite
+  // blockquote of its own and the original in a second one, so the first
+  // quote is followed by more quote, not by a reply below it (#1476).
+  function onlyQuotesAfter(marker) {
+    var containers = C.containers.join(',');
+    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      var rel = marker.compareDocumentPosition(node);
+      if (rel & Node.DOCUMENT_POSITION_CONTAINED_BY) continue;
+      if (!(rel & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+      var visible = node.nodeType === Node.TEXT_NODE
+        ? (node.nodeValue || '').trim() !== ''
+        : node.tagName === 'IMG' && !node.hasAttribute('data-blocked-src');
+      if (!visible) continue;
+      var el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+      if (!el || !el.closest(containers)) return false;
+    }
+    return true;
+  }
   // One walk in document order, remembering the last non-blank text: a
   // blockquote is reached before its own text, so that is the text preceding
   // it. Walking from the start again per blockquote took quadratic time and
@@ -129,7 +157,12 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
   if (!marker) return;
   var isSeparator = C.separators.some(function (sel) { return marker.matches(sel); });
   if (!hasVisibleContent(marker, 'before')) return;
-  if (!isSeparator && hasVisibleContent(marker, 'after')) return;
+  if (!isSeparator && hasVisibleContent(marker, 'after')) {
+    // Interleaved reply: real content after the quote container - leave as is.
+    if (!onlyQuotesAfter(marker)) return;
+    // More quote follows: fold the whole run from here to the end.
+    isSeparator = true;
+  }
 
   var hidden = isSeparator ? collectSeparatorRange(marker) : [marker];
   var button = doc.createElement('button');
