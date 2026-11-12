@@ -10,7 +10,7 @@ import UserNotifications
 /// What the app shares through the keychain group (src/lib/ios-push-shared.ts):
 ///   bulwark_push_account__<JMAP account id>  {credentialsKey, apiUrl, label,
 ///                                            subscriptionId, deviceClientId,
-///                                            subscriptionExpires}
+///                                            subscriptionExpires, withoutContent}
 ///   bulwark_push_settings                    {badge, activeAccountId, strings{...}}
 ///   <credentialsKey>                         the account's stored credentials
 /// If anything is missing or the server can't be reached, the relay's
@@ -85,6 +85,18 @@ final class NotificationService: UNNotificationServiceExtension {
       pushLog.error("push label does not fit the shared account for \(accountId, privacy: .public)")
       return content
     }
+    // The login's organisation wants notifications that say only that there
+    // is new mail (organisation.devices.pushWithoutContent; the app sets the
+    // flag from its policy). The relay's placeholder stays, nothing is
+    // fetched and no message id is added. This account's notifications
+    // still showing from before the rule came on are taken away, so one
+    // stays per account.
+    if account["withoutContent"] as? Bool == true {
+      pushLog.info("notification without content for \(accountId, privacy: .public)")
+      content.threadIdentifier = accountId
+      await removeDelivered(threadIdentifier: accountId)
+      return content
+    }
     let emailIds = push["emailIds"] as? [String] ?? []
     let settings = SharedKeychain.readJSON("bulwark_push_settings") ?? [:]
     let strings = settings["strings"] as? [String: String] ?? [:]
@@ -125,5 +137,17 @@ final class NotificationService: UNNotificationServiceExtension {
     userInfo["body"] = body
     content.userInfo = userInfo
     return content
+  }
+
+  /// Removes the delivered notifications of one thread (an account's mail).
+  static func removeDelivered(threadIdentifier: String) async {
+    let center = UNUserNotificationCenter.current()
+    let delivered = await center.deliveredNotifications()
+    let ids = delivered
+      .filter { $0.request.content.threadIdentifier == threadIdentifier }
+      .map { $0.request.identifier }
+    if !ids.isEmpty {
+      center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
   }
 }

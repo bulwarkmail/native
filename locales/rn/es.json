@@ -566,7 +566,12 @@
     "not_spam_short": "No spam",
     "quick_reply_login_switched": "Este mensaje está en otra cuenta. Vuelve a ella para responder.",
     "quick_reply_unconfirmed": "El servidor no confirmó el envío. Revisa tu carpeta Enviados antes de volver a enviarlo.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Paquete de aplicación de un correo",
+      "message": "«{name}» es un paquete de aplicación de Android. Una aplicación instalada desde un correo puede tomar el control de este dispositivo. Continúa solo si esperabas este archivo.",
+      "continue": "Continuar"
+    }
   },
   "files": {
     "delete_cascade_hint": "Las carpetas se eliminan junto con todo su contenido. Esta acción no se puede deshacer.",

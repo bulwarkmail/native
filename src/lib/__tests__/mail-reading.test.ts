@@ -56,6 +56,39 @@ describe('mail text size', () => {
     expect(writes).toHaveLength(5);
   });
 
+  it('scales the text of a mail that has an element named body, and calls only the page\'s own height hook', () => {
+    // The page's real body sits behind Document.prototype; <img name="body">
+    // is what document.body returns, and an element with id __rnReport is
+    // window.__rnReport until the height reporter sets its own.
+    const writes: string[] = [];
+    const realBody = {
+      tagName: 'BODY',
+      computed: { fontSize: '10px', lineHeight: 'normal' },
+      closest: () => null,
+      querySelectorAll: () => [],
+      style: { setProperty: (prop: string, value: string) => writes.push(`${prop}: ${value}`) },
+    };
+    let pageBody: object = realBody;
+    class FakeDocument {}
+    Object.defineProperty(FakeDocument.prototype, 'body', { get: () => pageBody });
+    const named = { tagName: 'IMG', querySelectorAll: () => { throw new Error('read the named element'); } };
+    const doc = Object.create(FakeDocument.prototype);
+    Object.defineProperty(doc, 'body', { value: named });
+    const timers: unknown[] = [];
+    const run = (window: object) => new Function('document', 'window', 'Document', 'setTimeout', buildMailTextSizeScript(1.3))(
+      doc, window, FakeDocument, (fn: unknown) => timers.push(fn),
+    );
+    const getComputedStyle = (e: { computed: unknown }) => e.computed;
+    run(Object.assign(Object.create({ __rnReport: { tagName: 'A' } }), { getComputedStyle }));
+    expect(writes).toEqual(['font-size: 13px']);
+    expect(timers, 'an element with the hook\'s id is never handed to setTimeout').toEqual([]);
+    // The height reporter's own hook, on another document.
+    const report = () => undefined;
+    pageBody = { tagName: 'BODY', computed: realBody.computed, closest: () => null, querySelectorAll: () => [], style: { setProperty: () => undefined } };
+    run({ getComputedStyle, __rnReport: report });
+    expect(timers).toEqual([report]);
+  });
+
   it('is wired into the body view, with Android text zoom held at 100', () => {
     const view = fs.readFileSync(path.resolve(__dirname, '../../components/EmailBodyView.tsx'), 'utf8');
     expect(view).toMatch(/mailTextFactor\(dyn\.body\.fontSize \/ typography\.body\.fontSize, PixelRatio\.getFontScale\(\)\)/);

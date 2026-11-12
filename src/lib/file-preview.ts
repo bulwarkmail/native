@@ -247,17 +247,19 @@ const EXT_TO_MIME: Record<string, string> = {
   '3gp': 'video/3gpp',
 };
 
+/** The type Android hands to the package installer. */
+export const ANDROID_PACKAGE_MIME = 'application/vnd.android.package-archive';
+
 /**
- * The type to hand a file to another app with: the declared one, unless it
- * is generic or a catch-all that names no format, in which case the one the
- * file name implies.
+ * The type to hand a file to another app with. A name with an extension the
+ * app knows decides, as it does for the chip and the preview: the user goes
+ * by the name, and the sender declares whatever type they like. So only a
+ * name that ends in .apk is handed over as an app package. Other names keep
+ * the declared type, except the package type, which becomes a generic one.
  */
 export function handoffMimeType(name: string | undefined, type: string | null | undefined): string {
-  const declared = baseMime(type);
   const fromName = EXT_TO_MIME[extension(name || '')];
-  if (!fromName) return type || 'application/octet-stream';
-  if (GENERIC_MIME.has(declared)) return fromName;
-  // An "x-" application type the name contradicts, such as x-as400attachment.
-  if (/^application\/x-/.test(declared) && declared !== fromName) return fromName;
-  return type || fromName;
+  if (fromName) return fromName;
+  if (baseMime(type) === ANDROID_PACKAGE_MIME) return 'application/octet-stream';
+  return type || 'application/octet-stream';
 }

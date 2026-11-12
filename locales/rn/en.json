@@ -589,6 +589,11 @@
     "new_tag_placeholder": "Tag name",
     "next": "Next",
     "not_spam_short": "Not spam",
+    "package_handoff": {
+      "continue": "Continue",
+      "message": "\"{name}\" is an Android app package. An app installed from a mail can take over this device. Only continue if you expected this file.",
+      "title": "App package from a mail"
+    },
     "pause_animation": "Pause animation",
     "play_animation": "Play animation",
     "preview": {

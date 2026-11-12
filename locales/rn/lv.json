@@ -559,7 +559,12 @@
     "not_spam_short": "Nav spams",
     "spam_short": "Spams",
     "quick_reply_login_switched": "Šī vēstule ir citā kontā. Lai atbildētu, pārslēdzieties atpakaļ uz to.",
-    "quick_reply_unconfirmed": "Serveris neapstiprināja nosūtīšanu. Pirms sūtāt vēlreiz, pārbaudiet mapi Nosūtītie."
+    "quick_reply_unconfirmed": "Serveris neapstiprināja nosūtīšanu. Pirms sūtāt vēlreiz, pārbaudiet mapi Nosūtītie.",
+    "package_handoff": {
+      "title": "Lietotnes pakotne no e-pasta",
+      "message": "“{name}” ir Android lietotnes pakotne. No e-pasta instalēta lietotne var pārņemt šo ierīci. Turpiniet tikai tad, ja gaidījāt šo failu.",
+      "continue": "Turpināt"
+    }
   },
   "files": {
     "delete_cascade_hint": "Mapes tiek dzēstas kopā ar visu to saturu. To nevar atsaukt.",

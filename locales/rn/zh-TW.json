@@ -559,7 +559,12 @@
     "not_spam_short": "非垃圾郵件",
     "spam_short": "垃圾郵件",
     "quick_reply_login_switched": "這封郵件屬於另一個帳號。請切換回該帳號再回覆。",
-    "quick_reply_unconfirmed": "伺服器未確認已寄出。再次寄送前，請先檢查「寄件備份」信件匣。"
+    "quick_reply_unconfirmed": "伺服器未確認已寄出。再次寄送前，請先檢查「寄件備份」信件匣。",
+    "package_handoff": {
+      "title": "來自郵件的應用程式套件",
+      "message": "「{name}」是 Android 應用程式套件。從郵件安裝的應用程式可能會控制此裝置。只有在你預期收到這個檔案時才繼續。",
+      "continue": "繼續"
+    }
   },
   "files": {
     "delete_cascade_hint": "資料夾會連同其中的所有內容一併刪除。此動作無法復原。",

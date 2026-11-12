@@ -562,7 +562,12 @@
     "not_spam_short": "Non spam",
     "quick_reply_login_switched": "Questo messaggio si trova in un altro account. Torna a quell'account per rispondere.",
     "quick_reply_unconfirmed": "Il server non ha confermato l'invio. Controlla la cartella Inviati prima di inviare di nuovo.",
-    "spam_short": "Spam"
+    "spam_short": "Spam",
+    "package_handoff": {
+      "title": "Pacchetto app da un'email",
+      "message": "\"{name}\" è un pacchetto app Android. Un'app installata da un'email può prendere il controllo di questo dispositivo. Continua solo se aspettavi questo file.",
+      "continue": "Continua"
+    }
   },
   "files": {
     "delete_cascade_hint": "Le cartelle vengono eliminate insieme a tutto il loro contenuto. L'operazione non può essere annullata.",

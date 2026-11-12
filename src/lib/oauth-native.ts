@@ -12,7 +12,7 @@
 
 import * as WebBrowser from 'expo-web-browser';
 import { fetchWithoutForeignRedirect, followedOnlyAllowedRedirects, mayFollowRedirect, secureFetch } from './client-cert';
-import { HANDOFF_REDIRECT_URI, HandoffError, HandoffCancelledError, type OAuthTokens } from './oauth';
+import { HANDOFF_REDIRECT_URI, HandoffError, HandoffCancelledError, providerErrorLine, type OAuthTokens } from './oauth';
 import {
   forgetLoginClient,
   generateCodeChallenge,
@@ -238,13 +238,14 @@ export async function loginWithPkce(
   if (result.type !== 'success' || !result.url) throw new HandoffError(`Sign-in failed: ${result.type}`);
 
   const cb = parseCallbackParams(result.url);
+  // Only a callback with this sign-in's state counts, an error too.
+  if (cb.get('state') !== state) throw new HandoffError('State mismatch');
   const err = cb.get('error');
   if (err) {
     // A remembered client the server no longer takes: the next try asks again.
     if (!opts?.clientId && (err === 'invalid_client' || err === 'invalid_scope')) forgetLoginClient(serverUrl);
-    throw new HandoffError(cb.get('error_description') || err);
+    throw new HandoffError(providerErrorLine(cb.get('error_description') || err));
   }
-  if (cb.get('state') !== state) throw new HandoffError('State mismatch');
   const code = cb.get('code');
   if (!code) throw new HandoffError('Sign-in response missing authorization code');
 

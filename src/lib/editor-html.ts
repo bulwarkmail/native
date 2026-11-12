@@ -11,6 +11,7 @@
 
 import type { ThemePalette } from '../theme/tokens';
 import { randomHex } from './random';
+import { PAGE_DOM_SOURCE } from './page-dom';
 
 // Minimum visible editor height (px). The editor auto-grows beyond this as the
 // user types, and the parent ScrollView handles overflow.
@@ -433,8 +434,12 @@ export function buildEditorHtml(opts: {
   refreshEmpty();
   lastHtml = editor.innerHTML;
 
+  // The quoted mail is in this document now: the toggle and the body it goes
+  // into are taken with the page helpers, which its named elements can't
+  // stand in for.
+  ${PAGE_DOM_SOURCE}
   if (COLLAPSE_QUOTE && topQuote()) {
-    quoteToggle = document.createElement('button');
+    quoteToggle = pageCall(document, 'createElement', ['button']);
     quoteToggle.id = 'rne-quote-toggle';
     quoteToggle.type = 'button';
     quoteToggle.textContent = '•••';
@@ -444,7 +449,7 @@ export function buildEditorHtml(opts: {
       e.preventDefault();
       setQuoteCollapsed(!quoteCollapsed());
     });
-    document.body.appendChild(quoteToggle);
+    pagePart(document, 'body').appendChild(quoteToggle);
     editor.classList.add('rne-quote-toggle');
     setQuoteCollapsed(true);
   }

@@ -19,6 +19,8 @@
  *    to the end of the body is hidden.
  */
 
+import { PAGE_DOM_SOURCE } from './page-dom';
+
 export interface QuoteCollapseLabels {
   /** Accessible label while collapsed, e.g. "Show quoted text". */
   show: string;
@@ -49,7 +51,7 @@ export const QUOTE_SEPARATOR_SELECTORS = [
   'div.moz-cite-prefix',
 ];
 
-/** Marks the injected toggle button (also the idempotence guard). */
+/** Marks the injected toggle button. */
 export const QUOTE_TOGGLE_ATTR = 'data-quote-toggle';
 /** Marks elements hidden by the collapse; value stores the original inline display. */
 export const QUOTE_COLLAPSED_ATTR = 'data-quote-collapsed';
@@ -73,13 +75,14 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
 (function () {
   var C = ${cfg};
   var doc = document;
-  var body = doc.body;
-  if (!body || body.querySelector('[' + C.toggleAttr + ']')) return;
+  ${PAGE_DOM_SOURCE}
+  var body = pagePart(doc, 'body');
+  if (!body || pageMarked(doc, 'quoteCollapse')) return;
   var all = C.containers.concat(C.separators).join(',');
 
   function hasVisibleContent(marker, side) {
     var bit = side === 'before' ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
-    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    var walker = pageCall(doc, 'createTreeWalker', [body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT]);
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
       var rel = marker.compareDocumentPosition(node);
       if (rel & Node.DOCUMENT_POSITION_CONTAINED_BY) continue;
@@ -97,7 +100,7 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
   // it. Walking from the start again per blockquote took quadratic time and
   // froze the reader on a mail full of blockquotes (webmail quote-collapse.ts).
   function findAttributedBlockquote() {
-    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    var walker = pageCall(doc, 'createTreeWalker', [body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT]);
     var last = null;
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) {
@@ -132,7 +135,9 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
   if (!isSeparator && hasVisibleContent(marker, 'after')) return;
 
   var hidden = isSeparator ? collectSeparatorRange(marker) : [marker];
-  var button = doc.createElement('button');
+  // Once collapsed, the next injection leaves it as it is.
+  pageOnce(doc, 'quoteCollapse');
+  var button = pageCall(doc, 'createElement', ['button']);
   button.type = 'button';
   button.setAttribute(C.toggleAttr, '');
   button.setAttribute('aria-expanded', 'false');
@@ -161,7 +166,8 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
     var label = expanded ? C.show : C.hide;
     button.setAttribute('aria-label', label);
     button.title = label;
-    if (window.__rnReport) setTimeout(window.__rnReport, 0);
+    var report = pageGlobal(window, '__rnReport');
+    if (typeof report === 'function') setTimeout(report, 0);
   });
 })();
 true;

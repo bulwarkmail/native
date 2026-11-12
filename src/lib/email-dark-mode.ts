@@ -19,6 +19,8 @@
  * tested is what the WebView runs.
  */
 
+import { PAGE_DOM_SOURCE } from './page-dom';
+
 /** Canvas the converted mail sits on (white maps to this). */
 export const EMAIL_DARK_BACKGROUND = '#141414';
 const DARK_TEXT = '#e6e6e6';
@@ -295,7 +297,7 @@ export const EMAIL_DARK_MODE_LIB = String.raw`(function () {
     if (!w || !h) return 'fine';
     var scale = Math.min(1, 48 / Math.max(w, h));
     var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
-    var canvas = doc.createElement('canvas');
+    var canvas = docCall(doc, 'createElement', ['canvas']);
     canvas.width = cw;
     canvas.height = ch;
     var ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -333,7 +335,7 @@ export const EMAIL_DARK_MODE_LIB = String.raw`(function () {
   function loadCorsCopy(img, doc) {
     var src = img.currentSrc || img.src;
     if (!/^https?:/i.test(src)) return Promise.resolve(null);
-    var copy = doc.createElement('img');
+    var copy = docCall(doc, 'createElement', ['img']);
     copy.crossOrigin = 'anonymous';
     copy.referrerPolicy = 'no-referrer';
     var loaded = new Promise(function (resolve) {
@@ -370,18 +372,35 @@ export const EMAIL_DARK_MODE_LIB = String.raw`(function () {
     Array.prototype.forEach.call(list, fn);
   }
 
+  // A part of the document read through Document.prototype, which a named
+  // element of the mail (<img name="body">) can't stand in for (see
+  // src/lib/page-dom.ts). A stand-in document has no Document: read directly.
+  function docPart(doc, name) {
+    try {
+      var d = Object.getOwnPropertyDescriptor(Document.prototype, name);
+      if (d && d.get) return d.get.call(doc);
+    } catch (e) {}
+    return doc[name];
+  }
+  function docCall(doc, name, args) {
+    var fn;
+    try { fn = Document.prototype[name]; } catch (e) {}
+    if (typeof fn !== 'function') fn = doc[name];
+    return fn.apply(doc, args);
+  }
+
   // Converts a rendered mail document to dark colours in place. Call once,
   // after the document has laid out; image plates are decided once each
   // image has loaded, after this returns.
   function apply(doc, options) {
     options = options || {};
-    var win = doc.defaultView;
-    var body = doc.body;
+    var win = docPart(doc, 'defaultView');
+    var body = docPart(doc, 'body');
+    var html = docPart(doc, 'documentElement');
     try {
       if (!win || !body) return;
       // Un-pin the canvas to read the mail's own; nothing paints before the
       // writes below, so the light original never shows.
-      var html = doc.documentElement;
       html.classList.remove('bulwark-dark-pending');
       var ours = { r: 20, g: 20, b: 20, a: 1 };
       var canvas = parseComputedColor(win.getComputedStyle(html).backgroundColor);
@@ -506,7 +525,7 @@ export const EMAIL_DARK_MODE_LIB = String.raw`(function () {
       writes.forEach(function (write) { write(); });
       plates.forEach(function (p) { plateIfNeeded(p.img, p.surface, options); });
     } finally {
-      doc.documentElement.classList.remove('bulwark-dark-pending');
+      if (html) html.classList.remove('bulwark-dark-pending');
     }
   }
 
@@ -530,14 +549,15 @@ export function buildEmailDarkModeScript(options: EmailDarkModeOptions = {}): st
   const opts = JSON.stringify({ remoteContentAllowed: !!options.remoteContentAllowed });
   return `
 (function () {
-  if (document.__rnDarkRecolorDone || !document.body) return;
-  document.__rnDarkRecolorDone = true;
+  ${PAGE_DOM_SOURCE}
+  if (!pagePart(document, 'body') || !pageOnce(document, 'darkRecolor')) return;
   try {
     (${EMAIL_DARK_MODE_LIB})().apply(document, ${opts});
   } catch (e) {
-    document.documentElement.classList.remove('${DARK_PENDING_CLASS}');
+    pagePart(document, 'documentElement').classList.remove('${DARK_PENDING_CLASS}');
   }
-  if (window.__rnReport) setTimeout(window.__rnReport, 0);
+  var report = pageGlobal(window, '__rnReport');
+  if (typeof report === 'function') setTimeout(report, 0);
 })();
 true;
 `;

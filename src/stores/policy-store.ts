@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createPersistStorage } from './persist-storage';
@@ -12,12 +13,14 @@ import {
 import { useToastStore } from './toast-store';
 import { useLocaleStore } from './locale-store';
 import { jmapClient } from '../api/jmap-client';
+import { CAPABILITIES } from '../api/types';
 import { fetchWithoutForeignRedirect } from '../lib/client-cert';
 import { isLoopbackHttp } from '../lib/oauth';
 import {
   EMPTY_SETTINGS_RULES,
   isFeatureEnabled,
   isLockedSetting,
+  pushWithoutContent,
   resolvePolicy,
   sanitizePolicy,
   settingsRulesFromPolicy,
@@ -50,6 +53,12 @@ export interface CachedPolicy {
   webmailUrl: string;
   /** Only in policies cached before configByAccount; the config now has its own entry. */
   links?: WebmailLinks;
+  /**
+   * The rule pushWithoutContent, kept from the last full policy for the
+   * account while the webmail answers without the organisation part (the
+   * public subset, or anything else): only a full policy turns it off again.
+   */
+  pushWithoutContent?: true;
 }
 
 /** The last answer of the webmail's /api/config, kept apart from the policy (an older webmail has no policy route). */
@@ -113,8 +122,11 @@ function sameClientAccount(account: AccountEntry): boolean {
  * not personal, named by an address).
  */
 export function policySubjectFor(account: AccountEntry): PolicySubject {
-  const email = (account.email || account.username).trim().toLowerCase();
   const session = sameClientAccount(account) ? jmapClient.currentSession : null;
+  // The address the session names for the login's own account, as the
+  // webmail takes it; the registry may hold a user name without a domain.
+  const own = session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
+  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
   const groups = session
     ? Object.values(session.accounts)
       .filter((info) => !info.isPersonal && info.name.includes('@'))
@@ -122,6 +134,11 @@ export function policySubjectFor(account: AccountEntry): PolicySubject {
       .sort()
     : [];
   return { email, groups };
+}
+
+/** Whether a policy answer is a full one: not the public subset, and with the organisation part. */
+function carriesOrganisation(answer: { policy: OrgPolicy; partial: boolean }): boolean {
+  return !answer.partial && !!answer.policy.organisation && typeof answer.policy.organisation === 'object';
 }
 
 function isSecureUrl(url: string): boolean {
@@ -203,6 +220,25 @@ async function bearerFor(account: AccountEntry): Promise<{ authorization: string
   }
 }
 
+/**
+ * On iOS, share the account with the notification extension again once a
+ * policy for it is cached, so the extension's entry follows the rule
+ * pushWithoutContent (shareAccountWithExtension). The entry is written from
+ * the live client's session, so only for the account it serves.
+ */
+function shareNotificationRuleWithExtension(accountId: string, account: AccountEntry): void {
+  if (Platform.OS !== 'ios' || !sameClientAccount(account)) return;
+  let jmapAccountId: string | null = null;
+  try {
+    jmapAccountId = jmapClient.accountId;
+  } catch {
+    jmapAccountId = null;
+  }
+  void import('../lib/push-notifications')
+    .then(({ shareAccountWithExtension }) => shareAccountWithExtension(accountId, jmapAccountId))
+    .catch(() => undefined);
+}
+
 const refreshes = new Map<string, Promise<void>>();
 
 export const usePolicyStore = create<PolicyState>()(
@@ -253,11 +289,24 @@ export const usePolicyStore = create<PolicyState>()(
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
           const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
+          // Only a full answer, one that carries the organisation part, says
+          // what the organisation's rules are; the public subset, or any other
+          // answer without that part, leaves the stored rule as it is.
+          const holdsPushRule = !!fetched && !carriesOrganisation(fetched) && previous?.webmailUrl === webmailUrl && (
+            previous.pushWithoutContent === true
+            || (carriesOrganisation(previous) && pushWithoutContent(previous.policy, policySubjectFor(account)))
+          );
           set({
             ...(fetched ? {
               byAccount: {
                 ...get().byAccount,
-                [accountId]: { policy: fetched.policy, partial: fetched.partial, fetchedAt: Date.now(), webmailUrl },
+                [accountId]: {
+                  policy: fetched.policy,
+                  partial: fetched.partial,
+                  fetchedAt: Date.now(),
+                  webmailUrl,
+                  ...(holdsPushRule ? { pushWithoutContent: true as const } : {}),
+                },
               },
             } : {}),
             // Config links cached inside an older policy entry move to their own.
@@ -269,6 +318,7 @@ export const usePolicyStore = create<PolicyState>()(
             } : {}),
           });
           if (useAuthStore.getState().activeAccountId === accountId) get().activate(accountId);
+          if (fetched) shareNotificationRuleWithExtension(accountId, account);
         })().finally(() => refreshes.delete(accountId));
         refreshes.set(accountId, run);
         return run;
@@ -286,7 +336,9 @@ export const usePolicyStore = create<PolicyState>()(
     }),
     {
       name: 'org-policy-cache',
-      storage: createPersistStorage(),
+      // Small, and read straight from AsyncStorage by the headless push
+      // task and the iOS extension's share step, so it isn't held back.
+      storage: createPersistStorage({ writeDelayMs: 0 }),
       partialize: (state) => ({ byAccount: state.byAccount, configByAccount: state.configByAccount }) as unknown as PolicyState,
     },
   ),

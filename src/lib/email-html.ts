@@ -23,6 +23,7 @@
 
 import { DARK_PENDING_CLASS, emailColorScheme, emailDarkModeCss, resolveColorSchemeMedia } from './email-dark-mode';
 import { mailFontStack, readingFontFaceCss, type AppFont } from '../theme/reading-fonts';
+import { decodeCharacterReferences } from './structured-mail/html-parser';
 
 const FORBIDDEN_TAGS = [
   'script', 'iframe', 'object', 'embed', 'form',
@@ -506,12 +507,40 @@ function decodeCssEscapesMapped(css: string): { text: string; from: number[] } {
   return { text: parts.join(''), from };
 }
 
-const CSS_URL_PATTERN = /url\(\s*(['"]?)([^)]*?)\1\s*\)/gi;
+// A `url(` the text ends in without closing it still loads: the end of the
+// sheet or the attribute closes it.
+const CSS_URL_PATTERN = /url\(\s*(['"]?)([^)]*?)(?:\1\s*\)|$)/gi;
 const CSS_EXTERNAL_IMPORT = /@import\s+(['"])\s*(?:https?:)?\/\/[^'"]*\1[^;]*;?/gi;
+// image-set() also takes its images as plain strings: image-set("a.png" 1x).
+const CSS_IMAGE_SET = /(?:-webkit-)?image-set\(/gi;
+
+/** The strings inside each image-set(...) of `text` that name an external resource. */
+function externalImageSetStrings(text: string): Array<{ start: number; end: number }> {
+  const found: Array<{ start: number; end: number }> = [];
+  for (const m of text.matchAll(CSS_IMAGE_SET)) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    while (i < text.length && depth > 0) {
+      const ch = text[i];
+      if (ch === '"' || ch === "'") {
+        const close = text.indexOf(ch, i + 1);
+        const end = close < 0 ? text.length : close + 1;
+        if (isExternalResourceUrl(text.slice(i + 1, close < 0 ? text.length : close))) found.push({ start: i, end });
+        i = end;
+        continue;
+      }
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      i++;
+    }
+  }
+  return found;
+}
 
 /**
- * Neutralise external references in CSS: background `url()`, `@font-face`
- * sources and `@import`. Matching runs on the text with its escapes decoded,
+ * Neutralise external references in CSS: background `url()` (also one the
+ * text ends in), `@font-face` sources, `@import` and the strings of
+ * `image-set()`. Matching runs on the text with its escapes decoded,
  * because the "css escape" tracker escapes the `url` keyword itself
  * (`\75\72\6C(` -> `url(`), but only the matches are cut from the original:
  * the rest keeps its escapes. Writing the decoded text back turned
@@ -521,7 +550,7 @@ const CSS_EXTERNAL_IMPORT = /@import\s+(['"])\s*(?:https?:)?\/\/[^'"]*\1[^;]*;?/
  * identity. (#457)
  */
 export function stripExternalStyleSheetCss(css: string): string {
-  if (!css || !/url|@import|\\/i.test(css)) return css;
+  if (!css || !/url|@import|image-set|\\/i.test(css)) return css;
   const { text, from } = decodeCssEscapesMapped(css);
   const cuts: Array<{ start: number; end: number; with: string }> = [];
   for (const m of text.matchAll(CSS_URL_PATTERN)) {
@@ -530,6 +559,7 @@ export function stripExternalStyleSheetCss(css: string): string {
   for (const m of text.matchAll(CSS_EXTERNAL_IMPORT)) {
     cuts.push({ start: m.index, end: m.index + m[0].length, with: '' });
   }
+  for (const s of externalImageSetStrings(text)) cuts.push({ ...s, with: '""' });
   if (cuts.length === 0) return css;
   cuts.sort((a, b) => a.start - b.start);
   let out = '';
@@ -553,15 +583,25 @@ export function stripExternalCssUrls(style: string): string {
   return stripExternalStyleSheetCss(style);
 }
 
-/** An attribute's URL as the browser reads it: character references decoded. */
-function isExternalAttrUrl(value: string | null | undefined): boolean {
-  return !!value && isExternalResourceUrl(decodeUriEntities(value));
+/**
+ * An attribute value as the browser reads it: its character references
+ * decoded the way the HTML parser decodes them in a value. Every attribute
+ * the banner looks at is judged on this, before it is split or parsed.
+ */
+function attributeText(value: string): string {
+  return decodeCharacterReferences(value, true);
 }
 
+/** Whether an attribute's URL (src, poster, background) is external. */
+function isExternalAttrUrl(value: string | null | undefined): boolean {
+  return !!value && isExternalResourceUrl(attributeText(value));
+}
+
+/** Whether a srcset names an external candidate; split only after decoding, as the browser does. */
 function srcsetHasExternalUrl(srcset: string): boolean {
-  return srcset
+  return attributeText(srcset)
     .split(',')
-    .some((candidate) => isExternalAttrUrl(candidate.trim().split(/\s+/)[0]));
+    .some((candidate) => isExternalResourceUrl(candidate.trim().split(/\s+/)[0]));
 }
 
 function appendStyle(attrs: ParsedAttr[], extra: string): void {
@@ -623,7 +663,7 @@ export function blockExternalResources(html: string): BlockExternalResult {
       }
     }
 
-    if (tag === 'source' || tag === 'video' || tag === 'audio') {
+    if (tag === 'source' || tag === 'video' || tag === 'audio' || tag === 'track') {
       const src = get('src');
       if (src?.value && isExternalAttrUrl(src.value)) {
         attrs.push({ name: 'data-blocked-src', value: src.value.trim() });
@@ -648,10 +688,13 @@ export function blockExternalResources(html: string): BlockExternalResult {
       changed = true;
     }
 
+    // The CSS as the browser reads it, with the value's character references
+    // decoded; written back with its `&` escaped, so it reads the same again.
     const style = get('style');
-    if (style?.value && styleHasExternalUrl(style.value)) {
+    const css = style?.value ? attributeText(style.value) : '';
+    if (style?.value && styleHasExternalUrl(css)) {
       attrs.push({ name: 'data-blocked-style', value: style.value });
-      style.value = stripExternalCssUrls(style.value);
+      style.value = stripExternalCssUrls(css).replace(/&/g, '&amp;');
       changed = true;
     }
 
