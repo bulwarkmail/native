@@ -397,9 +397,16 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
   });
 
   describe('identities', () => {
-    it('sends the own address from the own account (this login is in no group)', async () => {
+    it('sends the own address from the own account, also when the login is in a group', async () => {
       await expect(resolveSendAccountId(USER)).resolves.toBe(singleton.accountId);
-      expect(singleton.getSubmissionAccountIds()).toEqual([singleton.accountId]);
+      // The own account first, then every other account that can submit
+      // (a group's, or one shared with the login: usera on the test servers).
+      const others = Object.entries(singleton.currentSession?.accounts ?? {})
+        .filter(([id, account]) => id !== singleton.accountId && account.accountCapabilities?.[CAPABILITIES.SUBMISSION])
+        .map(([id]) => id);
+      const ids = singleton.getSubmissionAccountIds();
+      expect(ids[0]).toBe(singleton.accountId);
+      expect([...ids].sort()).toEqual([singleton.accountId, ...others].sort());
     }, 30_000);
   });
 
