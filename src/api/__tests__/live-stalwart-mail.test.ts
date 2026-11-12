@@ -714,3 +714,71 @@ live('live Stalwart: folder list in query pages (#1502)', () => {
     }
   }, 60_000);
 });
+// Report phishing (webmail 50f95f446): the report goes to the organisation's
+// address (userb here) with no copy left in Drafts or Sent, in both formats,
+// and the message moves to Junk with $phishing.
+live('live Stalwart: report phishing', () => {
+  const tag = `bulwark-phish-${RUN}`;
+  let scratch = '';
+  let second: JMAPClient | null = null;
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    scratch = await createMailbox({ name: `live-phish-${RUN}` });
+    if (USER2) {
+      second = new JMAPClient();
+      await second.connect(SERVER!, USER2, PASS2);
+    }
+  }, 60_000);
+
+  afterAll(async () => {
+    if (second) {
+      await useLogin(second);
+      const got = await second.request([['Email/query', { accountId: second.accountId, filter: { subject: tag } }, '0']]).catch(() => null);
+      const ids = (got?.methodResponses?.[0]?.[1]?.ids as string[] | undefined) ?? [];
+      if (ids.length) await destroyEmails(ids).catch(() => undefined);
+    }
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+    if (scratch) {
+      await emptyMailbox(scratch).catch(() => undefined);
+      await deleteMailbox(scratch).catch(() => undefined);
+    }
+  }, 60_000);
+
+  (USER2 ? it : it.skip)('sends a forward and an ARF report to the address, keeps no copy and files the message in Junk with $phishing', async () => {
+    const { sendPhishingReport } = await import('../phishing-report');
+    const { markAsSpam } = await import('../email');
+    const id = await importMessage(scratch, `${tag} win a prize`, 'Click https://evil.example/login now.');
+    const [original] = await getFullEmails([id]);
+
+    for (const format of ['forward', 'arf'] as const) {
+      await sendPhishingReport(original, { setup: { address: USER2!, format } });
+    }
+    // Nothing of the reports stays with the reporter: only the original has the tag.
+    expect(await eventually(() => messagesWith(tag), (ids) => ids.length === 1, 10_000)).toEqual([id]);
+
+    const junk = (await getMailboxes()).find((m) => m.role === 'junk')!;
+    await markAsSpam([id], junk.id, undefined, { markRead: true, keywords: ['$phishing'] });
+    const [flags] = (await getEmailFlags([id])).list;
+    expect(flags.keywords).toMatchObject({ $junk: true, $seen: true, $phishing: true });
+
+    // Delivered to the address (both reports), when the server delivers locally.
+    await useLogin(second!);
+    const query = async () => {
+      const res = await second!.request([['Email/query', { accountId: second!.accountId, filter: { subject: tag } }, '0']]);
+      return (res.methodResponses[0][1].ids as string[]) ?? [];
+    };
+    const received = await eventually(query, (ids) => ids.length >= 2, 20_000);
+    expect(received.length).toBe(2);
+    const reports = await getFullEmails(received);
+    expect(reports.map((r) => r.subject).sort()).toEqual([`Phishing: ${tag} win a prize`, `Phishing: ${tag} win a prize`]);
+    expect(reports.every((r) => (r.attachments ?? []).some((a) => a.type === 'message/rfc822'))).toBe(true);
+    await useLogin(client);
+  }, 120_000);
+});

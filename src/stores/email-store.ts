@@ -155,6 +155,13 @@ export interface ViewedEmail {
   accountId?: string;
 }
 
+/** Report phishing: also set `keywords` ($phishing), mark read, and say so in the undo bar. */
+export interface MarkSpamOptions {
+  keywords?: string[];
+  markRead?: boolean;
+  label?: string;
+}
+
 // The message an action works on, and whether the loaded list holds it: the
 // list's row, but for the viewer only when the list is the message's account;
 // otherwise the viewer's copy, and the list is left alone.
@@ -533,7 +540,7 @@ export interface EmailState {
    * Works for one id or a selection; offers undo. With `viewed`, the viewer's
    * message goes to its own account's Junk (#695).
    */
-  markSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
+  markSpam: (emailIds: string[], viewed?: ViewedEmail, opts?: MarkSpamOptions) => Promise<void>;
   /** Inverse of markSpam: back to Inbox with `$notjunk`. */
   unmarkSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
   // ── Batch (multi-select) actions ──────────────────────────────
@@ -1671,7 +1678,7 @@ export const useEmailStore = create<EmailState>()(
     patchCache(email.id, { keywords: patch }, rowAccountId(state, email));
   },
 
-  markSpam: async (emailIds, viewed) => {
+  markSpam: async (emailIds, viewed, opts) => {
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1686,9 +1693,13 @@ export const useEmailStore = create<EmailState>()(
       return;
     }
     const junk = refFor(state.mailboxes, junkMailbox.id);
-    const markRead = useSettingsStore.getState().deleteAction === 'trash-and-read';
+    const markRead = opts?.markRead || useSettingsStore.getState().deleteAction === 'trash-and-read';
+    const extraKeywords = opts?.keywords ?? [];
     const junkTarget = { [junk.id]: true };
-    const keywordPatch: KeywordPatch = { $junk: true, $notjunk: null, ...(markRead ? { $seen: true } : {}) };
+    const keywordPatch: KeywordPatch = {
+      $junk: true, $notjunk: null, ...(markRead ? { $seen: true } : {}),
+      ...Object.fromEntries(extraKeywords.map((k) => [k, true])),
+    };
     const items = targets.map((e) => ({
       email: e,
       originalMailboxIds: { ...e.mailboxIds },
@@ -1700,7 +1711,7 @@ export const useEmailStore = create<EmailState>()(
         { kind: 'mailboxes', emailId: e.id, accountId: junk.accountId, mailboxIds: junkTarget },
         { kind: 'keywords', emailId: e.id, accountId: junk.accountId, patch: keywordPatch },
       ]),
-      () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead }),
+      () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead, ...(extraKeywords.length ? { keywords: extraKeywords } : {}) }),
     );
 
     const removed = new Set(listed ? targets.map(rowKeyOf) : []);
@@ -1708,9 +1719,9 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.filter((e) => !removed.has(rowKeyOf(e))),
       pendingUndo: {
         kind: 'spam',
-        label: targets.length === 1
+        label: opts?.label ?? (targets.length === 1
           ? t('email_list.marked_as_spam', 'Marked as spam')
-          : t('email_list.marked_as_spam_count', `${targets.length} emails marked as spam`, { count: targets.length }),
+          : t('email_list.marked_as_spam_count', `${targets.length} emails marked as spam`, { count: targets.length })),
         createdAt: Date.now(),
         accountId: junk.accountId,
         keywordPatch,

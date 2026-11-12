@@ -220,6 +220,18 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
     useSettingsStore.getState().updateSetting('deleteAction', 'trash');
   });
 
+  // Report phishing: Junk with $phishing, read, and the report's own line in
+  // the undo bar; undo takes $phishing off again.
+  it('adds $phishing and marks read for a phishing report, and names the report in the undo bar', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+
+    await useEmailStore.getState().markSpam(['e1'], TEAM_VIEWED, { keywords: ['$phishing'], markRead: true, label: 'Reported' });
+
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', 'grp-1', { markRead: true, keywords: ['$phishing'] });
+    const undo = useEmailStore.getState().pendingUndo!;
+    expect(undo).toMatchObject({ kind: 'spam', label: 'Reported', keywordPatch: { $junk: true, $notjunk: null, $seen: true, $phishing: true } });
+  });
+
   it('files a team message back into the team Inbox with $notjunk', async () => {
     useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
     const junked = { ...TEAM_MESSAGE, keywords: { $junk: true }, mailboxIds: { j: true } } as unknown as Email;

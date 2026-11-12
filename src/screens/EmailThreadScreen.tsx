@@ -36,7 +36,9 @@ import {
   REPLY_QUICK_ACTIONS,
   type QuickAction,
 } from '../stores/settings-store';
-import { usePolicyFeature } from '../stores/policy-store';
+import { usePolicyFeature, usePolicyStore } from '../stores/policy-store';
+import { isReportable, phishingReportSetup } from '../lib/phishing-report';
+import { reportEmailAsPhishing } from '../lib/phishing-report-flow';
 import { bottomQuickActionsFor } from '../lib/swipe-actions';
 import { patchKeywordsForEmails } from '../api/email';
 import {
@@ -495,6 +497,15 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const canArchive = archiveEnabled && !!archiveMailbox && sourceMailbox?.id !== archiveMailbox.id;
   // Not spam files back into the Inbox, so it needs one.
   const canToggleSpam = isInJunk ? !!inboxMailbox : !!junkMailbox;
+  // Report phishing, when the organisation set a report address (webmail
+  // 50f95f446): not for the user's own mail or a message reported already.
+  const policy = usePolicyStore((s) => s.effective);
+  const phishingSetup = React.useMemo(() => phishingReportSetup(policy), [policy]);
+  const canReportPhishing = !!phishingSetup && !!email && isReportable(
+    email,
+    sourceMailbox?.role,
+    scopedMailboxes.filter((m) => email.mailboxIds?.[m.originalId ?? m.id]).map((m) => m.role),
+  );
 
   const onToggleKeyword = (token: string) => {
     if (!email) return;
@@ -606,6 +617,45 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         .catch((err) => toastFailure(t('email_viewer.spam.error', 'Failed to report spam'), err));
     }
     navigation.goBack();
+  };
+
+  const onReportPhishing = () => {
+    if (!email || !phishingSetup || !canReportPhishing) return;
+    setMoreMenuOpen(false);
+    const setup = phishingSetup;
+    const target = email;
+    Alert.alert(
+      t('phishing_report.confirm_title', 'Report phishing?'),
+      t(
+        'phishing_report.confirm_message',
+        '{count, plural, one {The message goes to {address} and moves to Junk.} other {Each of the # messages goes to {address} as its own report and moves to Junk.}}',
+        { count: 1, address: setup.address },
+      ),
+      [
+        { text: t('phishing_report.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('phishing_report.confirm', 'Report'),
+          style: 'destructive',
+          onPress: () => {
+            reportEmailAsPhishing(target, ownerAccountId, setup, t)
+              .then((result) => {
+                if (result === 'notMoved') {
+                  toast.error(t(
+                    'phishing_report.not_moved',
+                    "{count, plural, one {Reported to {address}, but the message couldn't be moved to Junk.} other {Reported to {address}, but # messages couldn't be moved to Junk.}}",
+                    { count: 1, address: setup.address },
+                  ));
+                }
+              })
+              .catch((err) => toastFailure(
+                t('phishing_report.failed', "{count, plural, one {The message couldn't be reported.} other {# messages couldn't be reported.}}", { count: 1 }),
+                err,
+              ));
+            navigation.goBack();
+          },
+        },
+      ],
+    );
   };
 
   const onMoveToMailbox = (toId: string) => {
@@ -933,6 +983,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
         canMove={!!sourceMailbox}
         showSpam={canToggleSpam}
         isInJunk={isInJunk}
+        onReportPhishing={canReportPhishing ? onReportPhishing : undefined}
         canViewSource={!!email?.blobId}
         canExport={!!email?.blobId}
         canTag
@@ -1401,6 +1452,8 @@ interface MoreMenuSheetProps {
   onMove: () => void;
   onTag: () => void;
   onToggleSpam: () => void;
+  /** Report phishing; absent while the organisation set no report address. */
+  onReportPhishing?: () => void;
   onToggleTheme: () => void;
   onSenderActions: () => void;
   onForwardAsAttachment: () => void;
@@ -1413,7 +1466,7 @@ interface MoreMenuSheetProps {
 function MoreMenuSheet({
   visible, onClose, unread, canArchive, canMarkUnread, canMove, canTag,
   showSpam, isInJunk, canViewSource, canExport, renderDark, plainView, onTogglePlainView, hasSender,
-  onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onToggleTheme, onSenderActions,
+  onArchive, onToggleUnread, onMove, onTag, onToggleSpam, onReportPhishing, onToggleTheme, onSenderActions,
   onForwardAsAttachment, onRules, onViewSource, onExport,
 }: MoreMenuSheetProps) {
   const c = useColors();
@@ -1517,6 +1570,13 @@ function MoreMenuSheet({
               }
               label={isInJunk ? t('email_viewer.not_spam_short', 'Not spam') : t('email_viewer.spam.button_title', 'Report spam')}
               onPress={onToggleSpam}
+            />
+          )}
+          {onReportPhishing && (
+            <MoreMenuItem
+              icon={<ShieldAlert size={18} color={c.error} />}
+              label={t('phishing_report.action', 'Report phishing…')}
+              onPress={onReportPhishing}
             />
           )}
           {plainView !== null && (

@@ -168,7 +168,7 @@ describe('email operations', () => {
     /** A server with `all` folders that caps a get without ids at `cap` the 0.16 or 1.0 way. */
     function fakeServer(all: ReturnType<typeof folders>, cap: number, mode: '0.16' | '1.0', states: string[] = ['s1']) {
       let gets = 0;
-      mockRequest.mockImplementation(async (calls: JMAPMethodCall[]) => {
+      mockRequest.mockImplementation(async (calls: [string, Record<string, any>, string][]) => {
         const out: unknown[] = [];
         let lastIds: string[] = [];
         for (const [name, args, callId] of calls) {

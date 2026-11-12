@@ -1304,7 +1304,8 @@ export async function markAsSpam(
   ids: string[],
   junkMailboxId: string,
   accountIdOverride?: string,
-  opts?: { markRead?: boolean },
+  /** `keywords`: set as well, such as `$phishing` for a phishing report. */
+  opts?: { markRead?: boolean; keywords?: string[] },
 ): Promise<void> {
   if (ids.length === 0) return;
   const accountId = accountIdOverride ?? jmapClient.accountId;
@@ -1315,6 +1316,7 @@ export async function markAsSpam(
       [keywordPointer('$junk')]: true,
       [keywordPointer('$notjunk')]: null,
       ...(opts?.markRead ? { [keywordPointer('$seen')]: true } : {}),
+      ...Object.fromEntries((opts?.keywords ?? []).map((k) => [keywordPointer(k), true])),
     };
   }
   await emailSetBatched(accountId, { update });
