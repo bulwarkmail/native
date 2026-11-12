@@ -244,7 +244,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: inserts an HTML template as it is (`src/lib/template-utils.ts:209-210`); the send path turns only `data-cid` images into parts (`src/lib/compose-html.ts:298-316`), so a template's `<img src="data:...">` stays in the HTML.
   - Fix hint: on template insert, upload each data: image like insertInlineImages does (`src/screens/ComposeScreen.tsx:2199`) and tag it with its cid.
 
-- [ ] **No switches to leave the signature out of new mail or out of replies** — `P3` — `missing`
+- [x] **No switches to leave the signature out of new mail or out of replies** — `P3` — `missing` — fixed in 570efabf
   - What WEB does: "Insert signature in new mail" and "in replies, forwards and quick replies", both on by default (`stores/settings-store.ts:781-782`, `components/email/email-composer.tsx:771-777`). Changelog 1.20.0 (#1493).
   - What RN does: always inserts the identity's signature (`src/screens/ComposeScreen.tsx:1386`); no such settings (`src/stores/settings-store.ts`).
   - Fix hint: two settings on the Composing page and a check before placing the signature.
