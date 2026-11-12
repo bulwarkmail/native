@@ -10,7 +10,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Mail, Calendar, BookUser, HardDrive, Settings } from './src/components/icons';
 
-import { startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream';
+import { createStateBaseline, startLiveUpdates, type LiveUpdatesHandle } from './src/api/push-stream';
 import { jmapClient } from './src/api/jmap-client';
 import { pruneEmailSubmissions } from './src/api/submissions';
 import type { StateChange } from './src/api/types';
@@ -785,6 +785,9 @@ export default function App() {
 
     let mounted = true;
     let handle: LiveUpdatesHandle | null = null;
+    // Kept over a background close, so the stream reopened on resume reports
+    // what changed meanwhile (contacts, calendars, Files, Scheduled too).
+    const baseline = createStateBaseline();
     let appActive = AppState.currentState !== 'background' && AppState.currentState !== 'inactive';
 
     const onStateChange = async (change: StateChange) => {
@@ -811,6 +814,7 @@ export default function App() {
           onError: (error) => { console.warn('[push]', error.message); },
           onFallback: (reason) => { console.warn('[push] falling back to polling:', reason); },
           isActive: () => appActive,
+          baseline,
         });
         if (!mounted) {
           next.close();

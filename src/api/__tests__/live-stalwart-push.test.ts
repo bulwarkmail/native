@@ -23,6 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 import { JMAPClient } from '../jmap-client';
 import {
@@ -42,7 +43,8 @@ import {
   sameEmailPush,
   sameTypes,
 } from '../../lib/push-notifications';
-import type { EmailPushConfig } from '../types';
+import { createStateBaseline, startLiveUpdates } from '../push-stream';
+import type { EmailPushConfig, StateChange } from '../types';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -55,6 +57,68 @@ const DAY = 86_400_000;
 const ALL_TYPES = ['EmailDelivery', 'ContactCard', 'AddressBook', 'CalendarEvent', 'Calendar'];
 
 let client: JMAPClient;
+
+const nodeRequire = createRequire(import.meta.url);
+
+/** The react-native-sse surface push-stream uses, over Node's fetch. */
+class NodeEventSource {
+  private listeners = new Map<string, Set<(event: { type: string; data?: string; xhrStatus?: number }) => void>>();
+  private abort = new AbortController();
+
+  constructor(url: string, options: { headers: Record<string, string> }) {
+    void this.run(url, options.headers);
+  }
+
+  addEventListener(type: string, handler: (event: { type: string; data?: string; xhrStatus?: number }) => void) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type)!.add(handler);
+  }
+
+  removeEventListener(type: string, handler: (event: { type: string; data?: string; xhrStatus?: number }) => void) {
+    this.listeners.get(type)?.delete(handler);
+  }
+
+  close() {
+    this.abort.abort();
+  }
+
+  private emit(type: string, event: { data?: string; xhrStatus?: number } = {}) {
+    for (const handler of this.listeners.get(type) ?? []) handler({ type, ...event });
+  }
+
+  private async run(url: string, headers: Record<string, string>) {
+    try {
+      const res = await fetch(url, { headers: { ...headers, Accept: 'text/event-stream' }, signal: this.abort.signal });
+      if (!res.ok || !res.body) {
+        this.emit('error', { xhrStatus: res.status });
+        return;
+      }
+      this.emit('open');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        for (let m = /\r?\n\r?\n/.exec(buffer); m; m = /\r?\n\r?\n/.exec(buffer)) {
+          const block = buffer.slice(0, m.index);
+          buffer = buffer.slice(m.index + m[0].length);
+          let type = 'message';
+          const data: string[] = [];
+          for (const line of block.split(/\r?\n/)) {
+            if (line.startsWith('event:')) type = line.slice(6).trim();
+            else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+          }
+          this.emit(type, { data: data.join('\n') });
+        }
+      }
+      if (!this.abort.signal.aborted) this.emit('close');
+    } catch {
+      if (!this.abort.signal.aborted) this.emit('error', { xhrStatus: 0 });
+    }
+  }
+}
 
 async function connectSingleton(): Promise<void> {
   const mod = await import('../jmap-client');
@@ -341,6 +405,122 @@ live('live Stalwart push subscriptions', () => {
       await client.request([['Email/set', { accountId: client.accountId, destroy: [emailId] }, '0']], using);
     }
   }, 30_000);
+
+  // Webmail #1553: a reopened event stream doesn't replay what it missed, so
+  // every (re)connect checks the states once. The stream here is the real
+  // event source over Node's fetch (react-native-sse needs XHR).
+  describe('catch-up after the live connection was down', () => {
+    const CONTACTS_USING = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'];
+    const MAIL_USING = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:mail'];
+    const streams: NodeEventSource[] = [];
+    const cards: string[] = [];
+    const emails: string[] = [];
+    let bookId = '';
+
+    beforeAll(async () => {
+      const ssePath = nodeRequire.resolve('react-native-sse');
+      nodeRequire.cache[ssePath] = {
+        id: ssePath, filename: ssePath, loaded: true, exports: { default: NodeEventSource },
+      } as NodeJS.Module;
+      streams.length = 0;
+      const books = await client.request([['AddressBook/get', { accountId: client.accountId, ids: null }, '0']], CONTACTS_USING);
+      const list = (books.methodResponses[0][1] as { list: Array<{ id: string; isDefault?: boolean }> }).list;
+      bookId = (list.find((b) => b.isDefault) ?? list[0])?.id ?? '';
+      expect(bookId).toBeTruthy();
+    }, 30_000);
+
+    afterAll(async () => {
+      for (const s of streams) s.close();
+      if (cards.length) {
+        await client.request([['ContactCard/set', { accountId: client.accountId, destroy: cards }, '0']], CONTACTS_USING).catch(() => undefined);
+      }
+      if (emails.length) {
+        await client.request([['Email/set', { accountId: client.accountId, destroy: emails }, '0']], MAIL_USING).catch(() => undefined);
+      }
+    }, 30_000);
+
+    /** A change the app didn't make, by the second client while no stream is open. */
+    async function changeElsewhere(label: string): Promise<void> {
+      const res = await client.request([
+        ['ContactCard/set', {
+          accountId: client.accountId,
+          create: { c: { '@type': 'Card', version: '1.0', uid: `urn:uuid:live-push-${run}-${label}`, name: { full: `Live catch-up ${run} ${label}` }, addressBookIds: { [bookId]: true } } },
+        }, '0'],
+      ], CONTACTS_USING);
+      const card = (res.methodResponses[0][1] as { created?: Record<string, { id: string }> }).created?.c?.id;
+      expect(card, JSON.stringify(res.methodResponses[0][1])).toBeTruthy();
+      cards.push(card!);
+      const made = await client.request([[
+        'Email/set',
+        { accountId: client.accountId, create: { e: { mailboxIds: { [inbox]: true }, keywords: { $seen: true }, from: [{ email: 'probe@example.org' }], subject: `live catch-up ${run} ${label}`, bodyValues: { b: { value: 'probe' } }, textBody: [{ partId: 'b', type: 'text/plain' }] } } },
+        '0',
+      ]], MAIL_USING);
+      const email = (made.methodResponses[0][1] as { created?: Record<string, { id: string }> }).created?.e?.id;
+      expect(email, JSON.stringify(made.methodResponses[0][1])).toBeTruthy();
+      emails.push(email!);
+      // Past Stalwart's push throttle, so a stream opened next can't get the event itself.
+      await new Promise((r) => setTimeout(r, 3_000));
+    }
+
+    async function until(check: () => boolean, ms: number): Promise<boolean> {
+      const end = Date.now() + ms;
+      while (Date.now() < end) {
+        if (check()) return true;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return check();
+    }
+
+    function reported(seen: StateChange[], type: string): boolean {
+      return seen.some((c) => type in (c.changed[client.accountId] ?? {}));
+    }
+
+    it('reports a contact and a mail made while the stream was paused, after it reconnects', async () => {
+      const seen: StateChange[] = [];
+      let active = true;
+      const handle = await startLiveUpdates({ onStateChange: (c) => seen.push(c), isActive: () => active });
+      try {
+        expect(handle.mode).toBe('sse');
+        expect(await until(() => handle.healthy, 15_000)).toBe(true);
+        // The first check only primes the baseline.
+        await new Promise((r) => setTimeout(r, 3_000));
+        expect(reported(seen, 'ContactCard')).toBe(false);
+
+        // Pause: the stream drops and stays down while the app is inactive.
+        active = false;
+        handle.reconnect();
+        expect(handle.healthy).toBe(false);
+        await changeElsewhere('paused');
+
+        active = true;
+        handle.reconnect();
+        expect(await until(() => reported(seen, 'ContactCard') && reported(seen, 'Email'), 15_000), JSON.stringify(seen)).toBe(true);
+      } finally {
+        handle.close();
+      }
+    }, 60_000);
+
+    it('reports a change made while the app had closed the stream, with the baseline carried over', async () => {
+      const baseline = createStateBaseline();
+      const first = await startLiveUpdates({ onStateChange: () => undefined, baseline });
+      try {
+        expect(await until(() => first.healthy, 15_000)).toBe(true);
+        await new Promise((r) => setTimeout(r, 3_000));
+      } finally {
+        first.close();
+      }
+      expect(Object.keys(baseline.known)).toContain(`${client.accountId}:ContactCard`);
+      await changeElsewhere('closed');
+
+      const seen: StateChange[] = [];
+      const second = await startLiveUpdates({ onStateChange: (c) => seen.push(c), baseline });
+      try {
+        expect(await until(() => reported(seen, 'ContactCard'), 15_000), JSON.stringify(seen)).toBe(true);
+      } finally {
+        second.close();
+      }
+    }, 60_000);
+  });
 
   it('refuses a type it does not know over the types property', async () => {
     const err = await refusal(create('bogus-type', { types: ['EmailDelivery', 'NoSuchType'] }));
