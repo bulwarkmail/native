@@ -466,7 +466,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: rows show name, subtitle and host, no unread count (`src/components/SidebarDrawer.tsx:925-1017`).
   - Fix hint: read the other accounts' Inbox unread from the unified inbox data the app already loads and show a badge per row.
 
-- [ ] **Shared accounts can't be reordered in the folder list** — `P3` — `missing`
+- [x] **Shared accounts can't be reordered in the folder list** — `P3` — `missing` — fixed in 3a5ed109 (stored on the phone per login, not in the synced settings)
   - What WEB does: an order for the shared accounts, saved per login in the settings, set by dragging or from the shared account's menu (`lib/shared-mail-order.ts`, `components/layout/mailbox-context-menu.tsx`, `components/settings/layout-settings.tsx`). 2b3b672b7, 7ac6606f6.
   - What RN does: shared accounts show in session order; the shared account sheet offers mark-read only (`src/components/SidebarDrawer.tsx:730-739`). No order setting in `src/stores/settings-store.ts`.
   - Fix hint: port shared-mail-order.ts and add Move up/Move down to the shared account sheet. Dragging is n/a on the phone.
