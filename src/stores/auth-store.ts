@@ -34,6 +34,7 @@ import {
   PairingError,
   forgetRefreshRotations,
   type HandoffResult,
+  type OAuthTokens,
 } from '../lib/oauth';
 import { discoverOAuthMetadata, endProviderSession, loginWithPkce, probeWebmail, revokeRefreshToken } from '../lib/oauth-native';
 import {
@@ -426,6 +427,9 @@ async function signIn(
     let signedIn: SignedIn | null = null;
     let wasRegistered = true;
     const accountStore = useAccountStore.getState();
+    // What a sign-in to an account already here will replace (#1571).
+    const heldTokens = await storedRefreshTokens();
+    throwIfCancelled(signal);
     try {
       const connecting = connect();
       if (signal) {
@@ -476,6 +480,7 @@ async function signIn(
       throw err;
     }
     const { session, serverUrl, username, accountId } = signedIn;
+    if (wasRegistered) void retireReplacedRefreshToken(accountId, heldTokens.get(accountId));
     accountStore.setActiveAccount(accountId);
     // Swap the email store's active view to the new account so the rest of
     // this function (and refetchFeatureStores) writes to the right bucket.
@@ -572,6 +577,52 @@ async function revokeStoredRefreshToken(accountId: string): Promise<void> {
     void endProviderSession(entry.serverUrl, tokens);
   } catch {
     // never block sign-out
+  }
+}
+
+// The OAuth bundles the registered accounts hold, read before a sign-in
+// stores its own over one of them.
+async function storedRefreshTokens(): Promise<Map<string, OAuthTokens>> {
+  const held = new Map<string, OAuthTokens>();
+  await Promise.all(useAccountStore.getState().accounts.map(async (a) => {
+    try {
+      const tokens = await jmapClient.getStoredOAuthTokens(a.id);
+      if (tokens?.refreshToken) held.set(a.id, tokens);
+    } catch {
+      // nothing to replace then
+    }
+  }));
+  return held;
+}
+
+// Stalwart's own token rather than one from an external provider it hands
+// the sign-in to: no token endpoint, or one on the server's origin (webmail
+// lib/auth/lite-tokens.ts isStalwartToken).
+function isServerToken(serverUrl: string, tokens: OAuthTokens): boolean {
+  if (!tokens.tokenEndpoint) return true;
+  const origin = (url: string) => /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(url)?.[1]?.toLowerCase() ?? null;
+  const a = origin(tokens.tokenEndpoint);
+  return !!a && a === origin(serverUrl);
+}
+
+// Signing in again to an account replaced its refresh token; revoke the old
+// one so it doesn't stay on the server as one more connected app (webmail
+// 66d46d23a, #1571). Runs once the new bundle is stored, and only on the
+// replaced token: the push task reads the stored one, which is the new one
+// by now. Only Stalwart's own tokens (there every sign-in is a grant of its
+// own; an external provider may tie the old and the new to one session), and
+// never a QR-paired one (see revokeStoredRefreshToken). Best effort.
+async function retireReplacedRefreshToken(accountId: string, previous: OAuthTokens | undefined): Promise<void> {
+  try {
+    const entry = useAccountStore.getState().getAccountById(accountId);
+    if (!entry || !previous?.refreshToken || previous.source === 'pairing') return;
+    if (!isServerToken(entry.serverUrl, previous)) return;
+    const current = await jmapClient.getStoredOAuthTokens(accountId).catch(() => null);
+    if (current?.refreshToken === previous.refreshToken) return;
+    forgetRefreshRotations(previous.refreshToken);
+    await revokeRefreshToken(entry.serverUrl, previous);
+  } catch {
+    // never fail a sign-in
   }
 }
 

@@ -549,6 +549,26 @@ live('live Stalwart sign-in', () => {
     }
   }, 30_000);
 
+  it('signing in again and revoking the replaced token leaves the new sign-in working (#1571)', async () => {
+    // What the auth store does when an account signs in again: the old
+    // bundle's refresh token is revoked once the new one is stored. Each
+    // sign-in is a grant of its own, so the new one must survive it.
+    resetLoginClients();
+    const old = await exchangePasswordForTokens(SERVER, USER, PASS);
+    const fresh = await exchangePasswordForTokens(SERVER, USER, PASS);
+    try {
+      expect(fresh.refreshToken).not.toBe(old.refreshToken);
+      await revokeRefreshToken(SERVER, old);
+      const renewed = await refreshOAuthAccessToken(fresh);
+      expect(await sessionStatus(renewed.accessToken)).toBe(200);
+      if (isV1) await expect(refreshOAuthAccessToken(old)).rejects.toBeInstanceOf(HandoffError);
+      forgetRefreshRotations(fresh.refreshToken);
+      await revokeRefreshToken(SERVER, renewed);
+    } finally {
+      await revokeRefreshToken(SERVER, fresh);
+    }
+  }, 30_000);
+
   describe('pasted access token', () => {
     it('signs in with a Stalwart API key on both', async () => {
       const basic = new JMAPClient();
