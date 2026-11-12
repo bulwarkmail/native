@@ -6,6 +6,7 @@
 // holds its own credentials, so it calls the JMAP endpoint directly with the
 // `urn:stalwart:jmap` capability in `using`.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import { generateAccountId } from '../lib/account-utils';
@@ -13,7 +14,18 @@ import { generateAccountId } from '../lib/account-utils';
 const STALWART_CAPABILITY = 'urn:stalwart:jmap';
 const STALWART_USING = [CAPABILITIES.CORE, STALWART_CAPABILITY];
 
-export type EncryptionType = 'Disabled' | 'Aes128' | 'Aes256';
+/**
+ * Encryption at rest as the server names it. 0.16, 1.0.0 and 1.0.1 have a
+ * cipher per account (`Aes128`, `Aes256`); 1.0.2 has none and calls it
+ * `Enabled` (and switched every account to `Disabled` on the upgrade).
+ */
+export type EncryptionType = 'Disabled' | 'Aes128' | 'Aes256' | 'Enabled';
+
+/**
+ * Which of the two forms the server takes: `cipher` (0.16 to 1.0.1),
+ * `enabled` (1.0.2+), or null while nothing has told yet.
+ */
+export type EncryptionDialect = 'cipher' | 'enabled' | null;
 
 export interface AppCredentialInfo {
   id: string;
@@ -40,9 +52,18 @@ export interface AuthInfo {
 
 export interface CryptoInfo {
   type: EncryptionType;
+  /** Told by the setting's own form; null while it is off. */
+  dialect: EncryptionDialect;
   publicKeyId: string | null;
   encryptOnAppend: boolean;
   allowSpamTraining: boolean;
+  /** 1.0.2's `headerProtection`, kept as read so a save doesn't reset it. */
+  headerProtection?: unknown;
+  /**
+   * It was on when this phone last read it and is off now, and not by a
+   * change made here: a server update to 1.0.2 does that.
+   */
+  turnedOffOnServer?: boolean;
 }
 
 export interface PublicKeyInfo {
@@ -53,6 +74,8 @@ export interface PublicKeyInfo {
   expiresAt: string | null;
   // Key material (PEM / armored). Only returned by some server versions.
   key?: string;
+  /** Stalwart 1.0.2+ reads the key's options back (`authenticatedEncryption`). */
+  hasKeyOptions?: boolean;
 }
 
 export interface PublicKeyInput {
@@ -172,8 +195,39 @@ function buildCreateBody(input: AppCredentialInput): Record<string, unknown> {
 function extractEncryptionType(raw: unknown): EncryptionType {
   if (!raw || typeof raw !== 'object') return 'Disabled';
   const type = (raw as { ['@type']?: string })['@type'];
-  if (type === 'Aes128' || type === 'Aes256') return type;
+  if (type === 'Aes128' || type === 'Aes256' || type === 'Enabled') return type;
   return 'Disabled';
+}
+
+/**
+ * The form a save must use: what the setting says, else what the public
+ * keys say (1.0.2 reads back `authenticatedEncryption` on every key), else
+ * null, and the save finds out (updateEncryptionAtRest).
+ */
+export function encryptionDialect(info: Pick<CryptoInfo, 'dialect'>, keys: PublicKeyInfo[]): EncryptionDialect {
+  if (info.dialect) return info.dialect;
+  return keys.some((k) => k.hasKeyOptions) ? 'enabled' : null;
+}
+
+// Per account: encryption at rest was on when last read here, so that an
+// upgrade switching it off can be told (CryptoInfo.turnedOffOnServer).
+const ENCRYPTION_ON_KEY = 'bulwark.encryptionAtRest.wasOn:';
+
+function encryptionMemoryKey(): string | null {
+  const username = jmapClient.username;
+  const serverUrl = jmapClient.serverUrl;
+  return username && serverUrl ? `${ENCRYPTION_ON_KEY}${generateAccountId(username, serverUrl)}` : null;
+}
+
+async function rememberEncryptionOn(on: boolean): Promise<void> {
+  const key = encryptionMemoryKey();
+  if (!key) return;
+  try {
+    if (on) await AsyncStorage.setItem(key, '1');
+    else await AsyncStorage.removeItem(key);
+  } catch {
+    // only a hint
+  }
 }
 
 // ── Reads ─────────────────────────────────────────────────
@@ -237,50 +291,90 @@ export async function fetchCryptoInfo(): Promise<CryptoInfo> {
     publicKey?: string | null;
     encryptOnAppend?: boolean;
     allowSpamTraining?: boolean;
+    headerProtection?: unknown;
   };
+  const type = extractEncryptionType(result.list?.[0]?.encryptionAtRest);
+  let turnedOffOnServer = false;
+  const memoryKey = encryptionMemoryKey();
+  if (type === 'Disabled') {
+    if (memoryKey) turnedOffOnServer = (await AsyncStorage.getItem(memoryKey).catch(() => null)) === '1';
+  } else {
+    await rememberEncryptionOn(true);
+  }
   return {
-    type: extractEncryptionType(result.list?.[0]?.encryptionAtRest),
+    type,
+    dialect: type === 'Enabled' ? 'enabled' : type === 'Disabled' ? null : 'cipher',
     publicKeyId: typeof raw.publicKey === 'string' ? raw.publicKey : null,
     encryptOnAppend: raw.encryptOnAppend === true,
     allowSpamTraining: raw.allowSpamTraining === true,
+    ...(raw.headerProtection !== undefined ? { headerProtection: raw.headerProtection } : {}),
+    ...(turnedOffOnServer ? { turnedOffOnServer } : {}),
   };
 }
 
-/**
- * Configure Stalwart's encryption at rest (`x:AccountSettings/set`
- * `encryptionAtRest`). `Aes128`/`Aes256` need a public key id from
- * {@link fetchPublicKeys}; `encryptOnAppend` also encrypts mail the user
- * files (imported or appended over IMAP), `allowSpamTraining` lets the
- * classifier read a message before it is encrypted. Since Stalwart 1.0.1
- * JMAP drafts (`$draft`) and the Sent copy of a JMAP submission are stored
- * unencrypted, so they stay editable and go out readable; 0.16 and 1.0.0
- * encrypted those too.
- */
-export async function updateEncryptionAtRest(input: {
-  type: EncryptionType;
-  publicKeyId?: string | null;
-  encryptOnAppend?: boolean;
-  allowSpamTraining?: boolean;
-}): Promise<void> {
+async function setEncryptionAtRest(payload: Record<string, unknown>): Promise<void> {
   const accountId = jmapClient.accountId;
-  let payload: Record<string, unknown>;
-  if (input.type === 'Disabled') {
-    payload = { '@type': 'Disabled' };
-  } else {
-    if (!input.publicKeyId) throw new Error('A public key is required to enable encryption');
-    payload = {
-      '@type': input.type,
-      publicKey: input.publicKeyId,
-      encryptOnAppend: input.encryptOnAppend ?? false,
-      allowSpamTraining: input.allowSpamTraining ?? false,
-    };
-  }
   const responses = await send([
     ['x:AccountSettings/set', { accountId, update: { singleton: { encryptionAtRest: payload } } }, '0'],
   ]);
   const result = resultFor<{ notUpdated?: Record<string, { description?: string; type?: string }> }>(responses, '0');
   const failure = result.notUpdated?.singleton;
   if (failure) throw new Error(failure.description || failure.type || 'Failed to update encryption settings');
+}
+
+/**
+ * Configure Stalwart's encryption at rest (`x:AccountSettings/set`
+ * `encryptionAtRest`). Turning it on needs a public key id from
+ * {@link fetchPublicKeys}; `encryptOnAppend` also encrypts mail the user
+ * files (imported or appended over IMAP), `allowSpamTraining` lets the
+ * classifier read a message before it is encrypted. Since Stalwart 1.0.1
+ * JMAP drafts (`$draft`) and the Sent copy of a JMAP submission are stored
+ * unencrypted, so they stay editable and go out readable; 0.16 and 1.0.0
+ * encrypted those too.
+ *
+ * `Aes128`/`Aes256` is the form of 0.16 to 1.0.1, `Enabled` that of 1.0.2+.
+ * Where the form isn't known (`dialect` null), a refused cipher is tried
+ * again as `Enabled`, and the first refusal is reported if that fails too.
+ */
+export async function updateEncryptionAtRest(input: {
+  type: EncryptionType;
+  publicKeyId?: string | null;
+  encryptOnAppend?: boolean;
+  allowSpamTraining?: boolean;
+  headerProtection?: unknown;
+  dialect?: EncryptionDialect;
+}): Promise<void> {
+  if (input.type === 'Disabled') {
+    await setEncryptionAtRest({ '@type': 'Disabled' });
+    await rememberEncryptionOn(false);
+    return;
+  }
+  if (!input.publicKeyId) throw new Error('A public key is required to enable encryption');
+  const settings = {
+    publicKey: input.publicKeyId,
+    encryptOnAppend: input.encryptOnAppend ?? false,
+    allowSpamTraining: input.allowSpamTraining ?? false,
+  };
+  const enabled = {
+    '@type': 'Enabled',
+    ...settings,
+    ...(input.headerProtection !== undefined ? { headerProtection: input.headerProtection } : {}),
+  };
+  if (input.type === 'Enabled' || input.dialect === 'enabled') {
+    await setEncryptionAtRest(enabled);
+  } else {
+    try {
+      await setEncryptionAtRest({ '@type': input.type, ...settings });
+    } catch (err) {
+      if (input.dialect === 'cipher' || err instanceof AccountSecurityForbiddenError) throw err;
+      try {
+        await setEncryptionAtRest(enabled);
+      } catch {
+        throw err;
+      }
+    }
+  }
+  await rememberEncryptionOn(true);
 }
 
 function publicKeyFromResult(raw: Record<string, unknown>): PublicKeyInfo {
@@ -295,6 +389,9 @@ function publicKeyFromResult(raw: Record<string, unknown>): PublicKeyInfo {
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : null,
     expiresAt: typeof raw.expiresAt === 'string' ? raw.expiresAt : null,
     key: typeof raw.key === 'string' ? raw.key : undefined,
+    ...(typeof raw.authenticatedEncryption === 'boolean' || typeof raw.strictKeyWrapEncoding === 'boolean'
+      ? { hasKeyOptions: true }
+      : {}),
   };
 }
 

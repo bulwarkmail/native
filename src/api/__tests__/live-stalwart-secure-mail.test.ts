@@ -22,6 +22,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { JMAPClient } from '../jmap-client';
 import { destroyEmails, getMailboxes, sendEmail } from '../email';
 import { getIdentities } from '../identity';
+import {
+  createPublicKey,
+  encryptionDialect,
+  fetchCryptoInfo,
+  fetchPublicKeys,
+  removePublicKey,
+  updateEncryptionAtRest,
+} from '../account-security';
 import { uploadBytes } from '../blob';
 import { fetchBlobBytes } from '../../lib/email-export';
 import { buildSecureMessage } from '../../lib/crypto/secure-send';
@@ -177,6 +185,36 @@ live('live Stalwart: PGP and S/MIME mail', () => {
     const own = await openSecureMessage(await sentCopy(emailId), identity.email, access(me));
     expect(own?.status.decrypted).toBe(true);
   }, 120_000);
+
+  it('turns encryption at rest on with a key and reads it back as on, then off again', async () => {
+    as(sender);
+    const before = await fetchCryptoInfo();
+    // Leave an account that has it on alone.
+    if (before.type !== 'Disabled') return;
+    const [identity] = await getIdentities();
+    // An S/MIME certificate in PEM; Stalwart finds no usable key in the
+    // OpenPGP test keys.
+    const cert = await makeSmimeCert(identity.email);
+    const keyId = await createPublicKey({ description: `live ${TAG}`, key: cert.certPem });
+    try {
+      const keys = await fetchPublicKeys();
+      // 1.0.2+ answers with `Enabled` and refuses a cipher; 0.16 to 1.0.1
+      // want one. Ask the way the screen does: by what the server answers.
+      const dialect = encryptionDialect(before, keys);
+      await updateEncryptionAtRest({ type: dialect === 'enabled' ? 'Enabled' : 'Aes256', publicKeyId: keyId, dialect });
+      const on = await fetchCryptoInfo();
+      expect(on.type).not.toBe('Disabled');
+      expect(on.publicKeyId).toBe(keyId);
+      expect(on.dialect).toBe(dialect ?? on.dialect);
+      if (keys.some((k) => k.hasKeyOptions)) expect(on.type).toBe('Enabled');
+
+      await updateEncryptionAtRest({ type: 'Disabled' });
+      expect((await fetchCryptoInfo()).type).toBe('Disabled');
+    } finally {
+      await updateEncryptionAtRest({ type: 'Disabled' }).catch(() => undefined);
+      await removePublicKey(keyId).catch(() => undefined);
+    }
+  }, 60_000);
 
   it('sends a detached S/MIME signature the recipient verifies', async () => {
     as(sender);

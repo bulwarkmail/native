@@ -33,9 +33,12 @@ import {
   AccountSecurityForbiddenError,
   changePassword,
   disableTotp,
+  encryptionDialect,
   fetchAuthInfo,
+  fetchCryptoInfo,
   isLimitedStalwartSignIn,
   signedInWithPassword,
+  updateEncryptionAtRest,
 } from '../account-security';
 
 const queries = [
@@ -139,5 +142,85 @@ describe('signedInWithPassword', () => {
       fake.storedSource = source;
       expect(await signedInWithPassword()).toBe(false);
     }
+  });
+});
+
+describe('encryption at rest (Stalwart 1.0.2 has no cipher)', () => {
+  const settings = (encryptionAtRest: unknown) => [['x:AccountSettings/get', { list: [{ encryptionAtRest }] }, '0']];
+  const sentPayloads = () => fake.sent
+    .filter((c) => c[0] === 'x:AccountSettings/set')
+    .map((c) => (c[1] as { update: { singleton: { encryptionAtRest: Record<string, unknown> } } }).update.singleton.encryptionAtRest);
+  // One answer per request, in order.
+  function answers(...list: unknown[][]) {
+    const queue = [...list];
+    fake.request = async function request(this: typeof fake, calls: unknown[][]) {
+      this.sent.push(...calls);
+      return { methodResponses: queue.shift() ?? [] };
+    } as typeof fake.request;
+  }
+  const original = fake.request;
+
+  beforeEach(() => {
+    fake.sent = [];
+    fake.request = original;
+    fake.usesBearerAuth = false;
+    fake.username = `enc-${Math.random()}@example.org`;
+  });
+
+  it('reads 1.0.2\'s Enabled as on, not as Disabled', async () => {
+    fake.responses = settings({ '@type': 'Enabled', publicKey: 'k1', headerProtection: 'None', encryptOnAppend: true, allowSpamTraining: false });
+    const info = await fetchCryptoInfo();
+    expect(info).toMatchObject({ type: 'Enabled', dialect: 'enabled', publicKeyId: 'k1', encryptOnAppend: true, headerProtection: 'None' });
+  });
+
+  it('turns it on as Enabled on 1.0.2, keeping headerProtection, with no cipher', async () => {
+    fake.responses = [['x:AccountSettings/set', { updated: { singleton: null } }, '0']];
+    await updateEncryptionAtRest({ type: 'Enabled', publicKeyId: 'k1', encryptOnAppend: true, headerProtection: 'None', dialect: 'enabled' });
+    expect(sentPayloads()).toEqual([{ '@type': 'Enabled', publicKey: 'k1', encryptOnAppend: true, allowSpamTraining: false, headerProtection: 'None' }]);
+  });
+
+  it('keeps Aes256 for 0.16 to 1.0.1', async () => {
+    fake.responses = [['x:AccountSettings/set', { updated: { singleton: null } }, '0']];
+    await updateEncryptionAtRest({ type: 'Aes256', publicKeyId: 'k1', dialect: null });
+    expect(sentPayloads()).toEqual([{ '@type': 'Aes256', publicKey: 'k1', encryptOnAppend: false, allowSpamTraining: false }]);
+  });
+
+  it('tries Enabled when a server of unknown form refuses the cipher', async () => {
+    answers(
+      [['x:AccountSettings/set', { notUpdated: { singleton: { type: 'invalidPatch', description: 'Invalid value for encryptionAtRest' } } }, '0']],
+      [['x:AccountSettings/set', { updated: { singleton: null } }, '0']],
+    );
+    await updateEncryptionAtRest({ type: 'Aes256', publicKeyId: 'k1', dialect: null });
+    expect(sentPayloads().map((p) => p['@type'])).toEqual(['Aes256', 'Enabled']);
+  });
+
+  it('reports the first refusal when Enabled is refused too, and does not retry a known cipher server', async () => {
+    answers(
+      [['x:AccountSettings/set', { notUpdated: { singleton: { type: 'invalidProperties', description: 'Key not usable' } } }, '0']],
+      [['x:AccountSettings/set', { notUpdated: { singleton: { type: 'invalidPatch', description: 'Unknown variant' } } }, '0']],
+    );
+    await expect(updateEncryptionAtRest({ type: 'Aes256', publicKeyId: 'k1', dialect: null })).rejects.toThrow('Key not usable');
+    fake.sent = [];
+    answers([['x:AccountSettings/set', { notUpdated: { singleton: { type: 'invalidProperties', description: 'Key not usable' } } }, '0']]);
+    await expect(updateEncryptionAtRest({ type: 'Aes256', publicKeyId: 'k1', dialect: 'cipher' })).rejects.toThrow('Key not usable');
+    expect(sentPayloads()).toHaveLength(1);
+  });
+
+  it('knows a 1.0.2 server from its keys while encryption is off', () => {
+    expect(encryptionDialect({ dialect: null }, [{ id: 'k', description: '', emailAddresses: [], createdAt: null, expiresAt: null, hasKeyOptions: true }])).toBe('enabled');
+    expect(encryptionDialect({ dialect: null }, [{ id: 'k', description: '', emailAddresses: [], createdAt: null, expiresAt: null }])).toBeNull();
+    expect(encryptionDialect({ dialect: 'cipher' }, [])).toBe('cipher');
+  });
+
+  it('says so when the server turned it off (the 1.0.2 upgrade), not when the user did here', async () => {
+    fake.responses = settings({ '@type': 'Aes256', publicKey: 'k1' });
+    expect((await fetchCryptoInfo()).turnedOffOnServer).toBeFalsy();
+    fake.responses = settings({ '@type': 'Disabled' });
+    expect((await fetchCryptoInfo()).turnedOffOnServer).toBe(true);
+
+    fake.responses = [['x:AccountSettings/set', { updated: { singleton: null } }, '0']];
+    await updateEncryptionAtRest({ type: 'Disabled' });
+    fake.responses = settings({ '@type': 'Disabled' });
+    expect((await fetchCryptoInfo()).turnedOffOnServer).toBeFalsy();
   });
 });

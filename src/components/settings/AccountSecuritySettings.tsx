@@ -33,6 +33,7 @@ import {
   fetchPublicKeys,
   createPublicKey,
   removePublicKey,
+  encryptionDialect,
   updateEncryptionAtRest,
   changePassword,
   updateDisplayName,
@@ -799,10 +800,20 @@ function EncryptionSection({
     || (enabled && encryptOnAppend !== info.encryptOnAppend)
     || (enabled && allowSpamTraining !== info.allowSpamTraining);
 
+  // Stalwart 1.0.2+ has no cipher to pick: encryption is on or off.
+  const dialect = encryptionDialect(info, keys);
+
   const save = async () => {
     setSaving(true);
     try {
-      await updateEncryptionAtRest({ type, publicKeyId: keyId, encryptOnAppend, allowSpamTraining });
+      await updateEncryptionAtRest({
+        type,
+        publicKeyId: keyId,
+        encryptOnAppend,
+        allowSpamTraining,
+        headerProtection: info.headerProtection,
+        dialect,
+      });
       await onChanged();
       Alert.alert(
         t('settings.security.encryption.section_title', 'Encryption at Rest'),
@@ -835,26 +846,42 @@ function EncryptionSection({
       <Text style={styles.panelHint}>
         {t('settings.security.encryption.description', 'Encrypt stored emails on the server for additional privacy')}
         {' '}
-        {info.type !== 'Disabled'
-          ? t('settings.security.encryption.active', '{type} encryption enabled', { type: info.type })
-          : t('settings.security.encryption.inactive', 'Disabled')}
+        {info.type === 'Enabled'
+          ? t('settings.security.encryption.enabled', 'Encryption at rest enabled')
+          : info.type !== 'Disabled'
+            ? t('settings.security.encryption.active', '{type} encryption enabled', { type: info.type })
+            : t('settings.security.encryption.inactive', 'Disabled')}
       </Text>
+      {info.turnedOffOnServer && (
+        <Text style={styles.errorText}>
+          {t(
+            'settings.security.encryption.turned_off_on_server',
+            'Encryption at rest was on and has been turned off on the server, as the update to Stalwart 1.0.2 does. New mail is stored unencrypted until you turn it on again here.',
+          )}
+        </Text>
+      )}
 
-      <View>
-        <Text style={styles.pwLabel}>{t('settings.security.encryption.algorithm_label', 'Encryption Algorithm')}</Text>
-        <View style={styles.rowGap}>
-          {algorithms.map((opt) => (
-            <Button
-              key={opt.value}
-              size="sm"
-              variant={type === opt.value ? 'default' : 'outline'}
-              onPress={() => setType(opt.value)}
-            >
-              {opt.label}
-            </Button>
-          ))}
+      {dialect === 'enabled' ? (
+        <SettingItem label={t('settings.security.encryption.label', 'Email encryption')} noBorder>
+          <ToggleSwitch checked={enabled} onChange={(on) => setType(on ? 'Enabled' : 'Disabled')} />
+        </SettingItem>
+      ) : (
+        <View>
+          <Text style={styles.pwLabel}>{t('settings.security.encryption.algorithm_label', 'Encryption Algorithm')}</Text>
+          <View style={styles.rowGap}>
+            {algorithms.map((opt) => (
+              <Button
+                key={opt.value}
+                size="sm"
+                variant={type === opt.value ? 'default' : 'outline'}
+                onPress={() => setType(opt.value)}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
       {enabled && (
         <View style={styles.panel}>
