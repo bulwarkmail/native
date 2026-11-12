@@ -83,6 +83,9 @@ import { supportsFiles } from '../api/files';
 import { FilesPickerSheet } from '../components/compose/FilesPickerSheet';
 import { ComposerOptionsSheet, activeComposerOptionCount, type ComposerOptions } from '../components/compose/ComposerOptionsSheet';
 import { SendWarningsSheet } from '../components/compose/SendWarningsSheet';
+import { TagSheet } from '../components/TagSheet';
+import { useAccountKeywordDefs } from '../stores/keywords-store';
+import { initialTagTokens, tagTokensAsKeywords, toggleTagToken } from '../lib/compose-tags';
 import { answerSendWarnings, collectSendWarnings, type SendWarning } from '../lib/compose-send-warnings';
 import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
 import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
@@ -126,7 +129,7 @@ import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
 } from '../lib/sub-addressing';
 import { activeFromOverride, composeSenderAddress } from '../lib/compose-sender';
-import type { EmailAddress, FileNode, Identity } from '../api/types';
+import type { Email, EmailAddress, FileNode, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { draftThreadOf, refreshDraftThread } from '../lib/draft-thread-refresh';
@@ -654,6 +657,14 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const initialPriority: MessagePriority = draft?.priority ?? 'normal';
   const [priority, setPriority] = React.useState<MessagePriority>(initialPriority);
   const [optionsSheetOpen, setOptionsSheetOpen] = React.useState(false);
+  // Tags (webmail composer Tags menu, #1610): a draft keeps its own, a reply
+  // or forward starts with the original's; the draft and the sent copy carry
+  // them. A group account's message offers the group's shared tags.
+  const [initialTags] = React.useState<string[]>(() => initialTagTokens(draft ? draft.keywords : replyTo?.keywords));
+  const [tagTokens, setTagTokens] = React.useState<string[]>(initialTags);
+  const [tagSheetOpen, setTagSheetOpen] = React.useState(false);
+  const tagKeywordDefs = useAccountKeywordDefs(replyTo?.jmapAccountId);
+  const tagSheetEmails = React.useMemo(() => [{ keywords: tagTokensAsKeywords(tagTokens) } as unknown as Email], [tagTokens]);
   // Sign / encrypt with OpenPGP or S/MIME (#58), per message.
   const [secureMode, setSecureMode] = React.useState<SecureMode>('pgp');
   const [secureSign, setSecureSign] = React.useState(false);
@@ -1247,6 +1258,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     attachments: AttachmentEntry[];
     /** A priority change alone is an edit worth saving (webmail #970). */
     priority?: MessagePriority;
+    /** So is a tag change; left out, the tags the message started with. */
+    tags?: string[];
   }) => JSON.stringify({
     to: s.to.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
     cc: s.cc.map((r) => [r.name, r.email, r.group?.members.map((m) => m.email)]),
@@ -1255,15 +1268,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
     body: s.body,
     att: s.attachments.filter((a) => !a.inline).map((a) => a.blobId ?? a.localId),
     pri: s.priority ?? 'normal',
+    tags: [...(s.tags ?? initialTags)].sort(),
   });
 
   // Memoized: the snapshot copies the whole body, and the screen re-renders
   // for plenty that doesn't touch it (PF8).
   const currentSnapshot = React.useMemo(() => snapshotOf({
     to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-    body: plainTextMode ? plainBody : bodyHtml, attachments, priority,
+    body: plainTextMode ? plainBody : bodyHtml, attachments, priority, tags: tagTokens,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority]);
+  }), [finalTo, finalCc, finalBcc, subject, plainTextMode, plainBody, bodyHtml, attachments, priority, tagTokens]);
   const baselineRef = React.useRef(snapshotOf({
     to: initialTo, cc: initialCc, bcc: initialBcc, subject: initialSubject,
     body: plainTextMode ? initialPlainBody : initialBodyHtml, attachments: initialAttachments,
@@ -1556,9 +1570,10 @@ export default function ComposeScreen({ route, navigation }: Props) {
       messageId: messageIdRef.current,
       requestReadReceipt,
       priority: priority !== 'normal' ? priority : undefined,
+      keywords: tagTokens.length ? tagTokens : undefined,
       envelopeMailFrom,
     };
-  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, signatureSeparatorEnabled, t]);
+  }, [senderAddress, plainTextMode, plainBody, attachments, replyTo, draft, mode, finalTo, finalCc, finalBcc, subject, requestReadReceipt, priority, tagTokens, signatureSeparatorEnabled, t]);
 
   // Which of OpenPGP / S/MIME the From address has a key for, and who of the
   // recipients has none (read while the options sheet is open).
@@ -1649,7 +1664,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? plainBody : html, attachments, priority,
+      body: plainTextMode ? plainBody : html, attachments, priority, tags: tagTokens,
     });
     if (snapshot === lastSavedRef.current) return draftIdRef.current;
     if (snapshot === baselineRef.current && !draftIdRef.current) return null;
@@ -1912,7 +1927,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
     const snapshot = snapshotOf({
       to: finalTo, cc: finalCc, bcc: finalBcc, subject,
-      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority,
+      body: plainTextMode ? latestRef.current.plainBody : html, attachments, priority, tags: tagTokens,
     });
     return snapshot === lastSavedRef.current;
   };
@@ -3339,6 +3354,9 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <ToolbarButton active={activeComposerOptionCount(composerOptions) > 0} onPress={() => setOptionsSheetOpen(true)}
               label={t('email_composer.options', 'Options')}
               icon={<Settings size={18} color={activeComposerOptionCount(composerOptions) > 0 ? c.primary : c.textSecondary} />} />
+            <ToolbarButton active={tagTokens.length > 0} onPress={() => setTagSheetOpen(true)}
+              label={t('email_composer.tags', 'Tags')}
+              icon={<Tag size={18} color={tagTokens.length > 0 ? c.primary : c.textSecondary} />} />
             <ToolbarButton active={plainTextMode} onPress={() => { void togglePlainTextMode(); }}
               label={plainTextMode
                 ? t('email_composer.format_rich_text', 'Switch to rich text (HTML)')
@@ -3853,6 +3871,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
           onDone={closeRecipientPicker}
         />
       )}
+
+      <TagSheet
+        visible={tagSheetOpen}
+        onClose={() => setTagSheetOpen(false)}
+        title={t('email_composer.tags', 'Tags')}
+        keywords={tagKeywordDefs}
+        selectedEmails={tagSheetEmails}
+        onToggle={(token, on) => setTagTokens((prev) => toggleTagToken(prev, token, on))}
+      />
 
       <ComposerOptionsSheet
         visible={optionsSheetOpen}

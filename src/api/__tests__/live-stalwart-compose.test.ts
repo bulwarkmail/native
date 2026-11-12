@@ -336,6 +336,31 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
     }, 60_000);
   });
 
+  describe('composer tags', () => {
+    // The draft keeps the composer's tags and the sent copy carries them (webmail #1610).
+    it('saves the tags with the draft and puts them on the sent copy', async () => {
+      const token = `$label:bulwark-${RUN}`;
+      const saved = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `tags draft ${tag}`, textBody: 'tags', keywords: [token],
+      }, drafts);
+      createdEmails.push(saved.id);
+      const [kept] = await getFullEmails([saved.id]);
+      expect(kept.keywords).toMatchObject({ [token]: true, $draft: true });
+
+      const identities = await getIdentities();
+      const identity = identities.find((i) => i.email.toLowerCase() === USER.toLowerCase())!;
+      const result = await sendEmail(
+        { from: [{ email: USER }], to: [{ email: USER }], subject: `tags sent ${tag}`, textBody: 'tags', keywords: [token] },
+        identity.id, sent, undefined, { draftsMailboxId: drafts },
+      );
+      createdEmails.push(result.emailId!);
+      const [copy] = await getFullEmails([result.emailId!]);
+      expect(copy.keywords?.[token]).toBe(true);
+      expect(copy.keywords?.$draft).toBeFalsy();
+      expect(copy.mailboxIds[sent]).toBe(true);
+    }, 60_000);
+  });
+
   describe('identities', () => {
     it('sends the own address from the own account (this login is in no group)', async () => {
       await expect(resolveSendAccountId(USER)).resolves.toBe(singleton.accountId);

@@ -84,6 +84,8 @@ export function replyComposeParams(
       // The reply comes from the address the mail was delivered to when no
       // own address is in To, Cc or Bcc (webmail #1353).
       deliveredTo: deliveryAddresses(source.headers),
+      // A reply or forward starts with the original's tags (webmail #1610).
+      keywords: source.keywords ?? undefined,
       originalEmailId: source.id,
       jmapAccountId: ownerAccountId,
     },

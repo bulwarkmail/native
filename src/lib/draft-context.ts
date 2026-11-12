@@ -40,6 +40,7 @@ export function draftContextFromEmail(email: Email, jmapAccountId?: string): Com
     references: email.references ?? undefined,
     // Read back from the headers it was saved with (webmail #970).
     priority: messagePriorityFromHeaders(email.headers),
+    keywords: email.keywords ?? undefined,
   };
 }
 

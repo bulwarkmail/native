@@ -29,6 +29,8 @@ export interface ComposeReplyContext {
   attachments?: Attachment[];
   /** Where the original was delivered (Delivered-To and the like), for the reply's From. */
   deliveredTo?: string[];
+  /** The original's keywords: a reply or forward starts with its tags. */
+  keywords?: Record<string, boolean>;
   /** JMAP id of the original message, for `$answered` / `$forwarded`. */
   originalEmailId?: string;
   /** Owning JMAP account when the original lives in a shared/group account. */
@@ -52,6 +54,8 @@ export interface ComposeDraftContext {
   references?: string[] | null;
   /** Read back from the draft's X-Priority / Importance headers (webmail #970). */
   priority?: MessagePriority;
+  /** The draft's keywords: it keeps its tags. */
+  keywords?: Record<string, boolean>;
 }
 
 export type RootStackParamList = {
