@@ -26,6 +26,8 @@ import java.util.Base64
 import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
+import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.X509TrustManager
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -101,6 +103,41 @@ object BulwarkNativePushFetcher {
         .followRedirects(false)
         .followSslRedirects(false)
         .build()
+
+    /** The JMAP and the token client for a client certificate, kept per alias. */
+    @Volatile private var certClients: Triple<String, OkHttpClient, OkHttpClient>? = null
+
+    /**
+     * The JMAP and the token client, presenting the client certificate the
+     * user picked when there is one (#3). Without it a server behind a proxy
+     * that asks for one refuses the handshake, and every push and action fell
+     * back to the JS task.
+     */
+    private fun clientsFor(context: Context): Pair<OkHttpClient, OkHttpClient> =
+        clientsFor(BulwarkClientCertModule.storedAlias(context)) { alias ->
+            BulwarkClientCertModule.sslFor(context, alias)
+        }
+
+    internal fun clientsFor(
+        alias: String?,
+        ssl: (String) -> Pair<SSLSocketFactory, X509TrustManager>,
+    ): Pair<OkHttpClient, OkHttpClient> {
+        if (alias.isNullOrBlank()) return httpClient to tokenClient
+        certClients?.let { if (it.first == alias) return it.second to it.third }
+        val (factory, trust) = try {
+            ssl(alias)
+        } catch (_: Exception) {
+            // Without it the handshake fails and the JS task takes over, as before.
+            return httpClient to tokenClient
+        }
+        val clients = Triple(
+            alias,
+            httpClient.newBuilder().sslSocketFactory(factory, trust).build(),
+            tokenClient.newBuilder().sslSocketFactory(factory, trust).build(),
+        )
+        certClients = clients
+        return clients.second to clients.third
+    }
 
     /** Runs [request], giving up at [deadlineMs]. */
     internal inline fun <T> executeBefore(
@@ -1015,6 +1052,7 @@ object BulwarkNativePushFetcher {
         }
 
         val requestBodyStr = bodyJson.toString()
+        val client = clientsFor(context).first
         fun postWithAuth(authHeader: String): Pair<Int, String?> {
             val request = Request.Builder()
                 .url(apiUrl)
@@ -1023,7 +1061,7 @@ object BulwarkNativePushFetcher {
                 .addHeader("Authorization", authHeader)
                 .post(requestBodyStr.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
-            return executeBefore(httpClient, request, deadlineMs) { response ->
+            return executeBefore(client, request, deadlineMs) { response ->
                 response.code to if (response.isSuccessful) response.body?.string() else null
             }
         }
@@ -1077,7 +1115,8 @@ object BulwarkNativePushFetcher {
             if (storedTokensReplace(stale, stored, now)) return stored
             val refreshToken = stored.refreshToken ?: return null
             val tokenEndpoint = stored.tokenEndpoint ?: return null
-            val fresh = refreshOAuthToken(tokenEndpoint, refreshToken, stored.clientId, deadlineMs) ?: return null
+            val fresh = refreshOAuthToken(clientsFor(context).second, tokenEndpoint, refreshToken, stored.clientId, deadlineMs)
+                ?: return null
             return updateTokensInSecureStore(
                 context = context,
                 credentialsKey = credentialsKey,
@@ -1093,6 +1132,7 @@ object BulwarkNativePushFetcher {
     }
 
     private fun refreshOAuthToken(
+        client: OkHttpClient,
         tokenEndpoint: String,
         refreshToken: String,
         clientId: String?,
@@ -1110,7 +1150,7 @@ object BulwarkNativePushFetcher {
                 .post(form.build())
                 .build()
 
-            executeBefore(tokenClient, req, deadlineMs) { resp ->
+            executeBefore(client, req, deadlineMs) { resp ->
                 if (!resp.isSuccessful) return null
                 val bodyStr = resp.body?.string() ?: return null
                 val body = JSONObject(bodyStr)

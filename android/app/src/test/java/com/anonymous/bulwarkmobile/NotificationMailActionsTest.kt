@@ -1,19 +1,26 @@
 package com.anonymous.bulwarkmobile
 
+import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 /**
  * Archive and Copy code on a new-mail notification (webmail public/sw.js,
- * app/api/push/action, desktop 677903094).
+ * app/api/push/action, desktop 677903094), and the client certificate on the
+ * native lookup (#3).
  */
 class NotificationMailActionsTest {
 
@@ -175,5 +182,45 @@ class NotificationMailActionsTest {
             ),
             BulwarkNativePushFetcher.parseArchiveMailboxes(list),
         )
+    }
+
+    // ─── Client certificate on the native lookup (#3) ────────────────────
+
+    private fun systemSsl(): Pair<javax.net.ssl.SSLSocketFactory, X509TrustManager> {
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        tmf.init(null as java.security.KeyStore?)
+        val tm = tmf.trustManagers.first { it is X509TrustManager } as X509TrustManager
+        val ctx = SSLContext.getInstance("TLS")
+        ctx.init(null, arrayOf(tm), null)
+        return ctx.socketFactory to tm
+    }
+
+    @Test
+    fun `presents the picked client certificate on the lookup and the token refresh`() {
+        val ssl = systemSsl()
+        var built = 0
+        val (jmap, token) = BulwarkNativePushFetcher.clientsFor("my-cert") { alias ->
+            assertEquals("my-cert", alias)
+            built++
+            ssl
+        }
+        assertSame(ssl.first, jmap.sslSocketFactory)
+        assertSame(ssl.first, token.sslSocketFactory)
+        // The token client still refuses redirects.
+        assertFalse(token.followRedirects)
+        // Kept for the alias.
+        val again = BulwarkNativePushFetcher.clientsFor("my-cert") { error("built twice") }
+        assertSame(jmap, again.first)
+        assertEquals(1, built)
+    }
+
+    @Test
+    fun `uses the plain clients without a certificate or when it can't be loaded`() {
+        val (plain, _) = BulwarkNativePushFetcher.clientsFor(null) { error("no alias, no certificate") }
+        val (failed, _) = BulwarkNativePushFetcher.clientsFor("gone") { throw IllegalStateException("KeyChain refused") }
+        assertSame(plain, failed)
+        val (withCert, _) = BulwarkNativePushFetcher.clientsFor("other") { systemSsl() }
+        assertNotSame(plain, withCert)
+        assertTrue(plain is OkHttpClient)
     }
 }
