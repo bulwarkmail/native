@@ -155,7 +155,10 @@
       "not_found": "To zadanie nie jest już dostępne.",
       "save_error": "Nie udało się zapisać zadania",
       "update_error": "Nie udało się zaktualizować zadania",
-      "delete_confirm": "Usunąć to zadanie?"
+      "delete_confirm": "Usunąć to zadanie?",
+      "mark_occurrence_done": "Oznacz ten dzień jako wykonany",
+      "mark_occurrence_open": "Oznacz ten dzień jako niewykonany",
+      "open_task": "Otwórz zadanie"
     },
     "views": {
       "schedule": "Harmonogram",
@@ -186,6 +189,9 @@
     "retry": "Ponów",
     "undo": "Cofnij",
     "update": "Zaktualizuj"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Jeden odbiorca jest} few {# odbiorcy są} many {# odbiorców jest} other {# odbiorcy są}} spoza Twojej organizacji:"
   },
   "contacts": {
     "address_books": {
@@ -489,6 +495,7 @@
       "open": "Otwórz",
       "preview": "Podgląd",
       "save": "Zapisz",
+      "save_as": "Zapisz jako…",
       "share": "Udostępnij"
     },
     "attachment_failed": "Nie udało się otworzyć załącznika",
@@ -517,6 +524,7 @@
     },
     "export_failed": "Eksport nie powiódł się",
     "forwarded": "Przekazano",
+    "import_email": "Importuj plik .eml lub .zip",
     "load_failed": "Nie udało się wczytać wiadomości",
     "preview": {
       "open_external": "Otwórz w aplikacji",
@@ -761,6 +769,8 @@
       "err_handoff_refused_title": "Webmail nie zaakceptował tego logowania",
       "err_handoff_server_detail": "Zaloguj się ponownie. Jeśli nadal się nie udaje, skontaktuj się z administratorem.",
       "err_handoff_server_title": "Webmail nie mógł dokończyć logowania",
+      "err_password_expired_detail": "Zmień je w interfejsie WWW serwera, a potem zaloguj się nowym hasłem.",
+      "err_password_expired_title": "Twoje hasło wygasło",
       "err_token_exchange_title": "{host} nie rozpoczął sesji",
       "reauth_detail": "Serwer nie akceptuje już zapisanego logowania dla {account}. Zaloguj się ponownie, aby dalej korzystać z tego konta.",
       "reauth_title": "Zaloguj się ponownie",
@@ -998,6 +1008,12 @@
       "attachment_click_action": {
         "description_mobile": "Co się dzieje po stuknięciu załącznika."
       },
+      "attachment_position": {
+        "below-header": "Pod nagłówkiem",
+        "beside-sender": "Obok nadawcy",
+        "description": "Gdzie wyświetlać załączniki w nagłówku wiadomości e-mail",
+        "label": "Pozycja załączników"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Odpowiedzi zawsze są wysyłane z tożsamości, na którą przyszła wiadomość. Gdy ta opcja jest włączona, odpowiedź na inny adres w Twoich domenach (alias catch-all) również jest wysyłana z tego adresu."
       },
@@ -1127,6 +1143,12 @@
         "star": "Oznacz gwiazdką",
         "tag": "Etykieta"
       },
+      "reading_pane": {
+        "auto": "Obok listy, gdy jest miejsce",
+        "description": "Na tablecie lub rozłożonym składanym telefonie otwarta wiadomość pojawia się obok listy poczty. Tylko na tym urządzeniu.",
+        "label": "Okienko odczytu",
+        "off": "Wyłączone: wiadomości otwierają się na pełnym ekranie"
+      },
       "show_avatars_in_junk": "Pokazuj awatary nadawców w folderze spam",
       "show_avatars_in_junk_description": "Wczytuj logo nadawców dla wiadomości w folderze spam. Wyłączenie zapobiega kontaktowi z nadawcami spamu.",
       "show_folder_total_count": "Pokazuj łączną liczbę wiadomości w folderach",
@@ -1221,6 +1243,7 @@
       "clear_title": "Wyczyść pocztę offline",
       "days_ago": "{count} d temu",
       "description": "Pobieraj najnowsze wiadomości, aby otwierały się od razu i były dostępne bez połączenia. Tylko treść — załączniki są nadal pobierane na żądanie.",
+      "description_account": "Przechowuj najnowsze wiadomości z {account} na tym urządzeniu, aby otwierały się bez połączenia. Każde konto ma własny okres i rozmiar.",
       "downloading": "Pobieranie {completed}/{total}…",
       "enabled": "Zapisuj najnowszą pocztę",
       "enabled_desc": "Gdy opcja jest włączona, aplikacja przechowuje na tym urządzeniu treść wiadomości z wybranego okresu.",
@@ -1290,7 +1313,8 @@
         "error_title": "Aktualizacja nie powiodła się"
       },
       "encryption": {
-        "no_keys": "Najpierw dodaj klucz publiczny – szyfrowanie danych w spoczynku go wymaga."
+        "no_keys": "Najpierw dodaj klucz publiczny – szyfrowanie danych w spoczynku go wymaga.",
+        "turned_off_on_server": "Szyfrowanie danych w spoczynku było włączone i zostało wyłączone na serwerze, tak jak robi to aktualizacja do Stalwart 1.0.2. Nowa poczta jest zapisywana bez szyfrowania, dopóki nie włączysz go tu ponownie."
       },
       "load_error": "Nie udało się wczytać ustawień bezpieczeństwa.",
       "not_supported": "Zarządzanie bezpieczeństwem konta wymaga serwera Stalwart. Te funkcje nie są dostępne dla tego konta.",
@@ -1340,6 +1364,7 @@
         "disable_hint_code": "Wpisz hasło i kod z aplikacji uwierzytelniającej, aby wyłączyć uwierzytelnianie dwuskładnikowe."
       },
       "restricted": "Twój serwer pozwala zmieniać hasło, logowanie dwuskładnikowe, hasła aplikacji i klucze API tylko aplikacjom zatwierdzonym przez administratora. Bulwark zalogował się bez tego zatwierdzenia, więc poczta, kontakty, kalendarze i pliki działają, ale te ustawienia nie. Zmień je w interfejsie webowym serwera lub w webmailu Bulwark.",
+      "restricted_sign_in_again": "Bulwark zalogował się, zanim Twój serwer pozwolił aplikacjom zarządzać tymi ustawieniami. Zaloguj się ponownie, aby zarządzać tutaj hasłem, logowaniem dwuskładnikowym, hasłami aplikacji i kluczami API.",
       "screen_privacy": {
         "block_screenshots": "Blokuj zrzuty ekranu",
         "block_screenshots_description": "Blokuje zrzuty i nagrania ekranu aplikacji oraz ukrywa jej zawartość w widoku ostatnich aplikacji.",
@@ -1461,7 +1486,8 @@
         "description_ios": "Atkinson Hyperlegible i Lexend zaprojektowano tak, by litery łatwo było odróżnić; OpenDyslexic pomaga niektórym osobom z dysleksją. Na tym urządzeniu czcionka jest używana w wiadomościach w formacie zwykłego tekstu."
       },
       "plain_language": {
-        "description_mobile": "Prostsze sformułowania w ustawieniach i komunikatach o błędach. Dostępne po angielsku i niemiecku."
+        "description_mobile": "Prostsze sformułowania w ustawieniach i komunikatach o błędach. Dostępne po angielsku i niemiecku.",
+        "label": "Prosty język"
       },
       "presets": {
         "applied_mobile": "{name} zmienia {count, plural, one {# ustawienie} few {# ustawienia} many {# ustawień} other {# ustawienia}}",
@@ -1568,6 +1594,7 @@
     "show_unread": "Pokaż nieprzeczytane",
     "tab_unavailable": "{name} (niedostępne)",
     "account_sign_in_again": "Zaloguj się ponownie",
+    "account_unread": "Nieprzeczytane: {count}",
     "sign_out_all_confirm_message": "Wszystkie konta zostaną usunięte z tego urządzenia. Możesz zalogować się ponownie w dowolnym momencie.",
     "sign_out_all_confirm_title": "Wylogować się ze wszystkich kont?",
     "sign_out_confirm_message": "Konto zostanie usunięte z tego urządzenia. Możesz zalogować się ponownie w dowolnym momencie.",
@@ -1705,6 +1732,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Ustawienia nieobecności zapisane, ale Twoje filtry są wyłączone. Zapisz ponownie, aby je włączyć."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Serwer nie akceptuje już zapisanego logowania dla {account}. Poczta tego konta pozostaje ukryta na tym urządzeniu, dopóki nie zalogujesz się ponownie."
   },
   "outbox": {
     "discard": "Odrzuć",

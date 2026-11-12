@@ -155,7 +155,10 @@
       "not_found": "Denne opgave er ikke længere tilgængelig.",
       "save_error": "Kunne ikke gemme opgaven",
       "update_error": "Kunne ikke opdatere opgaven",
-      "delete_confirm": "Slet denne opgave?"
+      "delete_confirm": "Slet denne opgave?",
+      "mark_occurrence_done": "Markér denne dag som udført",
+      "mark_occurrence_open": "Markér denne dag som ikke udført",
+      "open_task": "Åbn opgave"
     },
     "views": {
       "schedule": "Tidsplan",
@@ -186,6 +189,9 @@
     "retry": "Prøv igen",
     "undo": "Fortryd",
     "update": "Opdater"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {En modtager er} other {# modtagere er}} uden for din organisation:"
   },
   "contacts": {
     "address_books": {
@@ -486,6 +492,7 @@
       "open": "Åbn",
       "preview": "Forhåndsvisning",
       "save": "Gem",
+      "save_as": "Gem som…",
       "share": "Del"
     },
     "attachment_failed": "Kunne ikke åbne vedhæftningen",
@@ -514,6 +521,7 @@
     },
     "export_failed": "Eksport mislykkedes",
     "forwarded": "Videresendt",
+    "import_email": "Importér .eml eller .zip",
     "load_failed": "Kunne ikke indlæse e-mail",
     "preview": {
       "open_external": "Åbn i app",
@@ -758,6 +766,8 @@
       "err_handoff_refused_title": "Webmailen accepterede ikke dette login",
       "err_handoff_server_detail": "Log ind igen. Hvis det bliver ved med at mislykkes, så kontakt din administrator.",
       "err_handoff_server_title": "Webmailen kunne ikke gennemføre login",
+      "err_password_expired_detail": "Skift den i serverens webgrænseflade, og log derefter ind med den nye.",
+      "err_password_expired_title": "Din adgangskode er udløbet",
       "err_token_exchange_title": "{host} startede ikke en session",
       "reauth_detail": "Serveren accepterer ikke længere det gemte login for {account}. Log ind igen for at blive ved med at bruge kontoen.",
       "reauth_title": "Log ind igen",
@@ -995,6 +1005,12 @@
       "attachment_click_action": {
         "description_mobile": "Hvad der sker, når du trykker på en vedhæftning."
       },
+      "attachment_position": {
+        "below-header": "Under header",
+        "beside-sender": "Ved siden af afsender",
+        "description": "Hvor vedhæftninger skal vises i e-mail-headeren",
+        "label": "Placering af vedhæftninger"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Svar sendes altid fra den identitet, som en besked blev sendt til. Når dette er slået til, sendes et svar til en anden adresse på dine domæner (et catch-all-alias) også fra den adresse."
       },
@@ -1124,6 +1140,12 @@
         "star": "Stjerne",
         "tag": "Tag"
       },
+      "reading_pane": {
+        "auto": "Ved siden af listen, når der er plads",
+        "description": "På en tablet eller en åben foldbar telefon vises den åbne besked ved siden af maillisten. Kun denne enhed.",
+        "label": "Læserude",
+        "off": "Fra: beskeder åbnes i fuld skærm"
+      },
       "show_avatars_in_junk": "Vis afsenderavatarer i spam",
       "show_avatars_in_junk_description": "Indlæs afsenderlogoer for beskeder i spam-mappen. Når det er slået fra, kontaktes spamafsendere ikke.",
       "show_folder_total_count": "Vis samlet antal beskeder ved mapper",
@@ -1218,6 +1240,7 @@
       "clear_title": "Ryd offlinemail",
       "days_ago": "{count, plural, one {# dag siden} other {# dage siden}}",
       "description": "Download de seneste beskeder, så de åbner med det samme og kan læses uden forbindelse. Kun beskedtekst — vedhæftninger hentes stadig efter behov.",
+      "description_account": "Gem de seneste beskeder fra {account} på denne enhed, så de kan åbnes uden forbindelse. Hver konto har sit eget tidsrum og sin egen størrelse.",
       "downloading": "Downloader {completed}/{total}…",
       "enabled": "Gem seneste mail i cache",
       "enabled_desc": "Når det er slået til, gemmer appen beskedtekster fra det valgte tidsrum på denne enhed.",
@@ -1287,7 +1310,8 @@
         "error_title": "Opdatering mislykkedes"
       },
       "encryption": {
-        "no_keys": "Tilføj først en offentlig nøgle - kryptering af lagrede data kræver en."
+        "no_keys": "Tilføj først en offentlig nøgle - kryptering af lagrede data kræver en.",
+        "turned_off_on_server": "Kryptering af lagrede data var slået til og er blevet slået fra på serveren, sådan som opdateringen til Stalwart 1.0.2 gør. Ny mail gemmes ukrypteret, indtil du slår det til igen her."
       },
       "load_error": "Kunne ikke indlæse sikkerhedsindstillinger.",
       "not_supported": "Administration af kontosikkerhed kræver en Stalwart-server. Disse funktioner er ikke tilgængelige for denne konto.",
@@ -1337,6 +1361,7 @@
         "disable_hint_code": "Indtast din adgangskode og en kode fra din godkendelsesapp for at slå to-faktor-godkendelse fra."
       },
       "restricted": "Din server lader kun apps, som administratoren har godkendt, ændre adgangskoden, to-faktor-godkendelse, app-adgangskoder og API-nøgler. Bulwark loggede ind uden den godkendelse, så mail, kontakter, kalendere og filer virker, men disse indstillinger gør ikke. Ændr dem i serverens webgrænseflade eller i Bulwark-webmailen.",
+      "restricted_sign_in_again": "Bulwark loggede ind, før din server lod apps administrere disse indstillinger. Log ind igen for at administrere adgangskoden, to-faktor-godkendelse, app-adgangskoder og API-nøgler her.",
       "screen_privacy": {
         "block_screenshots": "Bloker skærmbilleder",
         "block_screenshots_description": "Forhindrer skærmbilleder og skærmoptagelser af appen og skjuler indholdet i oversigten over seneste apps.",
@@ -1458,7 +1483,8 @@
         "description_ios": "Atkinson Hyperlegible og Lexend er lavet, så bogstaverne er lette at kende fra hinanden; OpenDyslexic hjælper nogle med ordblindhed. På denne enhed bruges skrifttypen til beskeder i ren tekst."
       },
       "plain_language": {
-        "description_mobile": "Enklere formuleringer i indstillinger og fejlmeddelelser. Tilgængelig på engelsk og tysk."
+        "description_mobile": "Enklere formuleringer i indstillinger og fejlmeddelelser. Tilgængelig på engelsk og tysk.",
+        "label": "Letforståeligt sprog"
       },
       "presets": {
         "applied_mobile": "{name} har ændret {count, plural, one {# indstilling} other {# indstillinger}}",
@@ -1565,6 +1591,7 @@
     "show_unread": "Vis ulæste",
     "tab_unavailable": "{name} (ikke tilgængelig)",
     "account_sign_in_again": "Log ind igen",
+    "account_unread": "{count} ulæste",
     "sign_out_all_confirm_message": "Alle konti fjernes fra denne enhed. Du kan logge ind igen når som helst.",
     "sign_out_all_confirm_title": "Log ud af alle konti?",
     "sign_out_confirm_message": "Kontoen fjernes fra denne enhed. Du kan logge ind igen når som helst.",
@@ -1702,6 +1729,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Fraværsindstillinger gemt, men dine filtre er slået fra. Gem igen for at slå dem til igen."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Serveren accepterer ikke længere det gemte login for {account}. Kontoens mail forbliver skjult på denne enhed, indtil du logger ind igen."
   },
   "outbox": {
     "discard": "Kassér",

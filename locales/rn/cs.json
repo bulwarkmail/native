@@ -155,7 +155,10 @@
       "not_found": "Tento úkol už není k dispozici.",
       "save_error": "Úkol se nepodařilo uložit",
       "update_error": "Úkol se nepodařilo aktualizovat",
-      "delete_confirm": "Smazat tento úkol?"
+      "delete_confirm": "Smazat tento úkol?",
+      "mark_occurrence_done": "Označit tento den jako hotový",
+      "mark_occurrence_open": "Označit tento den jako nehotový",
+      "open_task": "Otevřít úkol"
     },
     "views": {
       "schedule": "Program",
@@ -186,6 +189,9 @@
     "retry": "Opakovat",
     "undo": "Zpět",
     "update": "Aktualizovat"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Jeden příjemce je} few {# příjemci jsou} many {# příjemce je} other {# příjemců je}} mimo vaši organizaci:"
   },
   "contacts": {
     "address_books": {
@@ -489,6 +495,7 @@
       "open": "Otevřít",
       "preview": "Náhled",
       "save": "Uložit",
+      "save_as": "Uložit jako…",
       "share": "Sdílet"
     },
     "attachment_failed": "Přílohu se nepodařilo otevřít",
@@ -517,6 +524,7 @@
     },
     "export_failed": "Export selhal",
     "forwarded": "Přeposláno",
+    "import_email": "Importovat .eml nebo .zip",
     "load_failed": "E-mail se nepodařilo načíst",
     "preview": {
       "open_external": "Otevřít v aplikaci",
@@ -761,6 +769,8 @@
       "err_handoff_refused_title": "Webmail toto přihlášení nepřijal",
       "err_handoff_server_detail": "Přihlaste se znovu. Pokud to stále selhává, obraťte se na správce.",
       "err_handoff_server_title": "Webmail nemohl dokončit přihlášení",
+      "err_password_expired_detail": "Změňte ho ve webovém rozhraní serveru a pak se přihlaste novým heslem.",
+      "err_password_expired_title": "Platnost vašeho hesla vypršela",
       "err_token_exchange_title": "{host} nezahájil relaci",
       "reauth_detail": "Server už nepřijímá uložené přihlášení pro {account}. Chcete-li tento účet dál používat, přihlaste se znovu.",
       "reauth_title": "Znovu se přihlásit",
@@ -998,6 +1008,12 @@
       "attachment_click_action": {
         "description_mobile": "Co se stane, když klepnete na přílohu."
       },
+      "attachment_position": {
+        "below-header": "Pod hlavičkou",
+        "beside-sender": "Vedle odesílatele",
+        "description": "Kde zobrazovat přílohy v hlavičce e-mailu",
+        "label": "Pozice příloh"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Odpovědi se vždy odesílají z identity, na kterou zpráva přišla. Je-li tato volba zapnutá, odpověď na jinou adresu ve vašich doménách (catch-all alias) se odešle také z této adresy."
       },
@@ -1127,6 +1143,12 @@
         "star": "Označit hvězdičkou",
         "tag": "Štítek"
       },
+      "reading_pane": {
+        "auto": "Vedle seznamu, když je místo",
+        "description": "Na tabletu nebo rozevřeném skládacím telefonu zobrazit otevřenou zprávu vedle seznamu pošty. Jen na tomto zařízení.",
+        "label": "Podokno čtení",
+        "off": "Vypnuto: zprávy se otevírají na celou obrazovku"
+      },
       "show_avatars_in_junk": "Zobrazovat avatary odesílatelů ve spamu",
       "show_avatars_in_junk_description": "Načítat loga odesílatelů u zpráv ve složce Spam. Vypnuto zabrání kontaktování odesílatelů spamu.",
       "show_folder_total_count": "Zobrazovat celkový počet zpráv u složek",
@@ -1221,6 +1243,7 @@
       "clear_title": "Vymazat offline poštu",
       "days_ago": "před {count} d",
       "description": "Stahovat nedávné zprávy, aby se otevíraly okamžitě a byly čitelné i bez připojení. Jen těla zpráv — přílohy se stále stahují na vyžádání.",
+      "description_account": "Uchovávat nedávné zprávy účtu {account} v tomto zařízení, aby se otevřely i bez připojení. Každý účet má vlastní období a velikost.",
       "downloading": "Stahování {completed}/{total}…",
       "enabled": "Ukládat nedávnou poštu",
       "enabled_desc": "Je-li zapnuto, aplikace uchovává v tomto zařízení těla zpráv za zvolené období.",
@@ -1290,7 +1313,8 @@
         "error_title": "Aktualizace selhala"
       },
       "encryption": {
-        "no_keys": "Nejprve přidejte veřejný klíč – šifrování dat v klidu ho vyžaduje."
+        "no_keys": "Nejprve přidejte veřejný klíč – šifrování dat v klidu ho vyžaduje.",
+        "turned_off_on_server": "Šifrování dat v klidu bylo zapnuté a na serveru bylo vypnuto, jak to dělá aktualizace na Stalwart 1.0.2. Nová pošta se ukládá nešifrovaně, dokud ho tady znovu nezapnete."
       },
       "load_error": "Nastavení zabezpečení se nepodařilo načíst.",
       "not_supported": "Správa zabezpečení účtu vyžaduje server Stalwart. Tyto funkce nejsou pro tento účet k dispozici.",
@@ -1340,6 +1364,7 @@
         "disable_hint_code": "Chcete-li vypnout dvoufázové ověření, zadejte heslo a kód z ověřovací aplikace."
       },
       "restricted": "Váš server dovoluje měnit heslo, dvoufázové přihlášení, hesla aplikací a klíče API jen aplikacím, které schválil správce. Bulwark se přihlásil bez tohoto schválení, takže pošta, kontakty, kalendáře a soubory fungují, ale tato nastavení ne. Změňte je ve webovém rozhraní serveru nebo ve webmailu Bulwark.",
+      "restricted_sign_in_again": "Bulwark se přihlásil dřív, než váš server dovolil aplikacím tato nastavení spravovat. Přihlaste se znovu, abyste tady mohli spravovat heslo, dvoufázové přihlášení, hesla aplikací a klíče API.",
       "screen_privacy": {
         "block_screenshots": "Blokovat snímky obrazovky",
         "block_screenshots_description": "Zabrání snímkům a nahrávání obrazovky aplikace a skryje její obsah v přehledu posledních aplikací.",
@@ -1461,7 +1486,8 @@
         "description_ios": "Atkinson Hyperlegible a Lexend jsou navržena tak, aby se znaky dobře rozlišovaly; OpenDyslexic pomáhá některým lidem s dyslexií. V tomto zařízení se písmo používá pro zprávy v prostém textu."
       },
       "plain_language": {
-        "description_mobile": "Jednodušší formulace v nastavení a chybových hlášeních. Dostupné v angličtině a němčině."
+        "description_mobile": "Jednodušší formulace v nastavení a chybových hlášeních. Dostupné v angličtině a němčině.",
+        "label": "Jednoduchý jazyk"
       },
       "presets": {
         "applied_mobile": "Předvolba {name} změnila {count, plural, one {# nastavení} few {# nastavení} many {# nastavení} other {# nastavení}}",
@@ -1568,6 +1594,7 @@
     "show_unread": "Zobrazit nepřečtené",
     "tab_unavailable": "{name} (nedostupné)",
     "account_sign_in_again": "Znovu se přihlásit",
+    "account_unread": "Nepřečteno: {count}",
     "sign_out_all_confirm_message": "Všechny účty budou z tohoto zařízení odebrány. Kdykoli se můžete znovu přihlásit.",
     "sign_out_all_confirm_title": "Odhlásit se ze všech účtů?",
     "sign_out_confirm_message": "Účet bude z tohoto zařízení odebrán. Kdykoli se můžete znovu přihlásit.",
@@ -1705,6 +1732,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Nastavení nepřítomnosti bylo uloženo, ale vaše filtry jsou vypnuté. Uložte znovu, aby se zase zapnuly."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Server už nepřijímá uložené přihlášení pro {account}. Jeho pošta zůstane na tomto zařízení skrytá, dokud se znovu nepřihlásíte."
   },
   "outbox": {
     "discard": "Zahodit",

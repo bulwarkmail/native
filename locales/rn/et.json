@@ -151,7 +151,10 @@
       "clear_due_date": "Eemalda tähtaeg",
       "delete_confirm": "Kas kustutada see ülesanne?",
       "delete_error": "Ülesande kustutamine ebaõnnestus",
+      "mark_occurrence_done": "Märgi see päev tehtuks",
+      "mark_occurrence_open": "Märgi see päev tegemata",
       "not_found": "See ülesanne pole enam saadaval.",
+      "open_task": "Ava ülesanne",
       "save_error": "Ülesande salvestamine ebaõnnestus",
       "update_error": "Ülesande uuendamine ebaõnnestus"
     },
@@ -289,6 +292,7 @@
       "open": "Ava",
       "preview": "Eelvaade",
       "save": "Salvesta",
+      "save_as": "Salvesta nimega…",
       "share": "Jaga"
     },
     "attachment_failed": "Manust ei õnnestunud avada",
@@ -317,6 +321,7 @@
     },
     "export_failed": "Eksportimine ebaõnnestus",
     "forwarded": "Edastatud",
+    "import_email": "Impordi .eml või .zip",
     "load_failed": "Kirja laadimine ebaõnnestus",
     "preview": {
       "archive_files": "{count, plural, one {# fail} other {# faili}}",
@@ -429,6 +434,12 @@
       },
       "attachment_click_action": {
         "description_mobile": "Mis juhtub, kui puudutad manust."
+      },
+      "attachment_position": {
+        "below-header": "Päise all",
+        "beside-sender": "Saatja kõrval",
+        "description": "Kuhu kuvada manused kirja päises",
+        "label": "Manuse asukoht"
       },
       "auto_select_reply_identity": {
         "description_mobile": "Vastused saadetakse alati identiteedilt, millele kiri saadeti. Kui see on sisse lülitatud, saadetakse vastus kirjale, mis tuli sinu domeenide mõnele muule aadressile (catch-all alias), samuti sellelt aadressilt."
@@ -606,7 +617,8 @@
         "description_ios": "Atkinson Hyperlegible ja Lexend on loodud nii, et tähti oleks lihtne eristada; OpenDyslexic aitab mõnda düsleksiaga inimest. Selles seadmes kasutatakse kirjatüüpi lihttekstkirjade jaoks."
       },
       "plain_language": {
-        "description_mobile": "Lihtsam sõnastus seadetes ja veateadetes. Saadaval inglise ja saksa keeles."
+        "description_mobile": "Lihtsam sõnastus seadetes ja veateadetes. Saadaval inglise ja saksa keeles.",
+        "label": "Lihtsas keeles"
       },
       "presets": {
         "applied_mobile": "{name} muutis {count, plural, one {# seadet} other {# seadet}}",
@@ -867,6 +879,12 @@
         "star": "Tähista",
         "tag": "Silt"
       },
+      "reading_pane": {
+        "auto": "Loendi kõrval, kui ruumi on",
+        "description": "Tahvelarvutis või lahti volditud kokkupandavas telefonis näidatakse avatud kirja kirjade loendi kõrval. Ainult selles seadmes.",
+        "label": "Lugemispaan",
+        "off": "Väljas: kirjad avanevad täisekraanil"
+      },
       "show_avatars_in_junk": "Näita rämpsposti kaustas saatjate avatare",
       "show_avatars_in_junk_description": "Laadi rämpsposti kausta kirjade saatjate logod. Väljalülitatuna ei võeta rämpsposti saatjatega ühendust.",
       "show_folder_total_count": "Näita kaustadel kirjade koguarvu",
@@ -907,6 +925,7 @@
       "clear_title": "Tühjenda võrguühenduseta kirjad",
       "days_ago": "{count} p tagasi",
       "description": "Laadi hiljutised kirjad alla, et need avaneksid kohe ja oleksid loetavad ka ilma ühenduseta. Ainult kirjade sisu — manused laaditakse endiselt vajaduse korral.",
+      "description_account": "Hoia konto {account} hiljutisi kirju selles seadmes, et need avaneksid ilma ühenduseta. Igal kontol on oma ajavahemik ja maht.",
       "description_short": "Hoia hiljutisi kirju selles seadmes, et need avaneksid ilma ühenduseta.",
       "downloading": "Allalaadimine {completed}/{total}…",
       "enabled": "Salvesta hiljutised kirjad vahemällu",
@@ -992,7 +1011,8 @@
         "error_title": "Uuendamine ebaõnnestus"
       },
       "encryption": {
-        "no_keys": "Lisa esmalt avalik võti – salvestatud andmete krüpteerimine vajab seda."
+        "no_keys": "Lisa esmalt avalik võti – salvestatud andmete krüpteerimine vajab seda.",
+        "turned_off_on_server": "Salvestatud andmete krüpteerimine oli sees ja serveris lülitati see välja, nagu Stalwart 1.0.2 uuendus seda teeb. Uued kirjad salvestatakse krüpteerimata, kuni lülitad selle siin uuesti sisse."
       },
       "load_error": "Turvaseadete laadimine ebaõnnestus.",
       "not_supported": "Konto turvalisuse haldamiseks on vaja Stalwarti serverit. Need funktsioonid pole selle konto jaoks saadaval.",
@@ -1017,6 +1037,7 @@
         "remove_title": "Kas eemaldada avalik võti?"
       },
       "restricted": "Sinu server lubab parooli, kaheastmelist sisselogimist, rakenduste paroole ja API võtmeid muuta ainult administraatori heakskiidetud rakendustel. Bulwark logis sisse ilma selle heakskiiduta, seega kirjad, kontaktid, kalendrid ja failid töötavad, kuid need seaded mitte. Muuda neid oma serveri veebiliideses või Bulwarki veebimeilis.",
+      "restricted_sign_in_again": "Bulwark logis sisse enne, kui sinu server lubas rakendustel neid seadeid hallata. Logi uuesti sisse, et hallata siin parooli, kaheastmelist sisselogimist, rakenduste paroole ja API võtmeid.",
       "screen_privacy": {
         "block_screenshots": "Blokeeri ekraanipildid",
         "block_screenshots_description": "Takistab rakendusest ekraanipiltide ja ekraanisalvestuste tegemist ning peidab selle sisu hiljutiste rakenduste vaates.",
@@ -1155,6 +1176,9 @@
     "retry": "Proovi uuesti",
     "undo": "Võta tagasi",
     "update": "Uuenda"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Üks saaja on} other {# saajat on}} väljaspool sinu organisatsiooni:"
   },
   "context_menu": {
     "color_tag": "Silt",
@@ -1448,6 +1472,8 @@
       "err_pair_unsupported_title": "See veebipost ei saa seadmeid ühendada",
       "err_pair_untrusted_detail": "{host} saatis sisselogimisandmed serveri kohta, mida rakendus ei saa kontrollida.",
       "err_pair_untrusted_title": "Seda sisselogimist ei saa usaldada",
+      "err_password_expired_detail": "Muuda see serveri veebiliideses ja logi siis uue parooliga sisse.",
+      "err_password_expired_title": "Sinu parool on aegunud",
       "err_rate_detail": "Server palus meil hetke oodata. Proovi varsti uuesti.",
       "err_rate_detail_seconds": "Server palus meil oodata. Proovi uuesti umbes {seconds} sekundi pärast.",
       "err_rate_title": "Liiga palju katseid",
@@ -1538,6 +1564,9 @@
       "up_to_date": "Juba ajakohane"
     }
   },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Server ei aktsepteeri enam konto {account} salvestatud sisselogimist. Selle kirjad jäävad selles seadmes peidetuks, kuni logid uuesti sisse."
+  },
   "outbox": {
     "discard": "Loobu",
     "discard_body": "Seda ei saadeta ja selle tekst läheb kaotsi.",
@@ -1594,6 +1623,7 @@
   "sidebar": {
     "account_error": "Vajab tähelepanu",
     "account_sign_in_again": "Logi uuesti sisse",
+    "account_unread": "Lugemata: {count}",
     "remove_account_hint": "Selle konto eemaldamiseks vajuta pikalt",
     "remove_account_message": "Logi selles seadmes kontolt {account} välja. Sinu kirjad jäävad serverisse.",
     "show_unread": "Näita lugemata",

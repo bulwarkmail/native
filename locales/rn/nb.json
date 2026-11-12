@@ -155,7 +155,10 @@
       "not_found": "Denne oppgaven er ikke lenger tilgjengelig.",
       "save_error": "Kunne ikke lagre oppgaven",
       "update_error": "Kunne ikke oppdatere oppgaven",
-      "delete_confirm": "Vil du slette denne oppgaven?"
+      "delete_confirm": "Vil du slette denne oppgaven?",
+      "mark_occurrence_done": "Merk denne dagen som gjort",
+      "mark_occurrence_open": "Merk denne dagen som ikke gjort",
+      "open_task": "Åpne oppgave"
     },
     "views": {
       "schedule": "Timeplan",
@@ -186,6 +189,9 @@
     "retry": "Prøv på nytt",
     "undo": "Angre",
     "update": "Oppdater"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Én mottaker er} other {# mottakere er}} utenfor organisasjonen din:"
   },
   "contacts": {
     "address_books": {
@@ -486,6 +492,7 @@
       "open": "Åpne",
       "preview": "Forhåndsvisning",
       "save": "Lagre",
+      "save_as": "Lagre som…",
       "share": "Del"
     },
     "attachment_failed": "Kunne ikke åpne vedlegget",
@@ -514,6 +521,7 @@
     },
     "export_failed": "Eksporten mislyktes",
     "forwarded": "Videresendt",
+    "import_email": "Importer .eml eller .zip",
     "load_failed": "Kunne ikke laste inn e-posten",
     "preview": {
       "open_external": "Åpne i app",
@@ -758,6 +766,8 @@
       "err_handoff_refused_title": "Nettposten godtok ikke denne påloggingen",
       "err_handoff_server_detail": "Logg på igjen. Hvis det fortsatt mislykkes, kontakt administratoren.",
       "err_handoff_server_title": "Nettposten kunne ikke fullføre påloggingen",
+      "err_password_expired_detail": "Endre det i serverens nettgrensesnitt, og logg deretter på med det nye.",
+      "err_password_expired_title": "Passordet ditt har utløpt",
       "err_token_exchange_title": "{host} startet ingen økt",
       "reauth_detail": "Serveren godtar ikke lenger den lagrede påloggingen for {account}. Logg på igjen for å fortsette å bruke denne kontoen.",
       "reauth_title": "Logg på igjen",
@@ -995,6 +1005,12 @@
       "attachment_click_action": {
         "description_mobile": "Hva som skjer når du trykker på et vedlegg."
       },
+      "attachment_position": {
+        "below-header": "Under overskriften",
+        "beside-sender": "Ved siden av avsender",
+        "description": "Velg hvor vedlegg skal vises i e-postoverskriften",
+        "label": "Plassering av vedlegg"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Svar sendes alltid fra identiteten meldingen ble sendt til. Når dette er på, sendes også svar til en annen adresse på domenene dine (et oppsamlingsalias) fra den adressen."
       },
@@ -1124,6 +1140,12 @@
         "star": "Stjerne",
         "tag": "Etikett"
       },
+      "reading_pane": {
+        "auto": "Ved siden av listen når det er plass",
+        "description": "På et nettbrett eller en åpen sammenleggbar telefon vises den åpne meldingen ved siden av e-postlisten. Bare denne enheten.",
+        "label": "Leserute",
+        "off": "Av: meldinger åpnes i fullskjerm"
+      },
       "show_avatars_in_junk": "Vis avsenderavatarer i søppelpost",
       "show_avatars_in_junk_description": "Last inn avsenderlogoer for meldinger i søppelpostmappen. Når dette er av, kontaktes ikke avsendere av søppelpost.",
       "show_folder_total_count": "Vis totalt antall meldinger for mapper",
@@ -1218,6 +1240,7 @@
       "clear_title": "Tøm e-post uten nett",
       "days_ago": "{count, plural, one {for # dag siden} other {for # dager siden}}",
       "description": "Last ned nylige meldinger, slik at de åpnes umiddelbart og kan leses uten tilkobling. Bare meldingsteksten – vedlegg hentes fortsatt ved behov.",
+      "description_account": "Behold nylige meldinger fra {account} på denne enheten så de kan åpnes uten tilkobling. Hver konto har sin egen periode og størrelse.",
       "downloading": "Laster ned {completed}/{total}…",
       "enabled": "Bufre nylig e-post",
       "enabled_desc": "Når dette er på, beholder appen meldingstekstene fra den valgte perioden på denne enheten.",
@@ -1287,7 +1310,8 @@
         "error_title": "Oppdateringen mislyktes"
       },
       "encryption": {
-        "no_keys": "Legg til en offentlig nøkkel først – kryptering av lagrede data krever en."
+        "no_keys": "Legg til en offentlig nøkkel først – kryptering av lagrede data krever en.",
+        "turned_off_on_server": "Kryptering av lagrede data var slått på og har blitt slått av på serveren, slik oppdateringen til Stalwart 1.0.2 gjør. Ny e-post lagres ukryptert til du slår det på igjen her."
       },
       "load_error": "Kunne ikke laste inn sikkerhetsinnstillingene.",
       "not_supported": "Administrasjon av kontosikkerhet krever en Stalwart-server. Disse funksjonene er ikke tilgjengelige for denne kontoen.",
@@ -1337,6 +1361,7 @@
         "disable_hint_code": "Skriv inn passordet og en kode fra autentiseringsappen for å slå av tofaktorautentisering."
       },
       "restricted": "Serveren din lar bare apper som administratoren har godkjent, endre passord, tofaktorautentisering, app-passord og API-nøkler. Bulwark logget på uten den godkjenningen, så e-post, kontakter, kalendere og filer fungerer, men disse innstillingene gjør det ikke. Endre dem i serverens nettgrensesnitt eller i Bulwark-nettposten.",
+      "restricted_sign_in_again": "Bulwark logget på før serveren din lot apper administrere disse innstillingene. Logg på igjen for å administrere passord, tofaktorautentisering, app-passord og API-nøkler her.",
       "screen_privacy": {
         "block_screenshots": "Blokker skjermbilder",
         "block_screenshots_description": "Hindrer skjermbilder og skjermopptak av appen og skjuler innholdet i oversikten over nylige apper.",
@@ -1458,7 +1483,8 @@
         "description_ios": "Atkinson Hyperlegible og Lexend er laget slik at bokstavene er lette å skille fra hverandre; OpenDyslexic hjelper noen med dysleksi. På denne enheten brukes skriften for meldinger i ren tekst."
       },
       "plain_language": {
-        "description_mobile": "Enklere ord i innstillinger og feilmeldinger. Tilgjengelig på engelsk og tysk."
+        "description_mobile": "Enklere ord i innstillinger og feilmeldinger. Tilgjengelig på engelsk og tysk.",
+        "label": "Enkelt språk"
       },
       "presets": {
         "applied_mobile": "{name} endret {count, plural, one {# innstilling} other {# innstillinger}}",
@@ -1565,6 +1591,7 @@
     "show_unread": "Vis uleste",
     "tab_unavailable": "{name} (ikke tilgjengelig)",
     "account_sign_in_again": "Logg på igjen",
+    "account_unread": "{count} uleste",
     "sign_out_all_confirm_message": "Alle kontoer fjernes fra denne enheten. Du kan logge på igjen når som helst.",
     "sign_out_all_confirm_title": "Vil du logge ut av alle kontoer?",
     "sign_out_confirm_message": "Kontoen fjernes fra denne enheten. Du kan logge på igjen når som helst.",
@@ -1702,6 +1729,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Fraværsinnstillingene er lagret, men filtrene dine er slått av. Lagre på nytt for å slå dem på igjen."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Serveren godtar ikke lenger den lagrede påloggingen for {account}. E-posten for kontoen forblir skjult på denne enheten til du logger på igjen."
   },
   "outbox": {
     "discard": "Forkast",

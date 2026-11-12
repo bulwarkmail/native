@@ -155,7 +155,10 @@
       "not_found": "Šis uzdevums vairs nav pieejams.",
       "save_error": "Neizdevās saglabāt uzdevumu",
       "update_error": "Neizdevās atjaunināt uzdevumu",
-      "delete_confirm": "Dzēst šo uzdevumu?"
+      "delete_confirm": "Dzēst šo uzdevumu?",
+      "mark_occurrence_done": "Atzīmēt šo dienu kā izpildītu",
+      "mark_occurrence_open": "Atzīmēt šo dienu kā neizpildītu",
+      "open_task": "Atvērt uzdevumu"
     },
     "views": {
       "schedule": "Grafiks",
@@ -186,6 +189,9 @@
     "retry": "Mēģināt vēlreiz",
     "undo": "Atsaukt",
     "update": "Atjaunināt"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, zero {# adresātu ir} one {# adresāts ir} other {# adresāti ir}} ārpus jūsu organizācijas:"
   },
   "contacts": {
     "address_books": {
@@ -488,6 +494,7 @@
       "open": "Atvērt",
       "preview": "Priekšskatīt",
       "save": "Saglabāt",
+      "save_as": "Saglabāt kā…",
       "share": "Kopīgot"
     },
     "attachment_failed": "Neizdevās atvērt pielikumu",
@@ -516,6 +523,7 @@
     },
     "export_failed": "Eksportēšana neizdevās",
     "forwarded": "Pārsūtīts",
+    "import_email": "Importēt .eml vai .zip",
     "load_failed": "Neizdevās ielādēt vēstuli",
     "preview": {
       "open_external": "Atvērt lietotnē",
@@ -760,6 +768,8 @@
       "err_handoff_refused_title": "Tīmekļa pasts nepieņēma šo pierakstīšanos",
       "err_handoff_server_detail": "Pierakstieties vēlreiz. Ja tas joprojām neizdodas, sazinieties ar administratoru.",
       "err_handoff_server_title": "Tīmekļa pasts nevarēja pabeigt pierakstīšanos",
+      "err_password_expired_detail": "Nomainiet to servera tīmekļa saskarnē un pēc tam pierakstieties ar jauno.",
+      "err_password_expired_title": "Jūsu parolei ir beidzies derīgums",
       "err_token_exchange_title": "{host} nesāka sesiju",
       "reauth_detail": "Serveris vairs nepieņem saglabāto pierakstīšanos kontam {account}. Pierakstieties vēlreiz, lai turpinātu lietot šo kontu.",
       "reauth_title": "Pierakstīties vēlreiz",
@@ -997,6 +1007,12 @@
       "attachment_click_action": {
         "description_mobile": "Kas notiek, kad pieskaraties pielikumam."
       },
+      "attachment_position": {
+        "below-header": "Zem galvenes",
+        "beside-sender": "Blakus sūtītājam",
+        "description": "Kur rādīt pielikumus vēstules galvenē",
+        "label": "Pielikumu novietojums"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "Atbildes vienmēr tiek sūtītas no identitātes, uz kuru ziņojums tika nosūtīts. Ja šī opcija ir ieslēgta, atbilde uz citu adresi jūsu domēnos (catch-all aizstājvārds) arī tiek sūtīta no šīs adreses."
       },
@@ -1126,6 +1142,12 @@
         "star": "Pievienot zvaigznīti",
         "tag": "Tags"
       },
+      "reading_pane": {
+        "auto": "Blakus sarakstam, ja ir vieta",
+        "description": "Planšetdatorā vai atvērtā salokāmā tālrunī rādīt atvērto vēstuli blakus pasta sarakstam. Tikai šajā ierīcē.",
+        "label": "Lasīšanas rūts",
+        "off": "Izslēgts: vēstules atveras pilnekrāna režīmā"
+      },
       "show_avatars_in_junk": "Rādīt sūtītāju avatarus mēstuļu mapē",
       "show_avatars_in_junk_description": "Ielādēt sūtītāju logotipus vēstulēm mēstuļu mapē. Ja izslēgts, ar mēstuļu sūtītājiem netiek veidots savienojums.",
       "show_folder_total_count": "Rādīt kopējo vēstuļu skaitu pie mapēm",
@@ -1220,6 +1242,7 @@
       "clear_title": "Notīrīt bezsaistes pastu",
       "days_ago": "pirms {count} d.",
       "description": "Lejupielādēt jaunākās vēstules, lai tās atvērtos uzreiz un būtu lasāmas bez savienojuma. Tikai vēstuļu saturs — pielikumi joprojām tiek ielādēti pēc pieprasījuma.",
+      "description_account": "Glabājiet konta {account} jaunākās vēstules šajā ierīcē, lai tās atvērtos arī bez savienojuma. Katram kontam ir savs periods un izmērs.",
       "downloading": "Lejupielādē {completed}/{total}…",
       "enabled": "Saglabāt jaunāko pastu kešatmiņā",
       "enabled_desc": "Ja ieslēgts, lietotne šajā ierīcē glabā vēstuļu saturu par izvēlēto periodu.",
@@ -1289,7 +1312,8 @@
         "error_title": "Atjaunināšana neizdevās"
       },
       "encryption": {
-        "no_keys": "Vispirms pievienojiet publisko atslēgu – krātuves šifrēšanai tā ir nepieciešama."
+        "no_keys": "Vispirms pievienojiet publisko atslēgu – krātuves šifrēšanai tā ir nepieciešama.",
+        "turned_off_on_server": "Krātuves šifrēšana bija ieslēgta, un serverī tā tika izslēgta, kā to dara atjauninājums uz Stalwart 1.0.2. Jaunais pasts tiek glabāts nešifrēts, līdz jūs to šeit atkal ieslēgsiet."
       },
       "load_error": "Neizdevās ielādēt drošības iestatījumus.",
       "not_supported": "Konta drošības pārvaldībai nepieciešams Stalwart serveris. Šīs funkcijas šim kontam nav pieejamas.",
@@ -1339,6 +1363,7 @@
         "disable_hint_code": "Lai izslēgtu divfaktoru autentifikāciju, ievadiet paroli un kodu no autentifikācijas lietotnes."
       },
       "restricted": "Jūsu serveris ļauj mainīt paroli, divfaktoru pierakstīšanos, lietotņu paroles un API atslēgas tikai administratora apstiprinātām lietotnēm. Bulwark pierakstījās bez šāda apstiprinājuma, tāpēc pasts, kontakti, kalendāri un faili darbojas, bet šie iestatījumi ne. Mainiet tos sava servera tīmekļa saskarnē vai Bulwark tīmekļa pastā.",
+      "restricted_sign_in_again": "Bulwark pierakstījās, pirms jūsu serveris ļāva lietotnēm pārvaldīt šos iestatījumus. Pierakstieties vēlreiz, lai šeit pārvaldītu paroli, divfaktoru pierakstīšanos, lietotņu paroles un API atslēgas.",
       "screen_privacy": {
         "block_screenshots": "Bloķēt ekrānuzņēmumus",
         "block_screenshots_description": "Neļauj veidot lietotnes ekrānuzņēmumus un ekrāna ierakstus un paslēpj tās saturu neseno lietotņu skatā.",
@@ -1460,7 +1485,8 @@
         "description_ios": "Atkinson Hyperlegible un Lexend ir veidoti tā, lai burtus būtu viegli atšķirt; OpenDyslexic palīdz dažiem cilvēkiem ar disleksiju. Šajā ierīcē fonts tiek izmantots vienkārša teksta vēstulēm."
       },
       "plain_language": {
-        "description_mobile": "Vienkāršāki formulējumi iestatījumos un kļūdu ziņojumos. Pieejams angļu un vācu valodā."
+        "description_mobile": "Vienkāršāki formulējumi iestatījumos un kļūdu ziņojumos. Pieejams angļu un vācu valodā.",
+        "label": "Vienkārša valoda"
       },
       "presets": {
         "applied_mobile": "{name} mainīja {count, plural, zero {# iestatījumus} one {# iestatījumu} other {# iestatījumus}}",
@@ -1567,6 +1593,7 @@
     "show_unread": "Rādīt nelasītās",
     "tab_unavailable": "{name} (nav pieejams)",
     "account_sign_in_again": "Pierakstīties vēlreiz",
+    "account_unread": "Nelasīti: {count}",
     "sign_out_all_confirm_message": "Visi konti tiek noņemti no šīs ierīces. Jūs varat jebkurā laikā pierakstīties vēlreiz.",
     "sign_out_all_confirm_title": "Izrakstīties no visiem kontiem?",
     "sign_out_confirm_message": "Konts tiek noņemts no šīs ierīces. Jūs varat jebkurā laikā pierakstīties vēlreiz.",
@@ -1704,6 +1731,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Prombūtnes iestatījumi saglabāti, taču jūsu filtri ir izslēgti. Saglabājiet vēlreiz, lai tos atkal ieslēgtu."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "Serveris vairs nepieņem saglabāto pierakstīšanos kontam {account}. Tā pasts šajā ierīcē paliek paslēpts, līdz pierakstīsieties vēlreiz."
   },
   "outbox": {
     "discard": "Atmest",

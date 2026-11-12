@@ -155,7 +155,10 @@
       "not_found": "Ez a feladat már nem érhető el.",
       "save_error": "Nem sikerült menteni a feladatot",
       "update_error": "Nem sikerült frissíteni a feladatot",
-      "delete_confirm": "Törlöd ezt a feladatot?"
+      "delete_confirm": "Törlöd ezt a feladatot?",
+      "mark_occurrence_done": "E nap megjelölése készként",
+      "mark_occurrence_open": "E nap megjelölése nem készként",
+      "open_task": "Feladat megnyitása"
     },
     "views": {
       "schedule": "Ütemezés",
@@ -186,6 +189,9 @@
     "retry": "Újra",
     "undo": "Visszavonás",
     "update": "Frissítés"
+  },
+  "compose_send": {
+    "warning_external": "{count, plural, one {Egy címzett} other {# címzett}} a szervezeteden kívül van:"
   },
   "contacts": {
     "address_books": {
@@ -485,6 +491,7 @@
       "open": "Megnyitás",
       "preview": "Előnézet",
       "save": "Mentés",
+      "save_as": "Mentés másként…",
       "share": "Megosztás"
     },
     "attachment_failed": "Nem sikerült megnyitni a csatolmányt",
@@ -513,6 +520,7 @@
     },
     "export_failed": "Az exportálás sikertelen",
     "forwarded": "Továbbítva",
+    "import_email": ".eml vagy .zip importálása",
     "load_failed": "Nem sikerült betölteni az e-mailt",
     "preview": {
       "open_external": "Megnyitás alkalmazásban",
@@ -757,6 +765,8 @@
       "err_handoff_refused_title": "A webmail nem fogadta el ezt a bejelentkezést",
       "err_handoff_server_detail": "Jelentkezz be újra. Ha továbbra sem sikerül, fordulj a rendszergazdához.",
       "err_handoff_server_title": "A webmail nem tudta befejezni a bejelentkezést",
+      "err_password_expired_detail": "Változtasd meg a szerver webes felületén, majd jelentkezz be az újjal.",
+      "err_password_expired_title": "Lejárt a jelszavad",
       "err_token_exchange_title": "{host} nem indított munkamenetet",
       "reauth_detail": "A szerver már nem fogadja el a mentett bejelentkezést ehhez a fiókhoz: {account}. A fiók további használatához jelentkezz be újra.",
       "reauth_title": "Újbóli bejelentkezés",
@@ -994,6 +1004,12 @@
       "attachment_click_action": {
         "description_mobile": "Mi történjen, amikor egy csatolmányra koppintasz."
       },
+      "attachment_position": {
+        "below-header": "Fejléc alatt",
+        "beside-sender": "Feladó mellett",
+        "description": "Hol jelenjenek meg a csatolmányok az e-mail fejlécben",
+        "label": "Csatolmány pozíciója"
+      },
       "auto_select_reply_identity": {
         "description_mobile": "A válaszok mindig arról az azonosságról mennek ki, amelyre az üzenet érkezett. Ha ez be van kapcsolva, a domainjeid egy másik címére (catch-all alias) érkezett levélre adott válasz is erről a címről megy ki."
       },
@@ -1123,6 +1139,12 @@
         "star": "Csillagozás",
         "tag": "Címke"
       },
+      "reading_pane": {
+        "auto": "A lista mellett, ha van hely",
+        "description": "Táblagépen vagy kinyitott összehajtható telefonon a megnyitott üzenet a levéllista mellett jelenik meg. Csak ezen az eszközön.",
+        "label": "Olvasóablak",
+        "off": "Ki: az üzenetek teljes képernyőn nyílnak meg"
+      },
       "show_avatars_in_junk": "Feladói avatárok a Spam mappában",
       "show_avatars_in_junk_description": "Feladói logók betöltése a Spam mappában lévő üzenetekhez. Kikapcsolva a spamküldők nem kapnak jelzést rólad.",
       "show_folder_total_count": "Összes üzenet számának megjelenítése a mappáknál",
@@ -1217,6 +1239,7 @@
       "clear_title": "Offline levelek törlése",
       "days_ago": "{count} napja",
       "description": "A legutóbbi üzenetek letöltése, hogy azonnal megnyíljanak és kapcsolat nélkül is olvashatók legyenek. Csak az üzenettörzsek — a csatolmányok továbbra is igény szerint töltődnek le.",
+      "description_account": "A legutóbbi üzenetek tárolása ezen az eszközön ehhez a fiókhoz: {account}, hogy kapcsolat nélkül is megnyíljanak. Minden fióknak saját időszaka és mérete van.",
       "downloading": "Letöltés: {completed}/{total}…",
       "enabled": "Legutóbbi levelek gyorsítótárazása",
       "enabled_desc": "Bekapcsolva az alkalmazás a kiválasztott időszak üzenettörzseit ezen az eszközön tárolja.",
@@ -1286,7 +1309,8 @@
         "error_title": "A frissítés sikertelen"
       },
       "encryption": {
-        "no_keys": "Előbb adj hozzá egy nyilvános kulcsot – a nyugalmi állapotú titkosításhoz szükség van rá."
+        "no_keys": "Előbb adj hozzá egy nyilvános kulcsot – a nyugalmi állapotú titkosításhoz szükség van rá.",
+        "turned_off_on_server": "A nyugalmi állapotú titkosítás be volt kapcsolva, és a szerveren kikapcsolták, ahogy a Stalwart 1.0.2-re való frissítés teszi. Az új levelek titkosítatlanul tárolódnak, amíg itt újra be nem kapcsolod."
       },
       "load_error": "Nem sikerült betölteni a biztonsági beállításokat.",
       "not_supported": "A fiókbiztonság kezeléséhez Stalwart szerver szükséges. Ezek a funkciók nem érhetők el ennél a fióknál.",
@@ -1336,6 +1360,7 @@
         "disable_hint_code": "A kétfaktoros hitelesítés kikapcsolásához add meg a jelszavad és egy kódot a hitelesítő alkalmazásodból."
       },
       "restricted": "A szervered csak a rendszergazda által jóváhagyott alkalmazásoknak engedi módosítani a jelszót, a kétfaktoros bejelentkezést, az alkalmazásjelszavakat és az API-kulcsokat. A Bulwark e jóváhagyás nélkül jelentkezett be, ezért a levelek, névjegyek, naptárak és fájlok működnek, ezek a beállítások azonban nem. Módosítsd őket a szervered webes felületén vagy a Bulwark webmailben.",
+      "restricted_sign_in_again": "A Bulwark azelőtt jelentkezett be, hogy a szervered engedte volna az alkalmazásoknak ezeknek a beállításoknak a kezelését. Jelentkezz be újra, hogy itt kezelhesd a jelszót, a kétfaktoros bejelentkezést, az alkalmazásjelszavakat és az API-kulcsokat.",
       "screen_privacy": {
         "block_screenshots": "Képernyőképek tiltása",
         "block_screenshots_description": "Megakadályozza a képernyőképeket és képernyőfelvételeket az alkalmazásról, és elrejti a tartalmát a legutóbbi alkalmazások nézetben.",
@@ -1457,7 +1482,8 @@
         "description_ios": "Az Atkinson Hyperlegible és a Lexend betűi könnyen megkülönböztethetők; az OpenDyslexic egyes diszlexiás embereknek segít. Ezen az eszközön a betűtípus az egyszerű szöveges üzenetekre vonatkozik."
       },
       "plain_language": {
-        "description_mobile": "Egyszerűbb megfogalmazás a beállításokban és a hibaüzenetekben. Angolul és németül érhető el."
+        "description_mobile": "Egyszerűbb megfogalmazás a beállításokban és a hibaüzenetekben. Angolul és németül érhető el.",
+        "label": "Egyszerű nyelv"
       },
       "presets": {
         "applied_mobile": "{name} {count, plural, one {# beállítást} other {# beállítást}} módosított",
@@ -1564,6 +1590,7 @@
     "show_unread": "Olvasatlanok megjelenítése",
     "tab_unavailable": "{name} (nem érhető el)",
     "account_sign_in_again": "Újbóli bejelentkezés",
+    "account_unread": "{count} olvasatlan",
     "sign_out_all_confirm_message": "Minden fiók törlődik erről az eszközről. Bármikor újra bejelentkezhetsz.",
     "sign_out_all_confirm_title": "Kijelentkezel minden fiókból?",
     "sign_out_confirm_message": "A fiók törlődik erről az eszközről. Bármikor újra bejelentkezhetsz.",
@@ -1701,6 +1728,9 @@
   },
   "notifications": {
     "vacation_filters_off": "Távolléti beállítások elmentve, de a szűrőid ki vannak kapcsolva. Mentsd újra, hogy visszakapcsold őket."
+  },
+  "offlineWipe": {
+    "hidden_until_sign_in": "A szerver már nem fogadja el a mentett bejelentkezést ehhez a fiókhoz: {account}. A fiók levelei rejtve maradnak ezen az eszközön, amíg újra be nem jelentkezel."
   },
   "outbox": {
     "discard": "Elvetés",
