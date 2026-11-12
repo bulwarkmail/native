@@ -14,7 +14,7 @@ describe('reading pane setting wiring', () => {
   it('drives the Mail tab, the unified views and the mail list', () => {
     expect(read('screens/MailTab.tsx')).toMatch(MAIL_LAYOUT);
     expect(read('screens/UnifiedInboxScreen.tsx')).toMatch(MAIL_LAYOUT);
-    expect(read('lib/use-mail-layout.ts')).toMatch(/const layout = mailLayoutFor\(window, readingPane, contentWidth\);/);
+    expect(read('lib/use-layout.ts')).toMatch(/const layout = readingPane === 'auto' \? auto : mailLayoutFor\(window, readingPane, contentWidth\);/);
     // The list places its undo bar by the same layout, which the tab hands it...
     expect(read('screens/MailTab.tsx')).toMatch(/split=\{layout\.isSplit\}/);
     const list = read('screens/EmailListScreen.tsx');
@@ -22,6 +22,13 @@ describe('reading pane setting wiring', () => {
     // ...but reports its column to the push prompt by the window, which the
     // prompt goes by: else the prompt drops to the corner over the reader.
     expect(list).toMatch(/if \(!windowLayout\.isSplit \|\| !isFocused\) \{\s+setPromptListColumn\(null\);/);
+  });
+
+  it('draws the mail screens only once the stored setting is known', () => {
+    expect(read('lib/use-mail-layout.ts')).toMatch(/mailScreenLayoutFor\(window, contentWidth, readingPane, hydrated\)/);
+    expect(read('lib/use-mail-layout.ts')).toMatch(/const hydrated = useSettingsStore\(\(s\) => s\.hydrated\);/);
+    expect(read('screens/MailTab.tsx')).toMatch(/if \(!layout\.ready\) return <View style=\{styles\.row\} onLayout=\{layout\.onLayout\} \/>;\r?\n\r?\n(\s*\/\/.*\r?\n)*  return \(\r?\n    <View style=\{styles\.row\} onLayout=\{layout\.onLayout\}>/);
+    expect(read('screens/UnifiedInboxScreen.tsx')).toMatch(/if \(!layout\.ready\) return <View style=\{styles\.container\} onLayout=\{layout\.onLayout\} \/>;\r?\n\r?\n  if \(!layout\.isSplit\) \{/);
   });
 
   it('lets the open message go when only the setting turned the split off', () => {

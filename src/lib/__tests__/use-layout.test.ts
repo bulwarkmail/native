@@ -5,7 +5,7 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ t
 
 import {
   DETAIL_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth, mailLayoutFor,
-  measuredContentWidth, paneLayoutFor, sheetSideInsets,
+  mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets,
 } from '../use-layout';
 
 const NO_INSETS = { left: 0, right: 0 };
@@ -115,6 +115,24 @@ describe('reading pane width (#104)', () => {
 
   it('never splits a window that is too short or narrow for it', () => {
     expect(paneLayoutFor(layoutFor(914, 411), 914)).toMatchObject({ isSplit: false, listWidth: 914 });
+  });
+});
+
+describe('mailScreenLayoutFor', () => {
+  const tablet = layoutFor(1280, 800);
+  const phone = layoutFor(411, 914);
+
+  it('waits for the stored reading pane setting on a split window (#93)', () => {
+    // Before the settings are read the store holds the default, auto.
+    expect(mailScreenLayoutFor(tablet, 1194, 'auto', false)).toMatchObject({ ready: false });
+    expect(mailScreenLayoutFor(tablet, 1194, 'off', true)).toMatchObject({ ready: true, isSplit: false, windowIsSplit: true });
+    expect(mailScreenLayoutFor(tablet, 1194, 'auto', true)).toMatchObject({ ready: true, isSplit: true, windowIsSplit: true });
+  });
+
+  it('never waits where the split does not fit', () => {
+    expect(mailScreenLayoutFor(phone, 411, 'auto', false)).toMatchObject({ ready: true, isSplit: false });
+    // A Fold held upright: one pane whatever the setting says.
+    expect(mailScreenLayoutFor(layoutFor(616, 816), 530, 'auto', false)).toMatchObject({ ready: true, isSplit: false });
   });
 });
 

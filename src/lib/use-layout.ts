@@ -128,6 +128,34 @@ export function mailLayoutFor(layout: Layout, readingPane: ReadingPane, contentW
   return paneLayoutFor(readingPane === 'off' ? { ...layout, isSplit: false, hasSidebar: false } : layout, contentWidth);
 }
 
+/** The mail screens' layout. */
+export interface MailScreenLayout extends PaneLayout {
+  /**
+   * Whether the screen splits by its room alone: false when the window got
+   * narrow, true when only the reading pane setting turned the split off.
+   */
+  windowIsSplit: boolean;
+  /**
+   * False while the stored reading pane setting is unknown and decides the
+   * layout (a split window): the screen draws its background only. Drawing
+   * the split first showed it to a user who turned it off and mounted the
+   * mail list twice (#93). Where the split doesn't fit the setting changes
+   * nothing, so a phone never waits.
+   */
+  ready: boolean;
+}
+
+export function mailScreenLayoutFor(
+  window: Layout,
+  contentWidth: number,
+  readingPane: ReadingPane,
+  settingsHydrated: boolean,
+): MailScreenLayout {
+  const auto = mailLayoutFor(window, 'auto', contentWidth);
+  const layout = readingPane === 'auto' ? auto : mailLayoutFor(window, readingPane, contentWidth);
+  return { ...layout, windowIsSplit: auto.isSplit, ready: settingsHydrated || !auto.isSplit };
+}
+
 /** The window's layout and the width a list-detail screen has for its panes. */
 export interface PaneArea {
   window: Layout;

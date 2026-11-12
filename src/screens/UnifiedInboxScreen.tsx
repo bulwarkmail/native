@@ -730,6 +730,10 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     </>
   );
 
+  // On a wide window the stored reading pane setting picks the layout: wait
+  // for it, so the list mounts once and the split never flashes up (#93).
+  if (!layout.ready) return <View style={styles.container} onLayout={layout.onLayout} />;
+
   if (!layout.isSplit) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']} onLayout={layout.onLayout}>

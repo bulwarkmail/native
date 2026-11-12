@@ -98,6 +98,10 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
     />
   );
 
+  // On a wide window the stored reading pane setting picks the layout: wait
+  // for it, so the list mounts once and the split never flashes up (#93).
+  if (!layout.ready) return <View style={styles.row} onLayout={layout.onLayout} />;
+
   // One tree for both layouts: the list stays mounted when the split comes
   // or goes (a rotation, a fold), and the row measures the room it has.
   return (
