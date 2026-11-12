@@ -56,12 +56,28 @@ export interface OfferedPgpKey {
   email: string;
 }
 
+/**
+ * Header fields the encrypted part carries for the message (RFC 9788 header
+ * protection, e.g. Stalwart's encryption gateway), whose outer copies may be
+ * obscured: the outer Subject then reads `[...]`. Raw values as in the part.
+ */
+export interface ProtectedHeaders {
+  subject?: string;
+  from?: string;
+  to?: string;
+  cc?: string;
+  replyTo?: string;
+  date?: string;
+}
+
 export interface SecureResult {
   status: SecureStatus;
   /** The decrypted/verified body, or null when there is none to show (locked, failed). */
   body: { html: string | null; text: string | null } | null;
   attachments: SecureAttachment[];
   offeredKey?: OfferedPgpKey;
+  /** Present when the decrypted part protects the message's headers. */
+  protectedHeaders?: ProtectedHeaders;
 }
 
 /** What the reader needs from the key store; injected so tests need no SecureStore. */
@@ -121,8 +137,66 @@ function looksLikeMime(bytes: Uint8Array): boolean {
     .every((line, i) => /^[A-Za-z][A-Za-z0-9-]*:/.test(line) || (i > 0 && /^[ \t]/.test(line)));
 }
 
+/** The value of `name` in a raw header block (unfolded), or undefined. */
+function headerValue(headerBlock: string, name: string): string | undefined {
+  const unfolded = headerBlock.replace(/\r?\n[ \t]+/g, ' ');
+  const re = new RegExp(`^${name}:[ \\t]*(.*)$`, 'im');
+  return re.exec(unfolded)?.[1]?.trim();
+}
+
+function headerBlockOf(bytes: Uint8Array): string {
+  const head = bytesToBinary(bytes.subarray(0, 64 * 1024));
+  const end = head.search(/\r?\n\r?\n/);
+  return end < 0 ? head : head.slice(0, end);
+}
+
+/** The message's own (outer) Subject, raw. */
+function outerSubjectOf(raw: Uint8Array): string | undefined {
+  return headerValue(headerBlockOf(raw), 'Subject');
+}
+
+/** The outer Subject when the sender obscured it (`[...]`, RFC 9788 §4.2). */
+const OBSCURED_SUBJECT = /^\[\.\.\.\]$/;
+
+/**
+ * RFC 9788: the decrypted part's own header fields are the message's when
+ * its Content-Type has `hp=` or the outer Subject is obscured.
+ */
+function protectedHeadersOf(payload: Uint8Array, outerSubject: string | undefined): ProtectedHeaders | undefined {
+  const block = headerBlockOf(payload);
+  const contentType = headerValue(block, 'Content-Type') ?? '';
+  const hp = /;\s*hp\s*=\s*"?(cipher|clear)"?/i.test(contentType);
+  if (!hp && !(outerSubject && OBSCURED_SUBJECT.test(outerSubject.trim()))) return undefined;
+  const out: ProtectedHeaders = {};
+  const fields: Array<[keyof ProtectedHeaders, string]> = [
+    ['subject', 'Subject'], ['from', 'From'], ['to', 'To'], ['cc', 'Cc'], ['replyTo', 'Reply-To'], ['date', 'Date'],
+  ];
+  for (const [key, name] of fields) {
+    const value = headerValue(block, name);
+    if (value !== undefined) out[key] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Takes out the legacy display element a sender with header protection puts
+ * in its text parts for clients without it (RFC 9788 §4.5.3; Stalwart
+ * crates/crypto/src/mime/legacy.rs): a "Subject: …" block and a blank line
+ * at the top of the text, a `header-protection-legacy-display` div in HTML.
+ * Only parts marked `hp-legacy-display=1` carry one.
+ */
+function withoutLegacyDisplay(body: { html: string | null; text: string | null }, payload: Uint8Array): { html: string | null; text: string | null } {
+  if (!/hp-legacy-display\s*=\s*"?1/i.test(bytesToBinary(payload))) return body;
+  const text = body.text?.replace(/^(?:[A-Za-z][A-Za-z0-9-]*:[^\r\n]*\r?\n)+\r?\n/, '') ?? null;
+  const html = body.html?.replace(/<div class="header-protection-legacy-display">[\s\S]*?<\/div>\s*/i, '') ?? null;
+  return { html, text };
+}
+
 /** A decrypted payload: a MIME entity, or (inline PGP) plain text. */
-async function renderPayload(bytes: Uint8Array): Promise<{ body: SecureResult['body']; attachments: SecureAttachment[] }> {
+async function renderPayload(
+  bytes: Uint8Array,
+  outerSubject?: string,
+): Promise<{ body: SecureResult['body']; attachments: SecureAttachment[]; protectedHeaders?: ProtectedHeaders }> {
   if (!looksLikeMime(bytes)) {
     return { body: { html: null, text: new TextDecoder('utf-8', { fatal: false }).decode(bytes) }, attachments: [] };
   }
@@ -146,7 +220,11 @@ async function renderPayload(bytes: Uint8Array): Promise<{ body: SecureResult['b
   if (!html && !(text && text.trim()) && attachments.length === 0) {
     text = new TextDecoder('utf-8', { fatal: false }).decode(bytes).trim();
   }
-  return { body: { html, text }, attachments };
+  const protectedHeaders = protectedHeadersOf(bytes, outerSubject);
+  if (!protectedHeaders) return { body: { html, text }, attachments };
+  // The subject as decoded (encoded words and all); the others stay raw.
+  if (protectedHeaders.subject !== undefined && typeof parsed.subject === 'string') protectedHeaders.subject = parsed.subject;
+  return { body: withoutLegacyDisplay({ html, text }, bytes), attachments, protectedHeaders };
 }
 
 function applyPgpSignature(status: SecureStatus, sig: PgpSignatureSummary, fromEmail?: string): void {
@@ -193,12 +271,12 @@ async function openPgp(raw: Uint8Array, fromEmail: string | undefined, keys: Sec
         }
       }
       applyPgpSignature(status, sig, fromEmail);
-      const rendered = await renderPayload(payload);
+      const rendered = await renderPayload(payload, outerSubjectOf(raw));
       return withOfferedKey({ status, ...rendered }, rendered.body?.text, fromEmail);
     }
     if (info.kind === 'pgp-mime-signed') {
       applyPgpSignature(status, await verifySignedPart(info.signedBytes, info.signature, verificationKeys), fromEmail);
-      return { status, ...(await renderPayload(info.signedBytes)) };
+      return { status, ...(await renderPayload(info.signedBytes, outerSubjectOf(raw))) };
     }
     // inline-signed
     const v = await verifyCleartext({ cleartext: info.cleartext, verificationKeysArmored: verificationKeys });
@@ -275,7 +353,7 @@ async function openSmime(raw: Uint8Array, fromEmail: string | undefined, keys: S
       const sig = await cms.smimeVerifyDetached(decodeBody(sigPart), entity, fromEmail);
       applySmimeSignature(status, sig);
       if (sig.signatureValid && sig.signerCertificate && fromEmail) await keys.rememberCertificate?.(sig.signerCertificate, fromEmail);
-      return { status, ...(await renderPayload(entity)) };
+      return { status, ...(await renderPayload(entity, outerSubjectOf(raw))) };
     }
 
     const der = decodeBody(node);
@@ -283,7 +361,7 @@ async function openSmime(raw: Uint8Array, fromEmail: string | undefined, keys: S
       const v = await cms.smimeVerifyOpaque(der, fromEmail);
       applySmimeSignature(status, v.status);
       if (v.status.signatureValid && v.status.signerCertificate && fromEmail) await keys.rememberCertificate?.(v.status.signerCertificate, fromEmail);
-      return { status, ...(await renderPayload(v.mimeBytes)) };
+      return { status, ...(await renderPayload(v.mimeBytes, outerSubjectOf(raw))) };
     }
 
     status.encrypted = true;
@@ -333,7 +411,7 @@ async function openSmime(raw: Uint8Array, fromEmail: string | undefined, keys: S
         payload = entity;
       }
     }
-    return { status, ...(await renderPayload(payload)) };
+    return { status, ...(await renderPayload(payload, outerSubjectOf(raw))) };
   } catch (err) {
     status.error = err instanceof Error ? err.message : String(err);
     if (!status.encrypted && status.signature === 'none') status.signature = 'invalid';

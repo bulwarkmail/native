@@ -58,6 +58,7 @@ import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
 import { accountScopedId, quickReplyTarget } from '../lib/thread-utils';
 import { scheduledEmailIdsInThread } from '../api/thread-scheduled';
+import { useProtectedSubject } from '../components/email/use-secure-message';
 import type { Email, EmailAddress, Identity } from '../api/types';
 import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
@@ -1069,6 +1070,8 @@ function EmailPane({
   const t = useLocaleStore((s) => s.t);
   // The quick reply box can be turned off (webmail #1370).
   const quickReplyEnabled = useSettingsStore((s) => s.quickReplyEnabled);
+  // An encrypted message whose sender obscured the subject (RFC 9788).
+  const protectedSubject = useProtectedSubject(email);
   // Freeze the pane's vertical scroll while a pinch is in flight so a two-
   // finger zoom can't fling the page.
   const [pinching, setPinching] = React.useState(false);
@@ -1189,7 +1192,7 @@ function EmailPane({
     return <EmailPaneSkeleton styles={styles} />;
   }
 
-  const subject = singleLine(shown.subject) || t('email_viewer.no_subject', '(No Subject)');
+  const subject = singleLine(protectedSubject ?? shown.subject) || t('email_viewer.no_subject', '(No Subject)');
   const conversation = threading && threadId && threadIds && threadIds.length > 1
     ? threadIds.map((mid) => memberOf(threadId, mid)).filter((m): m is Email => !!m)
     : null;

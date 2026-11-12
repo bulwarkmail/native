@@ -28,6 +28,32 @@ const MAX_RAW_BYTES = 25 * 1024 * 1024;
 const cache = new Map<string, SecureResult | null>();
 onUnlockChange(() => cache.clear());
 
+// The subject a decrypted message protects (RFC 9788), by message, for the
+// reader's subject line, which sits above the body that decrypts it.
+const protectedSubjects = new Map<string, string>();
+const subjectListeners = new Set<() => void>();
+
+function rememberProtectedSubject(emailKey: string, result: SecureResult | null): void {
+  const subject = result?.protectedHeaders?.subject;
+  if (!subject || protectedSubjects.get(emailKey) === subject) return;
+  protectedSubjects.set(emailKey, subject);
+  subjectListeners.forEach((l) => l());
+}
+
+/**
+ * The subject the message's encrypted part carries, once the reader has
+ * decrypted it, where the outer one may read `[...]`; null before that or
+ * without header protection.
+ */
+export function useProtectedSubject(email: Pick<Email, 'id' | 'blobId'> | null | undefined): string | null {
+  const key = email ? `${email.id}:${email.blobId ?? ''}` : '';
+  const subscribe = React.useCallback((onChange: () => void) => {
+    subjectListeners.add(onChange);
+    return () => { subjectListeners.delete(onChange); };
+  }, []);
+  return React.useSyncExternalStore(subscribe, () => (key ? protectedSubjects.get(key) ?? null : null));
+}
+
 export interface SecureMessageState {
   loading: boolean;
   result: SecureResult | null;
@@ -70,6 +96,7 @@ export function useSecureMessage(email: Email, jmapAccountId?: string): SecureMe
         if (result?.status.kind === 'smime' && !smimeAllowed) result = null;
         if (cancelled) return;
         cache.set(cacheKey, result);
+        rememberProtectedSubject(`${email.id}:${email.blobId ?? ''}`, result);
         setState({ loading: false, result });
       } catch (err) {
         console.warn('[reader] secure message failed', err);

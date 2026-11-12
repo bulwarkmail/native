@@ -175,6 +175,69 @@ describe('PGP/MIME', () => {
     }
   }, 30_000);
 
+  it('takes the subject from the encrypted part when a gateway obscured it, and hides the legacy display (RFC 9788)', async () => {
+    // Stalwart's encryption gateway with header protection: the outer
+    // Subject reads [...], the encrypted part carries the real one, hp="cipher"
+    // on its Content-Type, and each text part starts with a legacy display
+    // element for clients without header protection.
+    const inner = [
+      'Subject: =?UTF-8?q?Quartalszahlen_f=C3=BCr_Q3?=',
+      'From: <cfo@example.com>',
+      'To: <reader@example.org>',
+      'HP-Outer: Subject: [...]',
+      'Content-Type: multipart/alternative; boundary="b1"; hp="cipher"',
+      '',
+      '--b1',
+      'Content-Type: text/plain; charset=utf-8; hp-legacy-display=1',
+      '',
+      'Subject: Quartalszahlen für Q3',
+      '',
+      'Die Zahlen liegen bei.',
+      '--b1',
+      'Content-Type: text/html; charset=utf-8; hp-legacy-display=1',
+      '',
+      '<html><body>',
+      '<div class="header-protection-legacy-display">',
+      '<pre>Subject: Quartalszahlen für Q3</pre></div>',
+      '<p>Die Zahlen liegen bei.</p></body></html>',
+      '--b1--',
+      '',
+    ].join('\r\n');
+    const armored = await openpgp.encrypt({
+      message: await openpgp.createMessage({ binary: encode(inner) }),
+      encryptionKeys: await openpgp.readKey({ armoredKey: bob.publicKey }),
+    });
+    const raw = wrapPgpEncrypted(armored as string, { from: { email: 'cfo@example.com' }, to: [{ email: 'reader@example.org' }], subject: '[...]' });
+    const res = await openSecureMessage(raw, 'cfo@example.com', pgpAccess([{ id: 'bob', publicKey: bob.publicKey, unlocked: bob.unlocked }], []));
+
+    expect(res?.status).toMatchObject({ encrypted: true, decrypted: true });
+    expect(res?.protectedHeaders).toMatchObject({ subject: 'Quartalszahlen für Q3', from: '<cfo@example.com>' });
+    expect(res?.body?.text?.trim()).toBe('Die Zahlen liegen bei.');
+    expect(res?.body?.html).toContain('<p>Die Zahlen liegen bei.</p>');
+    expect(res?.body?.html).not.toContain('header-protection-legacy-display');
+    expect(res?.body?.html).not.toContain('Subject:');
+  }, 30_000);
+
+  it('leaves the subject and a body starting with header-like lines alone without header protection', async () => {
+    const inner = [
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'Subject: not a legacy display',
+      '',
+      'Body.',
+      '',
+    ].join('\r\n');
+    const armored = await openpgp.encrypt({
+      message: await openpgp.createMessage({ binary: encode(inner) }),
+      encryptionKeys: await openpgp.readKey({ armoredKey: bob.publicKey }),
+    });
+    const raw = wrapPgpEncrypted(armored as string, { from: { email: 'a@example.com' }, to: [{ email: 'reader@example.org' }], subject: 'Plain subject' });
+    const res = await openSecureMessage(raw, 'a@example.com', pgpAccess([{ id: 'bob', publicKey: bob.publicKey, unlocked: bob.unlocked }], []));
+
+    expect(res?.protectedHeaders).toBeUndefined();
+    expect(res?.body?.text).toContain('Subject: not a legacy display');
+  }, 30_000);
+
   it('leaves ordinary mail alone', async () => {
     const plain = encode('From: a@example.org\r\nContent-Type: text/plain\r\n\r\nnothing to see');
     expect(await openSecureMessage(plain, 'a@example.org', pgpAccess([], []))).toBeNull();

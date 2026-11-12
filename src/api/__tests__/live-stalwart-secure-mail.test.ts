@@ -34,7 +34,8 @@ import { uploadBytes } from '../blob';
 import { fetchBlobBytes } from '../../lib/email-export';
 import { buildSecureMessage } from '../../lib/crypto/secure-send';
 import { openSecureMessage, type SecureKeyAccess } from '../../lib/crypto/secure-message';
-import type { MimeMessageInput } from '../../lib/crypto/mime';
+import { wrapPgpEncrypted, type MimeMessageInput } from '../../lib/crypto/mime';
+import * as openpgp from 'openpgp';
 import { makePgpKey, makeSmimeCert, useNodeCrypto } from '../../lib/crypto/__tests__/helpers';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -184,6 +185,47 @@ live('live Stalwart: PGP and S/MIME mail', () => {
 
     const own = await openSecureMessage(await sentCopy(emailId), identity.email, access(me));
     expect(own?.status.decrypted).toBe(true);
+  }, 120_000);
+
+  it('a PGP message with header protection shows the inner subject', async () => {
+    // Built here as Stalwart's encryption gateway builds one (RFC 9788,
+    // hp="cipher" and a legacy display part); the rig's gateway can't send
+    // to itself. The outer subject keeps the run tag so the message is found
+    // and removed.
+    as(sender);
+    const [identity] = await getIdentities();
+    const them = await makePgpKey(USER2!);
+    const inner = [
+      'Subject: Geheime Quartalszahlen',
+      `From: <${identity.email}>`,
+      `To: <${USER2}>`,
+      'Content-Type: multipart/alternative; boundary="hp1"; hp="cipher"',
+      '',
+      '--hp1',
+      'Content-Type: text/plain; charset=utf-8; hp-legacy-display=1',
+      '',
+      'Subject: Geheime Quartalszahlen',
+      '',
+      'Die Zahlen liegen bei.',
+      '--hp1--',
+      '',
+    ].join('\r\n');
+    const armored = await openpgp.encrypt({
+      message: await openpgp.createMessage({ binary: new TextEncoder().encode(inner) }),
+      encryptionKeys: await openpgp.readKey({ armoredKey: them.publicKey }),
+    });
+    const subject = `[...] ${TAG}`;
+    await sendRaw(wrapPgpEncrypted(armored as string, { from: { email: identity.email }, to: [{ email: USER2! }], subject }), USER2!);
+
+    const res = await openSecureMessage(await receive(subject), identity.email, {
+      pgpDecryptionKeys: () => [them.unlocked],
+      pgpOwnKeys: () => [{ id: 'them', publicKeyArmored: them.publicKey, unlocked: true }],
+      pgpPublicKeys: () => [],
+      smimeKeys: () => [],
+    });
+    expect(res?.status.decrypted).toBe(true);
+    expect(res?.protectedHeaders?.subject).toBe('Geheime Quartalszahlen');
+    expect(res?.body?.text?.trim()).toBe('Die Zahlen liegen bei.');
   }, 120_000);
 
   it('turns encryption at rest on with a key and reads it back as on, then off again', async () => {
