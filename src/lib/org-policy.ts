@@ -154,6 +154,9 @@ function sanitizeDefaults(raw: unknown): Record<string, unknown> {
     if (!isSafeKey(key)) continue;
     if (typeof value === 'boolean' || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) {
       out[key] = value;
+    } else if (key === 'emailKeywords' && Array.isArray(value) && value.length <= 50) {
+      // The admin's default tags (webmail #1612), checked in lib/policy-keywords.
+      out[key] = value;
     }
   }
   return out;

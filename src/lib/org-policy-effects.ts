@@ -1,7 +1,9 @@
 import { useAccountStore } from '../stores/account-store';
 import { useOfflineCacheStore } from '../stores/offline-cache-store';
 import { usePolicyStore } from '../stores/policy-store';
+import { useKeywordsStore } from '../stores/keywords-store';
 import { devicesForAccount } from './device-policy';
+import { policyKeywordList } from './policy-keywords';
 
 // What the organisation policy does by itself, beyond the settings rules
 // the policy store applies. Loading lib/device-policy.ts sets the device
@@ -18,6 +20,16 @@ export function dropForbiddenOfflineMail(): void {
   }
 }
 
+/**
+ * The admin's default tags (`defaults.emailKeywords`) of the active
+ * account's policy, for users who haven't chosen their own; the built-in
+ * tags again when the policy stops setting them.
+ */
+export function applyPolicyDefaultTags(): void {
+  const effective = usePolicyStore.getState().effective;
+  useKeywordsStore.getState().applyPolicyDefault(policyKeywordList(effective?.defaults.emailKeywords));
+}
+
 let started = false;
 
 /** Start following the policy; returns the stop. */
@@ -26,7 +38,10 @@ export function startOrgPolicyEffects(): () => void {
   started = true;
   const stops: Array<() => void> = [];
 
-  const onPolicy = () => dropForbiddenOfflineMail();
+  const onPolicy = () => {
+    dropForbiddenOfflineMail();
+    applyPolicyDefaultTags();
+  };
   stops.push(usePolicyStore.subscribe((state, prev) => {
     if (state.byAccount !== prev.byAccount || state.effective !== prev.effective) onPolicy();
   }));
