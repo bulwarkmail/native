@@ -27,7 +27,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Reading mail
 
-- [ ] **A trusted sender still loads remote content while the organisation locks remote content to "block"** — `P1` — `bug`
+- [x] **A trusted sender still loads remote content while the organisation locks remote content to "block"** — `P1` — `bug` — fixed in 11632d78
   - What WEB does: remote content counts as blocked by the organisation when the policy locks or limits External content to "block", not only under no-third-party traffic, and then neither trusted senders nor "load once" lift it, in the reader, replies, reopened drafts and previews (`hooks/use-third-party-mode.ts:35`, `:90`, `components/email/email-viewer.tsx:1563`). 84de2395f, 128f61646 (1.20.0 Security).
   - What RN does: only no-third-party traffic overrides trust (`src/stores/policy-store.ts:315`, `src/components/EmailBodyView.tsx:443`); with the setting locked to "block" a trusted sender passes `!trusted && ... !== 'allow'` and the WebView loads remote images (`src/components/EmailBodyView.tsx:513-533`). The composer's quote does the same (`src/screens/ComposeScreen.tsx:537-538`).
   - Fix hint: add the "locked or limited to block" check from the policy restrictions to `remoteBlockedByOrg` in EmailBodyView and ComposeScreen.
