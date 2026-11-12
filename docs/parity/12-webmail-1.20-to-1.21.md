@@ -414,7 +414,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Filters and vacation
 
-- [ ] **A webmail rule with a regular expression stops the app from saving filters, or changes a body rule** — `P2` — `bug`
+- [x] **A webmail rule with a regular expression stops the app from saving filters, or changes a body rule** — `P2` — `bug` — fixed in 1ff9421e
   - What WEB does: conditions can use Sieve `:regex` on headers and the body (`lib/jmap/sieve-types.ts:29-31`, `lib/sieve/regex.ts`). Changelog 1.20.0 (#885).
   - What RN does: accepts the rule from the metadata without checking the comparator (`src/lib/sieve/parser.ts:51-59`); on the next save of any rule the generator throws for a header condition (`src/lib/sieve/generator.ts:158-162`) and writes a body condition as `body :contains` (`:93-95`), which matches the pattern as plain text. The rule editor offers no regex (`src/lib/sieve/types.ts:29-33`). Read from the code, not tried on a server.
   - Fix hint: support `regex` in types, generator, parser and FilterRuleModal (with the `regex` require), or at least keep such rules read-only and write them back verbatim.
