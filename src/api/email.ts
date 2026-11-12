@@ -169,7 +169,7 @@ async function emailSetBatched(
 }
 
 // A Mailbox/get without ids over maxObjectsInGet: Stalwart 0.16 cuts the list
-// at the limit without saying so, 1.0 answers requestTooLarge (RFC 8620 ง5.1).
+// at the limit without saying so, 1.0 answers requestTooLarge (RFC 8620 ยง5.1).
 function mailboxListCapped(response: readonly unknown[] | undefined, maxObjects: number): boolean {
   if (!response) return false;
   const [name, body] = response as [string, Record<string, any>];
