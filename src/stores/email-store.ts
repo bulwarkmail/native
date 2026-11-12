@@ -1460,6 +1460,7 @@ export const useEmailStore = create<EmailState>()(
     // Both the blob upload and the import have to target the folder's owning
     // account, or the import references a blob the server can't see.
     const ref = refFor(get().mailboxes, mailboxId);
+    const keywords = importKeywords(get().mailboxes.find((m) => m.id === mailboxId)?.role);
     let imported = 0;
     let failed = 0;
     for (const file of files) {
@@ -1470,7 +1471,7 @@ export const useEmailStore = create<EmailState>()(
         for (const eml of emls) {
           try {
             const { blobId } = await uploadBytes(eml.bytes, 'message/rfc822', ref.accountId);
-            await importEmailBlob(blobId, ref.id, undefined, ref.accountId);
+            await importEmailBlob(blobId, ref.id, keywords, ref.accountId);
             imported += 1;
           } catch {
             failed += 1;
@@ -3137,6 +3138,15 @@ async function fillThreadCounts(emails: Email[], accountId: string | undefined):
   } catch {
     /* keep the loaded-page count */
   }
+}
+
+/**
+ * The keywords of a message imported into a folder: read, and in Drafts also
+ * a draft, so it opens in the composer to be edited and sent (webmail
+ * lib/file-drop/import-keywords.ts, #1535).
+ */
+export function importKeywords(role: string | null | undefined): Record<string, boolean> {
+  return role === 'drafts' ? { $seen: true, $draft: true } : { $seen: true };
 }
 
 // The page load that set `loading`, if one did: a load whose answer is

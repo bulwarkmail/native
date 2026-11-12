@@ -782,3 +782,29 @@ live('live Stalwart: report phishing', () => {
     await useLogin(client);
   }, 120_000);
 });
+// An .eml imported into Drafts is a draft the composer opens (#1535).
+live('live Stalwart: .eml import into Drafts', () => {
+  const tag = `bulwark-import-${RUN}`;
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+  }, 60_000);
+
+  it('keeps $draft and $seen on a message imported into Drafts', async () => {
+    const { importKeywords } = await import('../../stores/email-store');
+    const drafts = (await getMailboxes()).find((m) => m.role === 'drafts')!;
+    const id = await importMessage(drafts.id, `${tag} imported draft`, 'Edit me.', importKeywords(drafts.role));
+    const [flags] = (await getEmailFlags([id])).list;
+    expect(flags.keywords).toMatchObject({ $draft: true, $seen: true });
+  }, 60_000);
+});
