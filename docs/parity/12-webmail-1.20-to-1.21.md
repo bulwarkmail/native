@@ -32,7 +32,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: only no-third-party traffic overrides trust (`src/stores/policy-store.ts:315`, `src/components/EmailBodyView.tsx:443`); with the setting locked to "block" a trusted sender passes `!trusted && ... !== 'allow'` and the WebView loads remote images (`src/components/EmailBodyView.tsx:513-533`). The composer's quote does the same (`src/screens/ComposeScreen.tsx:537-538`).
   - Fix hint: add the "locked or limited to block" check from the policy restrictions to `remoteBlockedByOrg` in EmailBodyView and ComposeScreen.
 
-- [ ] **A message reported as phishing keeps working links, and there is no Report phishing** — `P2` — `missing`
+- [x] **A message reported as phishing keeps working links, and there is no Report phishing** — `P2` — `missing` — fixed in 70b0d65b, e3a47be5
   - What WEB does: when the admin sets a report address, Report phishing sends the message to it (forward or ARF), moves it to Junk with `$phishing`; a message with `$phishing` shows a banner and every link in it is turned off (`lib/phishing-report-flow.ts:72`, `lib/phishing-links.ts:13`, `:26`, `components/email/email-viewer.tsx:3280`). 50f95f446.
   - What RN does: nothing reads `$phishing` (no match in `src/`), so a message reported on the webmail opens on the phone with live links and no warning; the body goes through EmailBodyView unchanged (`src/components/EmailBodyView.tsx:613`).
   - Fix hint: first strip links and show the banner for `$phishing` in the body HTML; then add the action behind the org policy's `phishingReport` address.
@@ -74,7 +74,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Mail list
 
-- [ ] **Recover deleted items lists nothing on Stalwart 1.0 for a regular user** — `P2` — `bug`
+- [x] **Recover deleted items lists nothing on Stalwart 1.0 for a regular user** — `P2` — `bug` — fixed in f4bbdc1d
   - What WEB does: keeps archived items without `accountId`, which Stalwart 1.0 leaves out for users without Impersonate after it has already limited the list to the account asked for (`lib/recovery/archived-items.ts:151`). d70b51f09 (#1480).
   - What RN does: drops every item whose `accountId` isn't the account's, including items with none (`src/lib/recovery/archived-items.ts:128`), so the list stays empty.
   - Fix hint: one-line port: skip only when `accountId` is present and different.
@@ -138,12 +138,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Folders and tags
 
-- [ ] **Accounts with more folders than the server's get limit show a cut or empty folder list** — `P2` — `bug`
+- [x] **Accounts with more folders than the server's get limit show a cut or empty folder list** — `P2` — `bug` — fixed in f18029ca
   - What WEB does: when Mailbox/get without ids is capped (Stalwart 0.16 cuts at maxObjectsInGet, 1.0 answers requestTooLarge) it pages through Mailbox/query and gets, and retries when the state moves mid-load (`lib/jmap/client.ts:652`, `:2517`). 8ef3ad901 (#1502).
   - What RN does: one Mailbox/get without ids for the own account and each shared account (`src/api/email.ts:178-190`, `:198-224`); on 1.0 requireMethodResult throws, on 0.16 the tree misses folders.
   - Fix hint: port the capped check and the query/get paging into getMailboxesWithState and getSharedMailboxes.
 
-- [ ] **Tags named in Cyrillic or other non-Latin letters can't be saved** — `P2` — `bug`
+- [x] **Tags named in Cyrillic or other non-Latin letters can't be saved** — `P2` — `bug` — fixed in defb045d
   - What WEB does: a name with no a-z slug gets a generated `tag-<hash>` id, as does a name whose slug is taken; duplicates are checked by name under the same parent, in settings, the tag picker and shared tags (`lib/keyword-nesting.ts:87-97`, `:117`, `:148`). d3c9eec8f (#1613).
   - What RN does: the id is the slug only, so "Работа" gives an empty id and Save stays disabled with no message, and "Банк 1" and "Счета 1" both give "1" (`src/lib/new-tag.ts:22-46`, `src/components/settings/KeywordSettings.tsx:338-341`, `src/components/NewTagRow.tsx:33`).
   - Fix hint: port generatedKeywordLevel, chooseKeywordId and isKeywordNameTaken into new-tag.ts and use them in both places. Renames already keep the id in RN (39b6f6542 needs nothing).
