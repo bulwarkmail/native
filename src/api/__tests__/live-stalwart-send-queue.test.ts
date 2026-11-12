@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import { cancelScheduledSend, destroyEmails, getMailboxes, saveDraftVersion, sendEmail } from '../email';
-import { getIdentities } from '../identity';
+import { ownIdentity } from './live-identity';
 import { findCopiesByMessageId, runQueuedSend, takeBackQueuedSend } from '../queued-send';
 import { cancelScheduledToDrafts } from '../../lib/compose-scheduled';
 import { generateMessageId } from '../../lib/email-threading';
@@ -50,7 +50,7 @@ live('live Stalwart: offline send queue', () => {
     boxes = await getMailboxes();
     drafts = boxes.find((b) => b.role === 'drafts')?.id ?? '';
     sent = boxes.find((b) => b.role === 'sent')?.id ?? '';
-    [identity] = await getIdentities();
+    identity = await ownIdentity(USER);
   }, 60_000);
 
   afterAll(async () => {

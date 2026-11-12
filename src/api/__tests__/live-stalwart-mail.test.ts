@@ -47,6 +47,7 @@ import { scheduledEmailIdsInThread } from '../thread-scheduled';
 import { fetchTagCounts, KEYWORDS_CAPABILITY } from '../tag-counts';
 import { uploadBytes } from '../blob';
 import { getIdentities, updateIdentity } from '../identity';
+import { ownIdentity } from './live-identity';
 import { isJMAPSetError } from '../jmap-result';
 import { pruneEmailSubmissions } from '../submissions';
 import { listPrincipals } from '../files';
@@ -198,7 +199,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
 
   describe('submissions', () => {
     it('destroys the record of an immediate send right away', async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `now ${mailTag}`, textBody: 'live' },
         identity.id, sent, undefined, { draftsMailboxId: drafts },
@@ -210,7 +211,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
     }, 60_000);
 
     it('lists, reschedules, cancels and restores a delayed send', async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `later ${mailTag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },
@@ -239,7 +240,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
     }, 90_000);
 
     it('sends a delayed message now', async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `send now ${mailTag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },
@@ -509,7 +510,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
     }, 60_000);
 
     it('changes and restores an identity\'s name and signature', async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const before = { name: identity.name, textSignature: identity.textSignature ?? '' };
       try {
         await updateIdentity(identity.id, { name: `Live ${RUN}`, textSignature: `sig ${RUN}` });
@@ -552,7 +553,7 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
     }, 60_000);
 
     it("finds a conversation's message that waits for a scheduled send (bulwarkmail/webmail#1404)", async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `scheduled reply ${mailTag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },

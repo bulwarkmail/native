@@ -29,6 +29,7 @@ import {
 import { uploadBytes } from '../blob';
 import { deleteFileNodes } from '../files';
 import { getIdentities, resolveSendAccountId } from '../identity';
+import { ownIdentity } from './live-identity';
 import {
   getBulwarkMetadata, MetadataTooLargeError, resetBulwarkMetadata, setBulwarkMetadata, supportsBulwarkMetadata,
 } from '../bulwark-metadata';
@@ -95,7 +96,7 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
 
   describe('scheduled sends', () => {
     it('cancels the original before it schedules the replacement, then sends a cancelled one back to Drafts', async () => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `later ${tag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },
@@ -149,7 +150,7 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       });
     };
     const scheduleOne = async (label: string) => {
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `${label} ${tag}`, textBody: 'live' },
         identity.id, sent, 3600, { draftsMailboxId: drafts },
@@ -534,7 +535,7 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       const target = preset?.date ?? new Date(Math.ceil((now.getTime() + 3_600_000) / 60_000) * 60_000);
       // As the composer turns the picked time into HOLDFOR seconds.
       const holdFor = Math.ceil((target.getTime() - Date.now()) / 1000);
-      const [identity] = await getIdentities();
+      const identity = await ownIdentity(USER);
       const result = await sendEmail(
         { from: [{ email: USER }], to: [{ email: USER }], subject: `preset ${tag}`, textBody: 'live' },
         identity.id, sent, holdFor, { draftsMailboxId: drafts },
