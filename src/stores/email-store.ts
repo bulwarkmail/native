@@ -1330,6 +1330,10 @@ export const useEmailStore = create<EmailState>()(
       }
     }
 
+    // This list load owns `loading` now: a page of the old folder that
+    // lands meanwhile must not clear it, also while the load below waits
+    // behind a refresh that is still running.
+    loadMoreOwner = null;
     set({
       ...(clearSearch ? { searchQuery: '', filters: {} } : {}),
       currentMailboxId: mailboxId,

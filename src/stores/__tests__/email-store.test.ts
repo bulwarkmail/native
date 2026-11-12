@@ -445,6 +445,37 @@ describe('email-store', () => {
       useEmailStore.setState({ currentMailboxId: 'mb-1', loading: false });
     });
 
+    // A folder switch whose list load waits behind a running refresh: the
+    // old folder's page landing meanwhile cleared the new folder's spinner.
+    it('keeps the spinner of a folder switched to while an older page loads', async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1', emails: [{ id: 'e1' } as any], totalEmails: 2, loading: false });
+      const answers: Record<string, (page: unknown) => void> = {};
+      mockQueryEmailPage.mockImplementation((mailboxId: string, opts: { position?: number }) => new Promise((resolve) => {
+        answers[`${mailboxId}@${opts?.position ?? 0}`] = resolve;
+      }));
+      // A refresh of the folder is under way and has given the flag back.
+      const refreshing = useEmailStore.getState().refreshEmails();
+      await vi.waitFor(() => expect(answers['mb-1@0']).toBeDefined());
+      useEmailStore.setState({ loading: false });
+      const more = useEmailStore.getState().loadMoreEmails();
+      await vi.waitFor(() => expect(answers['mb-1@1']).toBeDefined());
+
+      const switching = useEmailStore.getState().selectMailbox('mb-2');
+      expect(useEmailStore.getState().loading).toBe(true);
+      answers['mb-1@1']({ ids: ['e2'], total: 2, list: [{ id: 'e2' }], threads: [] });
+      await more;
+
+      expect(useEmailStore.getState().currentMailboxId).toBe('mb-2');
+      expect(useEmailStore.getState().loading).toBe(true);
+      answers['mb-1@0']({ ids: [], total: 0, list: [], threads: [] });
+      await refreshing.catch(() => undefined);
+      await vi.waitFor(() => expect(answers['mb-2@0']).toBeDefined());
+      answers['mb-2@0']({ ids: [], total: 0, list: [], threads: [] });
+      await switching.catch(() => undefined);
+      await vi.waitFor(() => expect(useEmailStore.getState().loading).toBe(false));
+      useEmailStore.setState({ currentMailboxId: 'mb-1', loading: false });
+    });
+
     // #1364: a server that sends no `total` must not stop the list after
     // its first page; full pages keep it going, a short one ends it.
     it('keeps paging while full pages come back without a total', async () => {
