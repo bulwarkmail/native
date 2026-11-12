@@ -544,7 +544,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing; `organisation.announcement` is never read (only `src/lib/org-signature.ts` reads `organisation`).
   - Fix hint: a banner under the header of the main tabs, dismissal stored per announcement id.
 
-- [ ] **Trash and Junk don't say how long the server keeps mail** — `P3` — `missing`
+- [x] **Trash and Junk don't say how long the server keeps mail** — `P3` — `missing` — fixed in 0cf473fa
   - What WEB does: `organisation.retention.trashDays`/`junkDays` show a line in those folders (`lib/admin/organisation-policy.ts:157-161`, `components/email/retention-notice.tsx`). Changelog 1.20.0 Organisation.
   - What RN does: nothing; the policy part is not read.
   - Fix hint: a list header line in Trash and Junk.
