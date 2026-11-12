@@ -55,7 +55,7 @@ Stalwart 1.0.0 items found in the same pass (1.0 SSO scopes, Files on 1.0, #1385
   - What RN does: nothing (`src/stores/settings-store.ts:453`); the paired webmail is forgotten (`src/lib/oauth.ts:292`).
   - Fix hint: keep the webmail URL at hand-off/pairing and fetch the policy with a bearer token. Needs a webmail route that accepts a JMAP bearer token. See "Needs a decision".
 
-- [ ] **Admin-set idle sign-out and maximum session length** — `P2` — `missing` (blocked)
+- [x] **Admin-set idle sign-out and maximum session length** — `P2` — `missing` (blocked) — fixed in 3020d831 (idle time runs while the app is in the background; the maximum length warns in the foreground; signs out through logoutAll, which deletes the local data where the webmail hides it for 30 days)
   - What WEB does: `components/session/session-timeout-guard.tsx:94`, `lib/session-policy/limits.ts:36`, refuses to restore over-age sessions (6e5d8faec), saves drafts first (79c697a93).
   - What RN does: stays signed in for good (`src/stores/auth-store.ts:929`, `App.tsx:818`).
   - Fix hint: needs the policy; then an AppState idle timer and a max-age check in restoreSession, drafts flushed first.
