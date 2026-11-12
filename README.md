@@ -27,6 +27,7 @@ React Native (Expo SDK 54) client for [Bulwark Webmail](https://github.com/bulwa
 - Calendar (basic)
 - Contacts (basic)
 - Push notifications via the Bulwark relay - FCM by default, or [UnifiedPush](https://unifiedpush.org) (e.g. ntfy) for devices without Google Play services
+- Android: push notifications without a relay - a direct connection keeps the mail server's JMAP event stream open in a foreground service (shown as a permanent notification). For it every install carries the permissions `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE`, `RECEIVE_BOOT_COMPLETED` and `ACCESS_NETWORK_STATE`; the boot receiver stays disabled until the direct connection is chosen, and a Play Store listing would need a `specialUse` declaration for the service
 - Android: contacts and calendars sync both ways with the phone's Contacts and Calendar apps (Settings → Contacts / Calendar → Sync to this device)
 - In-app sideload updates from GitHub Releases
 

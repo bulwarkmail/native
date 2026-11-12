@@ -315,6 +315,9 @@ dependencies {
     // android.jar only stubs org.json, so the tests use the real one.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    // The direct connection's stream against a local server; the same version
+    // as the OkHttp the app resolves.
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";

@@ -21,6 +21,11 @@
   <uses-permission android:name="android.permission.READ_SYNC_SETTINGS"/>
   <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS"/>
   <uses-permission android:name="android.permission.READ_SYNC_STATS"/>
+  <!-- The direct connection: the mail server's event stream kept open by a foreground service. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
@@ -96,6 +101,17 @@
         <action android:name="org.unifiedpush.android.connector.PUSH_EVENT"/>
       </intent-filter>
     </service>
+    <!-- specialUse: dataSync is limited to 6 hours a day since Android 15. -->
+    <service android:name=".BulwarkDirectPushService" android:exported="false" android:foregroundServiceType="specialUse">
+      <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Keeps the user's own mail server connection (JMAP event stream) open to notify of new mail without Google services or a third-party push service"/>
+    </service>
+    <!-- Off until the direct connection is turned on (DirectPushSettings). -->
+    <receiver android:name=".BulwarkDirectPushReceiver" android:exported="false" android:enabled="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED"/>
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+      </intent-filter>
+    </receiver>
     <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="bulwark_mail"/>
     <!-- Device sync (#34), see docs/device-sync.md. The system binds these, so they are exported.
          They run in the app's main process on purpose: the adapters start the sync engine as a

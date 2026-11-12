@@ -12,6 +12,7 @@ class BulwarkFcmPackage : ReactPackage {
         buildList {
             add(BulwarkFcmModule(reactContext))
             add(BulwarkUnifiedPushModule(reactContext))
+            add(BulwarkDirectPushModule(reactContext))
             add(BulwarkClientCertModule(reactContext))
             add(BulwarkDeviceSyncModule(reactContext))
             add(BulwarkWidgetsModule(reactContext))
