@@ -18,6 +18,10 @@ class FText extends FNode {
   constructor(public nodeValue: string) { super(); }
 }
 
+// The fake's own reads go past a form's named inputs, as a browser's do.
+const getAttr = (e: FEl, k: string) => FEl.prototype.getAttribute.call(e, k);
+const hasAttr = (e: FEl, k: string) => FEl.prototype.hasAttribute.call(e, k);
+
 /** Matches one compound selector: tag, #id, .class, [attr="v"], [attr*="v" i]. */
 function matchesOne(el: FEl, sel: string): boolean {
   const attrs = [...sel.matchAll(/\[([\w-]+)(?:(\*?=)"([^"]*)"(\s+i)?)?\]/g)];
@@ -25,12 +29,12 @@ function matchesOne(el: FEl, sel: string): boolean {
   const tag = /^[a-z]+/i.exec(head)?.[0];
   if (tag && el.tagName !== tag.toUpperCase()) return false;
   const id = /#([\w-]+)/.exec(head)?.[1];
-  if (id && el.getAttribute('id') !== id) return false;
+  if (id && getAttr(el, 'id') !== id) return false;
   for (const m of head.matchAll(/\.([\w-]+)/g)) {
-    if (!(el.getAttribute('class') ?? '').split(/\s+/).includes(m[1])) return false;
+    if (!(getAttr(el, 'class') ?? '').split(/\s+/).includes(m[1])) return false;
   }
   for (const m of attrs) {
-    const raw = el.getAttribute(m[1]);
+    const raw = getAttr(el, m[1]);
     if (raw === null) return false;
     if (!m[2]) continue;
     const [value, wanted] = m[4] ? [raw.toLowerCase(), m[3].toLowerCase()] : [raw, m[3]];
@@ -111,6 +115,17 @@ function el(tag: string, attrs: Record<string, string>, ...kids: Array<FNode | s
   return new FEl(tag, attrs).append(...kids);
 }
 
+/** A <form> whose named inputs stand in for its methods and properties (<input name="closest">). */
+function form(attrs: Record<string, string>, ...kids: Array<FNode | string>): FEl {
+  const f = el('form', attrs, ...kids);
+  const input = new FEl('input');
+  for (const name of [
+    'closest', 'matches', 'hasAttribute', 'getAttribute', 'setAttribute', 'removeAttribute',
+    'compareDocumentPosition', 'querySelector', 'insertBefore', 'parentElement', 'nextElementSibling',
+  ]) Object.defineProperty(f, name, { value: input });
+  return f;
+}
+
 function run(body: FEl): void {
   const document = {
     body,
@@ -122,13 +137,38 @@ function run(body: FEl): void {
       return { nextNode: () => nodes[i++] ?? null };
     },
   };
-  const Node = { TEXT_NODE: 3, DOCUMENT_POSITION_PRECEDING: 2, DOCUMENT_POSITION_FOLLOWING: 4, DOCUMENT_POSITION_CONTAINED_BY: 16 };
+  // Node and Element as a page has them: the constants, and the prototypes
+  // the page helpers take methods and properties from.
+  const Node = Object.assign(function Node() {}, {
+    TEXT_NODE: 3, DOCUMENT_POSITION_PRECEDING: 2, DOCUMENT_POSITION_FOLLOWING: 4, DOCUMENT_POSITION_CONTAINED_BY: 16,
+  });
+  Node.prototype = FNode.prototype;
   const script = buildQuoteCollapseScript({ show: 'Show', hide: 'Hide' });
-  new Function('document', 'Node', 'NodeFilter', 'window', script)(document, Node, { SHOW_ELEMENT: 1, SHOW_TEXT: 4 }, {});
+  new Function('document', 'Node', 'Element', 'NodeFilter', 'window', script)(document, Node, FEl, { SHOW_ELEMENT: 1, SHOW_TEXT: 4 }, {});
 }
 
-const hidden = (e: FEl) => e.hasAttribute(QUOTE_COLLAPSED_ATTR) && e.style.display === 'none';
-const toggled = (body: FEl) => preorder(body).some((n) => n instanceof FEl && n.hasAttribute(QUOTE_TOGGLE_ATTR));
+const hidden = (e: FEl) => hasAttr(e, QUOTE_COLLAPSED_ATTR) && e.style.display === 'none';
+const toggled = (body: FEl) => preorder(body).some((n) => n instanceof FEl && hasAttr(n, QUOTE_TOGGLE_ATTR));
+
+describe('quote collapse with a form in the mail', () => {
+  it('folds an Outlook header block that is a form whose inputs are named like its methods', () => {
+    const header = form({ id: 'divRplyFwdMsg' }, el('p', {}, 'From: Bob'));
+    const original = el('p', {}, 'the original');
+    const body = el('body', {}, el('p', {}, 'My reply'), header, original);
+    run(body);
+    expect(hidden(header)).toBe(true);
+    expect(hidden(original)).toBe(true);
+    expect(toggled(body)).toBe(true);
+  });
+
+  it('reads a reply in a form after a quote as a reply, and leaves the quote open', () => {
+    const quote = el('blockquote', { type: 'cite' }, 'On Monday, Bob wrote: hi');
+    const body = el('body', {}, el('p', {}, 'Top'), quote, form({}, 'my answer below'));
+    run(body);
+    expect(hidden(quote)).toBe(false);
+    expect(toggled(body)).toBe(false);
+  });
+});
 
 describe('quote collapse for iPhone Mail and Outlook (#1476)', () => {
   it("folds Outlook for Windows' header block marked only by its top rule, and what follows", () => {

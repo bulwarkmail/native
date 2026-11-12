@@ -17,16 +17,40 @@ import { LIGHT_COLORS } from '../../theme/tokens';
 interface PageDom {
   pagePart: (doc: object, name: string) => unknown;
   pageCall: (doc: object, name: string, args: unknown[]) => unknown;
+  nodePart: (node: object, name: string) => unknown;
+  nodeCall: (node: object, name: string, args: unknown[]) => unknown;
   pageGlobal: (win: object, name: string) => unknown;
   pageMarked: (doc: object, name: string) => boolean;
   pageOnce: (doc: object, name: string) => boolean;
 }
 
-function helpers(DocumentCtor: unknown): PageDom {
+function helpers(DocumentCtor: unknown, ctors: { Element?: unknown; Node?: unknown } = {}): PageDom {
   return new Function(
-    'Document',
-    `${PAGE_DOM_SOURCE}; return { pagePart, pageCall, pageGlobal, pageMarked, pageOnce };`,
-  )(DocumentCtor) as PageDom;
+    'Document', 'Element', 'Node',
+    `${PAGE_DOM_SOURCE}; return { pagePart, pageCall, nodePart, nodeCall, pageGlobal, pageMarked, pageOnce };`,
+  )(DocumentCtor, ctors.Element, ctors.Node) as PageDom;
+}
+
+// A <form> whose own properties are what its named inputs put there
+// (<input name="closest">), over Element's and Node's real ones.
+function shadowedForm() {
+  class FakeNode {
+    constructor(public parent: FakeNode | null = null) {}
+    get parentElement(): FakeNode | null { return this.parent; }
+  }
+  class FakeElement extends FakeNode {
+    constructor(public tag: string, parent: FakeNode | null = null) { super(parent); }
+    closest(tag: string): FakeElement | null {
+      for (let e: FakeNode | null = this; e; e = e.parent) if (e instanceof FakeElement && e.tag === tag) return e;
+      return null;
+    }
+    matches(tag: string): boolean { return this.tag === tag; }
+  }
+  const quote = new FakeElement('blockquote');
+  const form = new FakeElement('form', quote);
+  const input = { tagName: 'INPUT' };
+  for (const name of ['closest', 'matches', 'parentElement']) Object.defineProperty(form, name, { value: input });
+  return { FakeNode, FakeElement, quote, form, input };
 }
 
 // A document whose own properties are what named elements put there, over
@@ -60,6 +84,17 @@ describe('the page helpers', () => {
     const body = { tagName: 'BODY' };
     expect(dom.pagePart({ body }, 'body')).toBe(body);
     expect(dom.pageCall({ make: (x: string) => `made ${x}` }, 'make', ['it'])).toBe('made it');
+  });
+
+  it('read a mail element through Element and Node, past a form input named like the method', () => {
+    const { FakeNode, FakeElement, quote, form } = shadowedForm();
+    const dom = helpers(undefined, { Element: FakeElement, Node: FakeNode });
+    expect(dom.nodeCall(form, 'closest', ['blockquote'])).toBe(quote);
+    expect(dom.nodeCall(form, 'matches', ['form'])).toBe(true);
+    expect(dom.nodePart(form, 'parentElement')).toBe(quote);
+    // Something that is no element, like the script's own objects, is read directly.
+    expect(dom.nodeCall({ make: (x: string) => `made ${x}` }, 'make', ['it'])).toBe('made it');
+    expect(dom.nodePart({ nodeType: 3 }, 'nodeType')).toBe(3);
   });
 
   it('take the scripts\' own values from window only, not an element with that id', () => {
@@ -110,6 +145,20 @@ describe('the injected scripts', () => {
     expect(script).not.toMatch(/\bdoc(?:ument)?\.__rn/);
     expect(script).not.toMatch(/(?:if \(|\(|&&\s*|\|\|\s*|!)window\.__rn/);
     expect(script).not.toMatch(/=\s*window\.__rn\w+\s*\|\|/);
+  });
+
+  it('quote collapse reads the mail\'s elements only through nodePart and nodeCall', () => {
+    // A <form> with <input name="closest"> stands in for form.closest the way
+    // <img name="body"> does for document.body. Only the toggle button the
+    // script makes itself is used directly.
+    const script = buildQuoteCollapseScript({ show: 'Show', hide: 'Hide' }).replace(PAGE_DOM_SOURCE, '');
+    const members = 'closest|matches|hasAttribute|getAttribute|setAttribute|removeAttribute|compareDocumentPosition'
+      + '|querySelector|querySelectorAll|insertBefore|appendChild|parentElement|parentNode|nextElementSibling'
+      + '|style|tagName|nodeType|nodeValue|addEventListener|textContent';
+    const direct = [...script.matchAll(new RegExp(`\\b(\\w+)\\.(${members})\\b`, 'g'))]
+      .map((m) => m[0])
+      .filter((use) => !use.startsWith('button.'));
+    expect(direct).toEqual([]);
   });
 
   it('the compose editor makes the quote toggle and puts it on the body with the helpers', () => {

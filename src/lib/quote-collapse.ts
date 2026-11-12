@@ -88,17 +88,21 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
   if (!body || pageMarked(doc, 'quoteCollapse')) return;
   var all = C.containers.concat(C.separators).join(',');
 
+  // The mail's elements are read through nodePart and nodeCall: a <form>
+  // with <input name="closest"> has that input as its closest.
+  function isText(node) { return nodePart(node, 'nodeType') === Node.TEXT_NODE; }
+  function textOf(node) { return (nodePart(node, 'nodeValue') || '').trim(); }
   function hasVisibleContent(marker, side) {
     var bit = side === 'before' ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING;
     var walker = pageCall(doc, 'createTreeWalker', [body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT]);
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
-      var rel = marker.compareDocumentPosition(node);
+      var rel = nodeCall(marker, 'compareDocumentPosition', [node]);
       if (rel & Node.DOCUMENT_POSITION_CONTAINED_BY) continue;
       if (!(rel & bit)) continue;
-      if (node.nodeType === Node.TEXT_NODE) {
-        if ((node.nodeValue || '').trim() !== '') return true;
-      } else if (node.tagName === 'IMG') {
-        if (!node.hasAttribute('data-blocked-src') && node.style.display !== 'none') return true;
+      if (isText(node)) {
+        if (textOf(node) !== '') return true;
+      } else if (nodePart(node, 'tagName') === 'IMG') {
+        if (!nodeCall(node, 'hasAttribute', ['data-blocked-src']) && nodePart(node, 'style').display !== 'none') return true;
       }
     }
     return false;
@@ -111,15 +115,16 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
     var containers = C.containers.join(',');
     var walker = pageCall(doc, 'createTreeWalker', [body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT]);
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
-      var rel = marker.compareDocumentPosition(node);
+      var rel = nodeCall(marker, 'compareDocumentPosition', [node]);
       if (rel & Node.DOCUMENT_POSITION_CONTAINED_BY) continue;
       if (!(rel & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
-      var visible = node.nodeType === Node.TEXT_NODE
-        ? (node.nodeValue || '').trim() !== ''
-        : node.tagName === 'IMG' && !node.hasAttribute('data-blocked-src');
+      var text = isText(node);
+      var visible = text
+        ? textOf(node) !== ''
+        : nodePart(node, 'tagName') === 'IMG' && !nodeCall(node, 'hasAttribute', ['data-blocked-src']);
       if (!visible) continue;
-      var el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-      if (!el || !el.closest(containers)) return false;
+      var el = text ? nodePart(node, 'parentElement') : node;
+      if (!el || !nodeCall(el, 'closest', [containers])) return false;
     }
     return true;
   }
@@ -131,34 +136,36 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
     var walker = pageCall(doc, 'createTreeWalker', [body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT]);
     var last = null;
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        var text = (node.nodeValue || '').trim();
+      if (isText(node)) {
+        var text = textOf(node);
         if (text !== '') last = text;
         continue;
       }
-      if (node.tagName !== 'BLOCKQUOTE') continue;
-      if (node.parentElement && node.parentElement.closest('blockquote')) continue;
+      if (nodePart(node, 'tagName') !== 'BLOCKQUOTE') continue;
+      var parent = nodePart(node, 'parentElement');
+      if (parent && nodeCall(parent, 'closest', ['blockquote'])) continue;
       if (last !== null && /:$/.test(last)) return node;
     }
     return null;
   }
   function hideElement(el) {
-    el.setAttribute(C.collapsedAttr, el.style.display || '');
-    el.style.display = 'none';
+    var style = nodePart(el, 'style');
+    nodeCall(el, 'setAttribute', [C.collapsedAttr, style.display || '']);
+    style.display = 'none';
   }
   function collectSeparatorRange(marker) {
     var range = [marker];
     var el = marker;
     while (el && el !== body) {
-      for (var sib = el.nextElementSibling; sib; sib = sib.nextElementSibling) range.push(sib);
-      el = el.parentElement;
+      for (var sib = nodePart(el, 'nextElementSibling'); sib; sib = nodePart(sib, 'nextElementSibling')) range.push(sib);
+      el = nodePart(el, 'parentElement');
     }
     return range;
   }
 
-  var marker = body.querySelector(all) || findAttributedBlockquote();
+  var marker = nodeCall(body, 'querySelector', [all]) || findAttributedBlockquote();
   if (!marker) return;
-  var isSeparator = C.separators.some(function (sel) { return marker.matches(sel); });
+  var isSeparator = C.separators.some(function (sel) { return nodeCall(marker, 'matches', [sel]); });
   if (!hasVisibleContent(marker, 'before')) return;
   if (!isSeparator && hasVisibleContent(marker, 'after')) {
     // Interleaved reply: real content after the quote container - leave as is.
@@ -181,7 +188,8 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
     'display:inline-block;margin:12px 0 4px;padding:6px 14px;border:none;' +
     'border-radius:999px;background:#e3e6ea;color:#3c4043;font-size:11px;' +
     'line-height:1;letter-spacing:2px;cursor:pointer;font-family:inherit;';
-  marker.parentNode && marker.parentNode.insertBefore(button, marker);
+  var markerParent = nodePart(marker, 'parentNode');
+  if (markerParent) nodeCall(markerParent, 'insertBefore', [button, marker]);
   hidden.forEach(hideElement);
   button.addEventListener('click', function (ev) {
     ev.preventDefault();
@@ -191,8 +199,8 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
       if (expanded) {
         hideElement(el);
       } else {
-        el.style.display = el.getAttribute(C.collapsedAttr) || '';
-        el.removeAttribute(C.collapsedAttr);
+        nodePart(el, 'style').display = nodeCall(el, 'getAttribute', [C.collapsedAttr]) || '';
+        nodeCall(el, 'removeAttribute', [C.collapsedAttr]);
       }
     });
     button.setAttribute('aria-expanded', String(!expanded));
