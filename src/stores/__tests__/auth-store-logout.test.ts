@@ -117,10 +117,26 @@ vi.mock('../../lib/oauth', async (importOriginal) => {
   return { ...actual, forgetRefreshRotations: vi.fn(actual.forgetRefreshRotations) };
 });
 
+// Device sync asks before a sign-out that would lose changes; a test answers.
+vi.mock('../../device-sync/app/lifecycle', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../device-sync/app/lifecycle')>();
+  return { ...actual, releaseDeviceSyncBeforeSignOut: vi.fn(actual.releaseDeviceSyncBeforeSignOut) };
+});
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { JMAPSession } from '../../api/types';
 import { AuthenticationError, NetworkError, jmapClient } from '../../api/jmap-client';
 import { forgetRefreshRotations } from '../../lib/oauth';
+import { releaseDeviceSyncBeforeSignOut } from '../../device-sync/app/lifecycle';
+import {
+  forgetActivity,
+  lastActivity,
+  noteActivity,
+  resetSessionMemoryForTests,
+  sessionEndDeferredUntil,
+} from '../../lib/session-limits';
+import { useToastStore } from '../toast-store';
+import { account, givenPolicy } from '../../lib/__tests__/org-policy-helpers';
 import { sessionFingerprint, writeServerFingerprint } from '../../lib/server-fingerprint';
 import { useAccountStore } from '../account-store';
 import { useAuthStore } from '../auth-store';
@@ -359,5 +375,55 @@ describe('what a sign-out leaves behind', () => {
     await useAuthStore.getState().logoutAll();
 
     expect(leftovers()).toEqual({ searches: [], feeds: [] });
+  });
+});
+
+describe("a sign-out the organisation's session limits ask for (Stalwart 1.0)", () => {
+  const MIN = 60 * 1000;
+
+  beforeEach(() => {
+    resetSessionMemoryForTests();
+    useToastStore.setState({ toasts: [] } as never);
+    vi.mocked(releaseDeviceSyncBeforeSignOut).mockClear();
+  });
+
+  it('forgets the time of use when everyone signs out, so the next sign-in starts afresh', async () => {
+    await signedIn(A);
+    noteActivity(Date.now() - 31 * MIN);
+
+    await useAuthStore.getState().logoutAll();
+    await settle();
+
+    expect(lastActivity()).toBeNull();
+  });
+
+  it('reports a sign-out the user turned down, and stays signed in', async () => {
+    await signedIn(A);
+    vi.mocked(releaseDeviceSyncBeforeSignOut).mockResolvedValueOnce(false);
+
+    expect(await useAuthStore.getState().logoutAll()).toBe(false);
+
+    expect(where()).toMatchObject({ signedIn: true, auth: A });
+    expect(useAccountStore.getState().accounts.map((a) => a.id)).toEqual([A]);
+    expect(await useAuthStore.getState().logoutAll()).toBe(true);
+  });
+
+  it('finishes the start when the user stays signed in past the idle time, and asks again shortly', async () => {
+    givenPolicy({ organisation: { session: { idleMinutes: 30 } } }, { accounts: [account(A, 'usera')] });
+    await writeServerFingerprint(A, sessionFingerprint(client.session(client.jmapIds[A]) as unknown as JMAPSession));
+    useAuthStore.setState({ isAuthenticated: false, isLoading: false, hasRestoredSession: false, activeAccountId: null, session: null });
+    client.served = null;
+    noteActivity(Date.now() - 31 * MIN);
+    await settle();
+    resetSessionMemoryForTests();
+    vi.mocked(releaseDeviceSyncBeforeSignOut).mockResolvedValueOnce(false);
+
+    const before = Date.now();
+    expect(await useAuthStore.getState().restoreSession()).toBe(true);
+
+    expect(useAuthStore.getState()).toMatchObject({ isLoading: false, isAuthenticated: true, activeAccountId: A });
+    expect(useToastStore.getState().toasts).toEqual([]);
+    expect(sessionEndDeferredUntil()).toBeGreaterThan(before);
+    forgetActivity();
   });
 });

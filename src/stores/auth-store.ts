@@ -128,7 +128,8 @@ export interface AuthState {
   loginViaOAuth: (serverUrl: string, opts?: SignInOptions) => Promise<void>;
   loginViaPairing: (webmailUrl: string, code: string, opts?: SignInOptions) => Promise<void>;
   logout: () => Promise<void>;
-  logoutAll: () => Promise<void>;
+  /** False when the user chose to stay signed in (device sync had changes it could not upload). */
+  logoutAll: () => Promise<boolean>;
   switchAccount: (accountId: string) => Promise<void>;
   /** Sign a non-active account out and drop its caches; the active one stays. */
   removeAccount: (accountId: string) => Promise<void>;
@@ -177,6 +178,9 @@ function clearAllFeatureStores(): void {
 function clearDeviceWideAccountData(): void {
   useSearchHistoryStore.getState().clearRecentSearches();
   useCalendarSubscriptionsStore.getState().clearAll();
+  // The next sign-in's idle time counts from that sign-in, not from the
+  // activity before this sign-out (lib/session-limits).
+  void import('../lib/session-limits').then((m) => m.forgetActivity()).catch(() => undefined);
 }
 
 // An account left the registry: signed out, or evicted because its
@@ -1068,7 +1072,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const accountStore = useAccountStore.getState();
     const ids = accountStore.accounts.map((a) => a.id);
     // Device sync (#34): as in logout, for every account.
-    if (!(await releaseDeviceSyncBeforeSignOut(ids))) return;
+    if (!(await releaseDeviceSyncBeforeSignOut(ids))) return false;
     await teardownPushNotifications().catch(() => undefined);
     for (const id of ids) await revokeStoredRefreshToken(id);
     await jmapClient.clearAllCredentials(ids);
@@ -1089,6 +1093,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       activeAccountId: null,
       client: null,
     });
+    return true;
   },
 
   switchAccount: async (accountId) => {
@@ -1298,9 +1303,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const limits = await import('../lib/session-limits');
       const ended = await limits.sessionEndedWhileAway().catch(() => null);
       if (ended) {
-        await get().logoutAll();
-        limits.announceSessionEnd(ended.kind, ended.limits);
-        return false;
+        if (await get().logoutAll()) {
+          limits.announceSessionEnd(ended.kind, ended.limits);
+          return false;
+        }
+        // The user chose to stay signed in (device sync had changes it
+        // could not upload): the start goes on, and the limit asks again
+        // shortly.
+        limits.deferSessionEnd();
       }
 
       // Point the email store at the target account before any await — so

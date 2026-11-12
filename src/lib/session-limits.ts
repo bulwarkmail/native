@@ -88,6 +88,8 @@ const LAST_ACTIVITY_KEY = 'bulwark.session.last-activity.v1';
 
 let signedIn: Record<string, number> | null = null;
 let lastActivityCache: number | null = null;
+/** Moves when the activity is forgotten, so a load under way doesn't bring the old one back. */
+let activityGeneration = 0;
 let loading: Promise<void> | null = null;
 
 function load(): Promise<void> {
@@ -95,6 +97,7 @@ function load(): Promise<void> {
   loading ??= (async () => {
     let map: Record<string, number> = {};
     let last: number | null = null;
+    const generation = activityGeneration;
     try {
       const [rawMap, rawLast] = await Promise.all([AsyncStorage.getItem(SIGNED_IN_KEY), AsyncStorage.getItem(LAST_ACTIVITY_KEY)]);
       const parsed = rawMap ? JSON.parse(rawMap) : null;
@@ -107,7 +110,7 @@ function load(): Promise<void> {
       // Unreadable: counted from now.
     }
     signedIn = { ...map, ...(signedIn ?? {}) };
-    lastActivityCache ??= last;
+    if (generation === activityGeneration) lastActivityCache ??= last;
   })().finally(() => { loading = null; });
   return loading;
 }
@@ -116,8 +119,13 @@ function saveSignedIn(): void {
   void AsyncStorage.setItem(SIGNED_IN_KEY, JSON.stringify(signedIn ?? {})).catch(() => undefined);
 }
 
-/** A new sign-in to an account: its maximum session length counts from now. */
+/**
+ * A new sign-in to an account: its maximum session length counts from now,
+ * and so does the idle time. The activity noted before an idle sign-out
+ * would otherwise end the new session at once.
+ */
 export function noteSignedIn(accountId: string, at: number = Date.now()): void {
+  noteActivity(at);
   signedIn = { ...(signedIn ?? {}), [accountId]: at };
   if (!loading) saveSignedIn();
   else void loading.then(() => { signedIn = { ...(signedIn ?? {}), [accountId]: at }; saveSignedIn(); });
@@ -143,11 +151,19 @@ export function lastActivity(): number | null {
   return lastActivityCache;
 }
 
+/** Every account signed out: the next session's idle time counts from its own sign-in. */
+export function forgetActivity(): void {
+  activityGeneration += 1;
+  lastActivityCache = null;
+  void AsyncStorage.removeItem(LAST_ACTIVITY_KEY).catch(() => undefined);
+}
+
 /** Only for tests: forget what was loaded. */
 export function resetSessionMemoryForTests(): void {
   signedIn = null;
   lastActivityCache = null;
   loading = null;
+  endDeferredUntil = 0;
 }
 
 // ── The limits of the accounts signed in here ───────────────────────────
@@ -209,17 +225,43 @@ export function announceSessionEnd(kind: SessionEndKind, limits: SessionLimits, 
   });
 }
 
+/** How long after the user turned down a limit's sign-out it asks again. */
+export const SESSION_END_RETRY_MS = 60 * 1000;
+
+let endDeferredUntil = 0;
+
+/**
+ * The user turned down the sign-out a limit asked for (device sync had
+ * changes it could not upload): the session stays for now, and the limit
+ * asks again after `ms`.
+ */
+export function deferSessionEnd(now: number = Date.now(), ms: number = SESSION_END_RETRY_MS): void {
+  endDeferredUntil = now + ms;
+}
+
+/** Until when an expired limit waits before asking again; 0 when it doesn't wait. */
+export function sessionEndDeferredUntil(): number {
+  return endDeferredUntil;
+}
+
 /**
  * End the session for a limit: the open composers save their drafts (kept on
  * the device when the server doesn't take them), then every account signs
- * out through the app's sign-out, and the reason is said.
+ * out through the app's sign-out, and the reason is said. When the user
+ * turns the sign-out down, nothing is said, the limit asks again shortly,
+ * and this returns false.
  */
 export async function endSessionForLimit(
   kind: SessionEndKind,
-  signOut: () => Promise<void>,
-): Promise<void> {
+  signOut: () => Promise<boolean | void>,
+): Promise<boolean> {
   const limits = currentSessionLimits();
   const flushed = await flushComposers(DRAFT_FLUSH_TIMEOUT_MS);
-  await signOut();
+  if ((await signOut()) === false) {
+    deferSessionEnd();
+    return false;
+  }
+  endDeferredUntil = 0;
   announceSessionEnd(kind, limits, flushed.failed > 0 || flushed.timedOut);
+  return true;
 }

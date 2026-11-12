@@ -11,6 +11,7 @@ import {
   lastActivity,
   loadSessionMemory,
   noteActivity,
+  sessionEndDeferredUntil,
   sessionState,
   type SessionEndKind,
   type SessionLimits,
@@ -62,12 +63,13 @@ export function SessionTimeoutGuard() {
     setLimits((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
   }, [isAuthenticated, ready, byAccount, effective, accounts]);
 
-  const end = React.useCallback(async (kind: SessionEndKind) => {
-    if (endingRef.current) return;
+  /** False when the user turned the sign-out down; the limit asks again shortly. */
+  const end = React.useCallback(async (kind: SessionEndKind): Promise<boolean> => {
+    if (endingRef.current) return true;
     endingRef.current = true;
     setEnding(true);
     try {
-      await endSessionForLimit(kind, logoutAll);
+      return await endSessionForLimit(kind, logoutAll);
     } finally {
       endingRef.current = false;
       setEnding(false);
@@ -81,6 +83,7 @@ export function SessionTimeoutGuard() {
       return undefined;
     }
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
     const evaluate = (foreground: boolean) => {
       if (timer) clearTimeout(timer);
       timer = null;
@@ -89,7 +92,16 @@ export function SessionTimeoutGuard() {
       const next = sessionState(limits, lastActivity() ?? at, at);
       if (next.phase === 'expired' && next.kind) {
         setState(next);
-        void end(next.kind);
+        // The user turned the sign-out down (device sync couldn't upload
+        // their changes): ask again once the pause is over.
+        const retryAt = sessionEndDeferredUntil();
+        if (at < retryAt) {
+          timer = setTimeout(() => evaluate(AppState.currentState === 'active'), Math.min(retryAt - at, MAX_WAIT_MS));
+          return;
+        }
+        void end(next.kind).then((signedOut) => {
+          if (!signedOut && !disposed) evaluate(AppState.currentState === 'active');
+        });
         return;
       }
       if (foreground) noteActivity(at);
@@ -109,6 +121,7 @@ export function SessionTimeoutGuard() {
       else noteActivity(Date.now());
     });
     return () => {
+      disposed = true;
       if (timer) clearTimeout(timer);
       sub.remove();
     };

@@ -15,10 +15,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useToastStore } from '../../stores/toast-store';
 import {
   MAX_SKEW_MARGIN_MS,
+  SESSION_END_RETRY_MS,
   endSessionForLimit,
+  forgetActivity,
+  lastActivity,
   noteActivity,
   noteSignedIn,
   resetSessionMemoryForTests,
+  sessionEndDeferredUntil,
   sessionEndedWhileAway,
   sessionLimits,
   sessionState,
@@ -85,6 +89,37 @@ describe('a start after the app was away', () => {
     expect(await sessionEndedWhileAway(NOW)).toBeNull();
   });
 
+  it('starts a new sign-in after an idle sign-out with a fresh idle time', async () => {
+    givenPolicy({ organisation: { session: { idleMinutes: 30 } } });
+    noteActivity(NOW - 31 * MIN);
+    expect(await sessionEndedWhileAway(NOW)).toMatchObject({ kind: 'idle' });
+    // Signed in again: the activity before the sign-out no longer counts.
+    noteSignedIn(ADA, NOW);
+    expect(await sessionEndedWhileAway(NOW + MIN)).toBeNull();
+  });
+
+  it('forgets the activity at a sign-out, on the device too', async () => {
+    givenPolicy({ organisation: { session: { idleMinutes: 30 } } });
+    noteActivity(NOW - 31 * MIN);
+    await new Promise((r) => setTimeout(r, 0));
+    forgetActivity();
+    expect(lastActivity()).toBeNull();
+    await new Promise((r) => setTimeout(r, 0));
+    resetSessionMemoryForTests();
+    expect(await sessionEndedWhileAway(NOW)).toBeNull();
+    expect(lastActivity()).toBeNull();
+  });
+
+  it('keeps the activity forgotten when the stored one is still being read', async () => {
+    givenPolicy({ organisation: { session: { idleMinutes: 30 } } });
+    noteActivity(NOW - 31 * MIN);
+    await new Promise((r) => setTimeout(r, 0));
+    resetSessionMemoryForTests();
+    const reading = sessionEndedWhileAway(NOW);
+    forgetActivity();
+    expect(await reading).toBeNull();
+  });
+
   it('counts an account signed in before the limit was known as signed in now', async () => {
     givenPolicy({ organisation: { session: { maxHours: 1 } } });
     expect(await sessionEndedWhileAway(NOW)).toBeNull();
@@ -126,15 +161,31 @@ describe('endSessionForLimit', () => {
     expect(toast?.type).toBe('warning');
     expect(toast?.message).toBe('One or more open messages could not be saved as drafts.');
   });
+
+  it('says nothing and asks again shortly when the user stays signed in', async () => {
+    givenPolicy({ organisation: { session: { maxHours: 2 } } });
+    const before = Date.now();
+    expect(await endSessionForLimit('max', async () => false)).toBe(false);
+    expect(useToastStore.getState().toasts).toEqual([]);
+    expect(sessionEndDeferredUntil()).toBeGreaterThanOrEqual(before + SESSION_END_RETRY_MS);
+    // Signed out the next time: said, and no longer waiting.
+    expect(await endSessionForLimit('max', async () => true)).toBe(true);
+    expect(useToastStore.getState().toasts.at(-1)?.title).toContain('maximum length of 2 hours');
+    expect(sessionEndDeferredUntil()).toBe(0);
+  });
 });
 
 describe('wiring', () => {
   it('checks the limits before a start restores the session, and notes each sign-in', () => {
     const auth = readFileSync(join(__dirname, '../../stores/auth-store.ts'), 'utf8');
-    expect(auth).toMatch(/const ended = await limits\.sessionEndedWhileAway\(\)[\s\S]{0,120}await get\(\)\.logoutAll\(\);/);
+    expect(auth).toMatch(/const ended = await limits\.sessionEndedWhileAway\(\)[\s\S]{0,120}if \(await get\(\)\.logoutAll\(\)\) \{\s*limits\.announceSessionEnd/);
     expect(auth).toContain("m.noteSignedIn(signedIn!.accountId)");
     const app = readFileSync(join(__dirname, '../../../App.tsx'), 'utf8');
     expect(app).toContain('<SessionTimeoutGuard />');
+    // A sign-out the user turned down: the guard waits out the pause, then asks again.
+    const guard = readFileSync(join(__dirname, '../../components/SessionTimeoutGuard.tsx'), 'utf8');
+    expect(guard).toMatch(/const retryAt = sessionEndDeferredUntil\(\);\s*if \(at < retryAt\) \{\s*timer = setTimeout\(/);
+    expect(guard).toMatch(/end\(next\.kind\)\.then\(\(signedOut\) => \{\s*if \(!signedOut && !disposed\) evaluate\(/);
     const compose = readFileSync(join(__dirname, '../../screens/ComposeScreen.tsx'), 'utf8');
     expect(compose).toContain('registerComposerFlush(composeIdRef.current');
   });
