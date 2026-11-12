@@ -308,20 +308,33 @@ export async function startLiveUpdates(opts: LiveUpdatesOptions): Promise<LiveUp
   let unsubscribeTokenRefresh: (() => void) | null = null;
   const baseline = opts.baseline ?? createStateBaseline();
   let checkInFlight = false;
+  let checkAgain = false;
 
   // After every successful (re)connect: the stream does not replay what it
-  // missed. Overlapping checks of this session coalesce; one still out when
-  // the session closes is dropped, so it can't block or skew the next one.
+  // missed. A reconnect while a check is out queues one more check, since
+  // the running one may have read its states before what the stream missed
+  // happened; any further ones join that. One still out when the session
+  // closes is dropped, so it can't block or skew the next one.
   const catchUp = async () => {
-    if (closed || checkInFlight) return;
+    if (closed) return;
+    if (checkInFlight) {
+      checkAgain = true;
+      return;
+    }
     checkInFlight = true;
     try {
-      const change = await checkStateChanges(baseline, () => closed);
-      if (change && !closed) safeOnStateChange(change);
-    } catch {
-      // the next reconnect checks again
+      do {
+        checkAgain = false;
+        try {
+          const change = await checkStateChanges(baseline, () => closed);
+          if (change && !closed) safeOnStateChange(change);
+        } catch {
+          // the next reconnect checks again
+        }
+      } while (checkAgain && !closed);
     } finally {
       checkInFlight = false;
+      checkAgain = false;
     }
   };
 

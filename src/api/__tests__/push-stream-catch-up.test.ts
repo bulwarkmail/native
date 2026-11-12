@@ -237,6 +237,47 @@ describe('catch-up after a reconnect', () => {
     handle.close();
   });
 
+  it('checks once more after a reconnect that came while a check was out', async () => {
+    const { jmapClient } = await import('../jmap-client');
+    const seen: StateChange[] = [];
+    const handle = await startLiveUpdates({ onStateChange: (c) => seen.push(c) });
+    sources[0].emit('open');
+    await vi.advanceTimersByTimeAsync(0);
+
+    // A check reads the states, and its answer is slow to come back.
+    let release!: () => void;
+    const slow = new Promise<void>((r) => { release = r; });
+    vi.mocked(jmapClient.request).mockImplementationOnce(async (calls: Array<[string, { accountId: string }, string]>) => {
+      requests.push({ calls, using: [] });
+      const methodResponses = calls.map(([method, args, id]) => {
+        const state = serverStates[`${args.accountId}:${method.replace('/get', '')}`];
+        return [method, { accountId: args.accountId, state, list: [], notFound: [] }, id] as [string, Record<string, unknown>, string];
+      });
+      await slow;
+      return { methodResponses } as never;
+    });
+    handle.reconnect();
+    await vi.advanceTimersByTimeAsync(0);
+    sources[1].emit('open');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests).toHaveLength(2);
+
+    // A mail arrives after those reads; the stream drops and reopens
+    // before the check is back, and doesn't replay the change.
+    setServer({ ...initial, 'a:Email': 'e2' });
+    handle.reconnect();
+    await vi.advanceTimersByTimeAsync(0);
+    sources[2].emit('open');
+    sources[2].emit('open');
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(seen).toEqual([{ '@type': 'StateChange', changed: { a: { Email: 'e2' } } }]);
+    // One check more for the reopen, however many came meanwhile.
+    expect(requests).toHaveLength(3);
+    handle.close();
+  });
+
   it('splits the check at the server\'s maxCallsInRequest', async () => {
     const { jmapClient } = await import('../jmap-client');
     vi.mocked(jmapClient.getMaxCallsInRequest).mockReturnValueOnce(4);
