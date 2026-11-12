@@ -27,6 +27,8 @@ import { VerificationCodeChip } from './VerificationCodeChip';
 import { useOwnDomainAddress } from '../../lib/use-own-domain-address';
 import { brandIndicatorDomain } from '../../lib/avatar-bimi';
 import { useInternalMailDomains } from '../../lib/avatar-internal-domains';
+import { ExternalSenderChip } from './ExternalSenderChip';
+import { ReceivedLabelChip } from './ReceivedLabelChip';
 
 interface Props {
   email: Email;
@@ -214,6 +216,10 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
               <Text style={[styles.badgeText, { color: verificationColor }]}>{verificationText.label}</Text>
             </View>
           )}
+          {/* The organisation's chips (webmail email-viewer.tsx): "External"
+              for a sender outside it, and a known classification label. */}
+          <ExternalSenderChip from={email.from} />
+          <ReceivedLabelChip headers={email.headers} />
           {!compact && (
             <>
               <AddressList label={t('email_viewer.to', 'To').toLowerCase()} addresses={email.to} onPress={onAddressPress} styles={styles} />

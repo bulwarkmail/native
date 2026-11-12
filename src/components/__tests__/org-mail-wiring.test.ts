@@ -43,4 +43,14 @@ describe('classification labels', () => {
     expect(quick).toMatch(/const quickLabel = automaticLabel\(identity\.email, \{ headers: email\.headers, from: email\.from \}\);\s+if \(quickLabel\.missing\) \{\s+toast\.info\([^;]+;\s+onMoreOptions\(text\);\s+return;/);
     expect(quick).toMatch(/labelHeaders: labelled\.headers,/);
   });
+
+  it('show on received mail', () => {
+    expect(read('components/email/MessageHeader.tsx')).toMatch(/<ReceivedLabelChip headers=\{email\.headers\} \/>/);
+  });
+});
+
+describe('external mail', () => {
+  it('shows the "External" chip in the message header', () => {
+    expect(read('components/email/MessageHeader.tsx')).toMatch(/<ExternalSenderChip from=\{email\.from\} \/>/);
+  });
 });
