@@ -29,6 +29,7 @@ export const SUPPORTED_LOCALES = [
   { code: 'sk', label: 'Slovenčina' },
   { code: 'da', label: 'Dansk' },
   { code: 'de', label: 'Deutsch' },
+  { code: 'el', label: 'Ελληνικά' },
   { code: 'en', label: 'English' },
   { code: 'et', label: 'Eesti' },
   { code: 'fa', label: 'فارسی' },
@@ -76,7 +77,7 @@ function deepMerge(base: Dictionary, overlay: Dictionary): Dictionary {
 
 // A catalog is a few hundred KB of JSON. Metro only evaluates a module when it
 // is first required, so keeping each require inside its loader means startup
-// builds English plus the active language instead of all 29, and switching
+// builds English plus the active language instead of all 30, and switching
 // language loads the new catalog synchronously on the next t() call. The
 // require paths must stay string literals for Metro to bundle them.
 const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
@@ -85,6 +86,7 @@ const CATALOG_LOADERS: Record<LocaleCode, () => Dictionary> = {
   cs: () => require('../../locales/cs/common.json'),
   da: () => require('../../locales/da/common.json'),
   de: () => require('../../locales/de/common.json'),
+  el: () => require('../../locales/el/common.json'),
   en: () => en as Dictionary,
   et: () => require('../../locales/et/common.json'),
   es: () => require('../../locales/es/common.json'),
@@ -118,6 +120,7 @@ const OVERLAY_LOADERS: Record<LocaleCode, () => Dictionary> = {
   cs: () => require('../../locales/rn/cs.json'),
   da: () => require('../../locales/rn/da.json'),
   de: () => require('../../locales/rn/de.json'),
+  el: () => require('../../locales/rn/el.json'),
   en: () => rnEn as Dictionary,
   et: () => require('../../locales/rn/et.json'),
   es: () => require('../../locales/rn/es.json'),

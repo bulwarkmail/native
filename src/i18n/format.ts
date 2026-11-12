@@ -99,6 +99,7 @@ const PLURAL_RULES: Record<string, PluralRule> = {
   sk: czechSlovak,
   da: ({ n, i, f }) => (n === 1 || (f !== 0 && (i === 0 || i === 1)) ? 'one' : 'other'),
   de: oneForIntegerOne,
+  el: oneForOne,
   en: oneForIntegerOne,
   fa: ({ n, i }) => (i === 0 || n === 1 ? 'one' : 'other'),
   es: (o) => (o.n === 1 ? 'one' : isMillions(o) ? 'many' : 'other'),

@@ -33,7 +33,7 @@ const DEVICE_KEYS = [
 // "Phone" in each language, as the overlays had it.
 const PHONE: Record<string, RegExp> = {
   en: /\bphone/i, ar: /هاتف/, ca: /telèfon/i, cs: /telefon/i, da: /telefon/i, de: /telefon/i,
-  es: /teléfono/i, et: /telefon/i, fa: /تلفن/, fr: /téléphone/i, he: /טלפון/, hu: /telefon/i,
+  el: /τηλέφων/i, es: /teléfono/i, et: /telefon/i, fa: /تلفن/, fr: /téléphone/i, he: /טלפון/, hu: /telefon/i,
   it: /telefono/i, ja: /スマートフォン/, ko: /휴대폰/, lv: /tālru/i, mn: /утас|утсанд|утсан/i, nb: /telefon/i,
   nl: /telefoon/i, pl: /telefon/i, pt: /celular/i, ro: /telefon/i, ru: /телефон/i, sk: /telefón/i,
   th: /โทรศัพท์/, tr: /telefon/i, uk: /телефон/i, zh: /手机/, 'zh-TW': /手機/,

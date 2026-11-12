@@ -23,6 +23,10 @@ describe('resolveLocaleTag', () => {
     expect(resolveLocaleTag({ languageCode: 'nb', languageTag: 'nb-NO' })).toBe('nb');
   });
 
+  it('takes Greek, which the webmail has too', () => {
+    expect(resolveLocaleTag({ languageCode: 'el', languageTag: 'el-GR' })).toBe('el');
+  });
+
   it('takes Thai and Estonian, which the webmail has too', () => {
     expect(resolveLocaleTag({ languageCode: 'th', languageTag: 'th-TH' })).toBe('th');
     expect(resolveLocaleTag({ languageCode: 'et', languageTag: 'et-EE' })).toBe('et');
@@ -45,6 +49,14 @@ describe('getLocaleDirection', () => {
 });
 
 describe('translate', () => {
+  it('reads Greek from their own catalogs and overlays', () => {
+    for (const code of ['el'] as const) {
+      expect(translate(code, 'settings.title')).not.toBe(translate('en', 'settings.title'));
+      expect(translate(code, 'widgets.vacation.title')).not.toBe(translate('en', 'widgets.vacation.title'));
+    }
+    expect(getLocaleDirection('el')).toBe('ltr');
+  });
+
   it('reads Thai and Estonian from their own catalogs', () => {
     expect(translate('th', 'settings.title')).not.toBe(translate('en', 'settings.title'));
     expect(translate('et', 'settings.title')).not.toBe(translate('en', 'settings.title'));
