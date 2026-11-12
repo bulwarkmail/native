@@ -180,7 +180,7 @@
     },
     {
       "name": "postal-mime",
-      "version": "4.2.0",
+      "version": "4.2.1",
       "license": "MIT-0",
       "url": "https://postal-mime.postalsys.com"
     },
@@ -210,7 +210,7 @@
     },
     {
       "name": "react-native-nitro-modules",
-      "version": "0.37.1",
+      "version": "0.37.2",
       "license": "MIT",
       "url": "https://nitro.margelo.com"
     },
