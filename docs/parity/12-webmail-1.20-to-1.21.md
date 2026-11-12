@@ -239,7 +239,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: matches To, Cc and Bcc only (`src/lib/reply-identity.ts:52`); no delivery headers are read anywhere in src.
   - Fix hint: port the DELIVERY_HEADERS step and fetch those headers with the reply source.
 
-- [ ] **Pictures in an HTML template go out as data: URIs that Gmail and Outlook don't show** — `P3` — `bug`
+- [x] **Pictures in an HTML template go out as data: URIs that Gmail and Outlook don't show** — `P3` — `bug` — fixed in 3226f868
   - What WEB does: uploads each data: image of a template and sends it as an inline cid: part (`lib/template-utils.ts:191`, used at `components/email/email-composer.tsx:2667`). Changelog 1.20.0 (#1492).
   - What RN does: inserts an HTML template as it is (`src/lib/template-utils.ts:209-210`); the send path turns only `data-cid` images into parts (`src/lib/compose-html.ts:298-316`), so a template's `<img src="data:...">` stays in the HTML.
   - Fix hint: on template insert, upload each data: image like insertInlineImages does (`src/screens/ComposeScreen.tsx:2199`) and tag it with its cid.
