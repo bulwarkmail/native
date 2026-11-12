@@ -1,6 +1,7 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaModal } from '../../components/SafeAreaModal';
 import { Check, Languages, X } from '../../components/icons';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
@@ -65,7 +66,7 @@ export function LoginLanguagePicker() {
         <Languages size={18} color={c.textSecondary} />
         <Text style={styles.buttonText} numberOfLines={1}>{shown}</Text>
       </Pressable>
-      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+      <SafeAreaModal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{t('settings.appearance.language.label', 'Language')}</Text>
@@ -84,7 +85,7 @@ export function LoginLanguagePicker() {
             {SUPPORTED_LOCALES.map((l) => row(l.code, l.label))}
           </ScrollView>
         </SafeAreaView>
-      </Modal>
+      </SafeAreaModal>
     </>
   );
 }
