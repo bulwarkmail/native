@@ -190,6 +190,10 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
     // onDestroyRemoveContents (addressBookHasContents).
     it('deletes a category from its contacts and puts it back on Undo', async () => {
       const tag = `live-cat-${RUN}`;
+      // The re-import before this one leaves a load running, and a load that
+      // runs is what fetchContacts answers with: let it end before the cards
+      // are made, so the next one reads them.
+      await useContactsStore.getState().fetchContacts();
       const one = await createContact({
         '@type': 'Card', version: '1.0', kind: 'individual', name: { full: `Live Cat One ${RUN}` },
         keywords: { [tag]: true, keep: true },
