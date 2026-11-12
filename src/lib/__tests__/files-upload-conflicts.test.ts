@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { uploadChoices, type ConflictAnswer } from '../files-upload-conflicts';
+import { uploadChoices, type ConflictAnswer, type UploadConflict } from '../files-upload-conflicts';
 
 // Webmail 1.21: an upload of a name that is there asks Replace, Keep both or Skip.
 const folder = [
@@ -11,7 +11,7 @@ const folder = [
 
 describe('upload conflicts', () => {
   it('asks only about names a file in the folder has', async () => {
-    const ask = vi.fn(async (): Promise<ConflictAnswer> => ({ choice: 'keep', applyToAll: false }));
+    const ask = vi.fn(async (_c: UploadConflict, _i: number, _n: number): Promise<ConflictAnswer> => ({ choice: 'keep', applyToAll: false }));
     const plan = await uploadChoices(['new.txt', 'Docs', 'link', 'report.pdf'], folder, ask);
     expect(ask.mock.calls.map(([c]) => c.name)).toEqual(['report.pdf']);
     expect(plan).toEqual({ replace: new Map(), skip: new Set() });
@@ -25,7 +25,7 @@ describe('upload conflicts', () => {
   });
 
   it('"Do this for all" answers the rest', async () => {
-    const ask = vi.fn(async (): Promise<ConflictAnswer> => ({ choice: 'skip', applyToAll: true }));
+    const ask = vi.fn(async (_c: UploadConflict, _i: number, _n: number): Promise<ConflictAnswer> => ({ choice: 'skip', applyToAll: true }));
     const plan = await uploadChoices(['report.pdf', 'notes.txt'], folder, ask);
     expect(ask).toHaveBeenCalledTimes(1);
     expect(ask.mock.calls[0].slice(1)).toEqual([0, 2]);
