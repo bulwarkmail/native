@@ -1361,7 +1361,22 @@ export const useEmailStore = create<EmailState>()(
     if (!currentMailboxId || loading || position >= totalEmails) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
 
+    const mine = Symbol('load-more');
+    loadMoreOwner = mine;
     set({ loading: true });
+    // The answer belongs to another list now (account, folder, search or
+    // filters changed meanwhile): drop it, and give `loading` back unless a
+    // list load took it over (webmail fa7c58ca0, c1d4edb80).
+    const stale = () => {
+      const now = get();
+      return now.activeAccountId !== activeAccountId || now.currentMailboxId !== currentMailboxId
+        || now.searchQuery !== searchQuery || now.filters !== filters;
+    };
+    const release = () => {
+      if (loadMoreOwner !== mine) return;
+      loadMoreOwner = null;
+      set({ loading: false });
+    };
     try {
       const scope = queryScope(state, refFor(state.mailboxes, currentMailboxId));
       const filter = buildJmapFilter(searchQuery, filters);
@@ -1374,10 +1389,8 @@ export const useEmailStore = create<EmailState>()(
         }
         const page = await fetchSpanningPage(state, loaded, filter, limit);
         const now = get();
-        if (
-          now.activeAccountId !== activeAccountId || now.currentMailboxId !== currentMailboxId ||
-          now.searchQuery !== searchQuery || now.filters !== filters
-        ) return;
+        if (stale()) return release();
+        loadMoreOwner = null;
         const shown = new Set(now.emails.map(rowKeyOf));
         const added = page.list.filter((e) => !shown.has(rowKeyOf(e)));
         set({
@@ -1400,7 +1413,8 @@ export const useEmailStore = create<EmailState>()(
         accountId: scope.accountId,
         threads: !useSettingsStore.getState().disableThreading,
       });
-      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      if (stale()) return release();
+      loadMoreOwner = null;
       const total = pagingTotal(serverTotal, position + ids.length, ids.length, limit);
       // A message that arrived between pages shifts positions and would come
       // back a second time — drop ids we already show (duplicate keys).
@@ -1429,7 +1443,8 @@ export const useEmailStore = create<EmailState>()(
       set(updates);
       highlightSearchHits({ searchQuery, filters }, filter, newEmails, scope.accountId);
     } catch (err) {
-      if (get().activeAccountId !== activeAccountId) return;
+      if (stale()) return release();
+      loadMoreOwner = null;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load more' });
     }
   },
@@ -3121,6 +3136,10 @@ async function fillThreadCounts(emails: Email[], accountId: string | undefined):
   }
 }
 
+// The page load that set `loading`, if one did: a load whose answer is
+// dropped clears the flag only while no list load has taken it over since.
+let loadMoreOwner: symbol | null = null;
+
 async function refreshEmailsImpl(): Promise<void> {
   const get = useEmailStore.getState;
   const set = useEmailStore.setState;
@@ -3128,6 +3147,7 @@ async function refreshEmailsImpl(): Promise<void> {
     const { currentMailboxId, searchQuery, filters, emails: existing, activeAccountId } = state;
     if (!currentMailboxId) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
+    loadMoreOwner = null;
     set({ loading: true, error: null });
 
     // A shared (group account) folder is queried against its owning account

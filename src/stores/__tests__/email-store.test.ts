@@ -403,6 +403,48 @@ describe('email-store', () => {
       expect(useEmailStore.getState().emails).toHaveLength(2);
     });
 
+    // A page asked for before a new search started landed in the new
+    // results, and the list kept showing it was loading (webmail fa7c58ca0).
+    it('drops a page whose search changed meanwhile and stops loading', async () => {
+      useEmailStore.setState({
+        currentMailboxId: 'mb-1',
+        emails: [{ id: 'e1' } as any],
+        totalEmails: 2,
+        loading: false,
+        searchQuery: '',
+      });
+      let answer!: (page: unknown) => void;
+      mockQueryEmailPage.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+
+      const loading = useEmailStore.getState().loadMoreEmails();
+      expect(useEmailStore.getState().loading).toBe(true);
+      useEmailStore.setState({ searchQuery: 'invoice', emails: [{ id: 'hit' } as any] });
+      answer({ ids: ['e2'], total: 2, list: [{ id: 'e2', subject: 'old page' }], threads: [] });
+      await loading;
+
+      expect(useEmailStore.getState().emails.map((e) => e.id)).toEqual(['hit']);
+      expect(useEmailStore.getState().loading).toBe(false);
+      useEmailStore.setState({ searchQuery: '' });
+    });
+
+    it("leaves the loading flag to a list load that took it over", async () => {
+      useEmailStore.setState({ currentMailboxId: 'mb-1', emails: [{ id: 'e1' } as any], totalEmails: 2, loading: false });
+      let answer!: (page: unknown) => void;
+      mockQueryEmailPage.mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+      const loading = useEmailStore.getState().loadMoreEmails();
+      // The folder changes and its own load is still running.
+      let folderAnswer!: (page: unknown) => void;
+      mockQueryEmailPage.mockReturnValueOnce(new Promise((resolve) => { folderAnswer = resolve; }));
+      useEmailStore.setState({ currentMailboxId: 'mb-2' });
+      const refreshing = useEmailStore.getState().refreshEmails();
+      answer({ ids: ['e2'], total: 2, list: [{ id: 'e2' }], threads: [] });
+      await loading;
+      expect(useEmailStore.getState().loading).toBe(true);
+      folderAnswer({ ids: [], total: 0, list: [], threads: [] });
+      await refreshing.catch(() => undefined);
+      useEmailStore.setState({ currentMailboxId: 'mb-1', loading: false });
+    });
+
     // #1364: a server that sends no `total` must not stop the list after
     // its first page; full pages keep it going, a short one ends it.
     it('keeps paging while full pages come back without a total', async () => {
