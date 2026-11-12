@@ -39,7 +39,7 @@ describe('organisation signature wiring', () => {
   it('signs a quick reply the same way', () => {
     const src = read('components/email/QuickReplyBox.tsx');
     expect(src).toMatch(/const signer = effectiveSignatureIdentity\(signatureIdentityFor\(identity, identities\), identity, orgSetup\.signature, orgSetup\.restriction\);/);
-    expect(src).toMatch(/textBody: finalizeOrgOutgoing\(\{\s+text: signPlainTextReply\(body, `\$\{header\.text\}\$\{quoted\}`, signer,/);
+    expect(src).toMatch(/textBody: finalizeOrgOutgoing\(\{\s+text: signPlainTextReply\(body, `\$\{header\.text\}\$\{quoted\}`, signatureReplyForwardEnabled \? signer : null,/);
   });
 
   it('reads the company name for {company} from the webmail config', () => {

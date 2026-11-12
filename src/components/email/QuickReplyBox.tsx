@@ -56,6 +56,7 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
+  const signatureReplyForwardEnabled = useSettingsStore((s) => s.signatureReplyForwardEnabled);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
@@ -213,8 +214,10 @@ export function QuickReplyBox({ email, jmapAccountId, onMoreOptions, onSent, onF
           subject: buildReplySubject(email.subject, t('email_composer.prefix.reply', 'Re:')),
           // Signed as the composer signs a plain-text reply; an alias without a
           // signature of its own carries the primary identity's.
+          // The reply/forward signature switch: off sends the bare text;
+          // the organisation's signature and disclaimer still apply.
           textBody: finalizeOrgOutgoing({
-            text: signPlainTextReply(body, `${header.text}${quoted}`, signer, {
+            text: signPlainTextReply(body, `${header.text}${quoted}`, signatureReplyForwardEnabled ? signer : null, {
               position: signaturePosition,
               separator: signatureSeparatorEnabled,
             }),

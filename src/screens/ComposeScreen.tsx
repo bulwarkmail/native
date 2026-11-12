@@ -442,6 +442,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const sendDelaySeconds = useSettingsStore((s) => s.sendDelaySeconds);
   const signaturePosition = useSettingsStore((s) => s.signaturePosition);
   const signatureSeparatorEnabled = useSettingsStore((s) => s.signatureSeparatorEnabled);
+  const signatureNewMailEnabled = useSettingsStore((s) => s.signatureNewMailEnabled);
+  const signatureReplyForwardEnabled = useSettingsStore((s) => s.signatureReplyForwardEnabled);
   const requestReadReceiptDefault = useSettingsStore((s) => s.requestReadReceiptDefault);
   const emptySubjectWarningEnabled = useSettingsStore((s) => s.emptySubjectWarningEnabled);
   const placeholderWarningEnabled = useSettingsStore((s) => s.placeholderWarningEnabled);
@@ -1365,11 +1367,15 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }, []);
 
   // Embed the signature once the identities are known. A re-opened draft
-  // keeps whatever it already carries (#848).
+  // keeps whatever it already carries (#848). New mail follows the new-mail
+  // switch, replies and forwards the reply/forward one (webmail #1493); with
+  // it off nothing is inserted or swapped, and what the body already carries
+  // stays.
+  const autoSignatureEnabled = mode === 'compose' ? signatureNewMailEnabled : signatureReplyForwardEnabled;
   const signatureEmbeddedRef = React.useRef(false);
   const prevSignatureIdentityRef = React.useRef<Identity | null>(null);
   React.useEffect(() => {
-    if (!primaryIdentity) return;
+    if (!primaryIdentity || !autoSignatureEnabled) return;
     if (!signatureEmbeddedRef.current) {
       signatureEmbeddedRef.current = true;
       prevSignatureIdentityRef.current = signatureIdentity;

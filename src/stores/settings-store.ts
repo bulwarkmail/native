@@ -207,6 +207,10 @@ export interface PersistedSettings {
   // Signature placement in replies/forwards and the RFC 3676 "-- " separator.
   signaturePosition: SignaturePosition;
   signatureSeparatorEnabled: boolean;
+  // Insert the signature automatically in new messages / in replies,
+  // forwards and quick replies (webmail #1493).
+  signatureNewMailEnabled: boolean;
+  signatureReplyForwardEnabled: boolean;
   // Pre-check "request read receipt" in the composer.
   requestReadReceiptDefault: boolean;
   // Confirm before sending a message without a subject (#684).
@@ -447,6 +451,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   sendDelaySeconds: 0,
   signaturePosition: 'below_quote',
   signatureSeparatorEnabled: true,
+  signatureNewMailEnabled: true,
+  signatureReplyForwardEnabled: true,
   requestReadReceiptDefault: false,
   emptySubjectWarningEnabled: true,
   placeholderWarningEnabled: true,
