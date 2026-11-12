@@ -24,6 +24,7 @@ import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 /** A calendar view listed at the top of the drawer. */
 export interface DrawerViewOption {
@@ -309,6 +310,7 @@ function Section({
   isSubscriptionCalendar?: (calendarId: string) => boolean;
 }) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -361,7 +363,7 @@ function Section({
                 {visible && <Check size={12} color={c.textInverse} />}
               </View>
               <Text style={[styles.rowName, !visible && styles.rowNameMuted]} numberOfLines={1}>
-                {cal.name}
+                {collectionNames.calendar(cal)}
               </Text>
               {cal.isDefault && !cal.isShared && (
                 <Star size={14} color={c.textMuted} fill={c.textMuted} />

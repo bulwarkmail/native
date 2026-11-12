@@ -20,6 +20,7 @@ import type { Locale } from 'date-fns';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen / ContactImportSheet flow).
@@ -58,6 +59,7 @@ function eventDateLabel(event: Partial<CalendarEvent>, locale: Locale): string |
 
 export function ICalImportSheet({ visible, onClose, calendars, onImport, onImported }: Props) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
@@ -310,7 +312,7 @@ export function ICalImportSheet({ visible, onClose, calendars, onImport, onImpor
                       style={[styles.calChip, cal.id === calendarId && styles.calChipActive]}
                     >
                       <View style={[styles.calSwatch, { backgroundColor: paint(getCalendarColor(cal)) }]} />
-                      <Text style={styles.calChipText} numberOfLines={1}>{cal.name}</Text>
+                      <Text style={styles.calChipText} numberOfLines={1}>{collectionNames.calendar(cal)}</Text>
                     </Pressable>
                   ))}
                 </ScrollView>

@@ -85,6 +85,7 @@ import ToggleSwitch from '../ToggleSwitch';
 import { askBeforeDiscard, editorFormChanged, editorFormSnapshot, editorTimesSnapshot } from '../../lib/calendar-editor-discard';
 import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-denied';
 import { descriptionAsText, descriptionFieldsToSave } from '../../lib/calendar-description';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -190,6 +191,7 @@ export function EventModal({
   onClose,
 }: EventModalProps) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
@@ -622,7 +624,7 @@ export function EventModal({
                         { backgroundColor: paint(getCalendarColor(c)) },
                       ]}
                     />
-                    <Text style={styles.popoverRowText}>{c.name}</Text>
+                    <Text style={styles.popoverRowText}>{collectionNames.calendar(c)}</Text>
                   </Pressable>
                 ))}
               </View>

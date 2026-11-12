@@ -285,7 +285,7 @@ export function ContactsSettings() {
               <>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.bookName} numberOfLines={1}>
-                    {addressBookLabel(book)}
+                    {addressBookLabel(book, t('uxs_wording.default_address_book', 'Contacts'))}
                   </Text>
                   <Text style={styles.bookCount}>
                     {t('settings.contacts.book_count', '{count, plural, one {# contact} other {# contacts}}', { count: book.count })}

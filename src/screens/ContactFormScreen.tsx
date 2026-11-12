@@ -538,7 +538,7 @@ export default function ContactFormScreen() {
             style={[styles.pill, form.addressBookId === book.id && styles.pillActive]}
           >
             <Text style={[styles.pillText, form.addressBookId === book.id && styles.pillTextActive]}>
-              {addressBookLabel(book)}
+              {addressBookLabel(book, t('uxs_wording.default_address_book', 'Contacts'))}
             </Text>
           </Pressable>
         ))}

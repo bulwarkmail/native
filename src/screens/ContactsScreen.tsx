@@ -56,6 +56,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
+import { useCollectionNames } from '../lib/default-collection-name';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -122,6 +123,7 @@ interface ContactsScreenProps {
 
 export default function ContactsScreen({ onOpenContact, activeContactId = null }: ContactsScreenProps = {}) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<Nav>();
   const t = useLocaleStore((s) => s.t);
@@ -426,7 +428,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
     for (const book of addressBooks) {
       items.push({
         key: `book:${book.id}`,
-        label: book.name,
+        label: collectionNames.addressBook(book),
         category: { type: 'addressBook', addressBookId: book.id },
         active: selectedCategory.type === 'addressBook' && selectedCategory.addressBookId === book.id,
       });

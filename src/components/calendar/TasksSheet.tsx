@@ -47,6 +47,7 @@ import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { useCollectionNames } from '../../lib/default-collection-name';
 
 type TaskFilter = 'all' | 'pending' | 'completed' | 'overdue';
 
@@ -109,6 +110,7 @@ export function TasksSheet({
   onDelete,
 }: TasksSheetProps) {
   const c = useColors();
+  const collectionNames = useCollectionNames();
   const paint = useCvdColor();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { locale, t } = useCalendarLocale();
@@ -375,7 +377,7 @@ export function TasksSheet({
                       style={[styles.calChip, cal.id === editor.calendarId && styles.calChipActive]}
                     >
                       <View style={[styles.calSwatch, { backgroundColor: paint(getCalendarColor(cal)) }]} />
-                      <Text style={styles.calChipText} numberOfLines={1}>{cal.name}</Text>
+                      <Text style={styles.calChipText} numberOfLines={1}>{collectionNames.calendar(cal)}</Text>
                     </Pressable>
                   ))}
                 </ScrollView>
