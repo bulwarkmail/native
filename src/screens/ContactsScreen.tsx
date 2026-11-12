@@ -425,7 +425,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
             >
               <X size={22} color={c.text} />
             </Pressable>
-            <Text style={styles.headerTitle}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
               {t('contacts.bulk.selected', '{count, plural, one {1 selected} other {# selected}}', { count: selection.size })}
             </Text>
             <View style={styles.headerActions}>
@@ -737,10 +737,12 @@ function makeStyles(c: ThemePalette) {
     paddingVertical: 2,
     overflow: 'hidden',
   },
+  // Pushed right by the margin and never shrunk, so a long title (an address
+  // book named after its account) truncates instead of running under the icons.
   headerActions: {
-    flex: 1,
+    marginLeft: 'auto',
+    flexShrink: 0,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
     gap: spacing.sm,
   },
