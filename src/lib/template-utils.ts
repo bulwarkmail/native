@@ -249,6 +249,63 @@ export function importTemplates(json: string): ImportResult {
   return { templates, errors };
 }
 
+const DATA_IMAGE = /^data:(image\/(?:png|jpe?g|gif|webp|bmp|avif));base64,([a-z0-9+/=\s]+)$/i;
+const IMG_TAG = /<img\b[^>]*>/gi;
+const SRC_ATTR = /\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+
+function dataImageBytes(src: string): { bytes: Uint8Array; type: string } | null {
+  const match = DATA_IMAGE.exec(src);
+  if (!match) return null;
+  try {
+    const binary = atob(match[2].replace(/\s+/g, ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return { bytes, type: match[1].toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A template's images arrive as data: URIs (an imported templates file, a
+ * template saved from a message with a pasted image). Sent as they are,
+ * Gmail and Outlook don't show them, so hand each one to `upload` - the
+ * composer's inline-image upload - and tag it with the returned cid; the
+ * send path then turns it into a cid: part (webmail #1490/#1492). An image
+ * whose upload fails is left as is; the same image twice goes out as one part.
+ */
+export async function embedTemplateImages(
+  html: string,
+  upload: (image: { bytes: Uint8Array; type: string; name: string }) => Promise<{ cid: string } | null>,
+): Promise<string> {
+  if (!/<img\b[^>]*\bsrc\s*=\s*["']?\s*data:image\//i.test(html)) return html;
+  const tags = Array.from(html.matchAll(IMG_TAG), (m) => m[0]);
+  const sources: string[] = [];
+  for (const tag of tags) {
+    if (/\sdata-cid\s*=/i.test(tag)) continue;
+    const src = SRC_ATTR.exec(tag);
+    const value = (src?.[1] ?? src?.[2] ?? '').trim();
+    if (DATA_IMAGE.test(value) && !sources.includes(value)) sources.push(value);
+  }
+  if (sources.length === 0) return html;
+  const cids = new Map<string, string>();
+  await Promise.all(sources.map(async (src, i) => {
+    const image = dataImageBytes(src);
+    if (!image) return;
+    const name = `image-${i + 1}.${image.type.slice('image/'.length).replace('jpeg', 'jpg')}`;
+    const done = await upload({ ...image, name }).catch(() => null);
+    if (done?.cid) cids.set(src, done.cid);
+  }));
+  if (cids.size === 0) return html;
+  return html.replace(IMG_TAG, (tag) => {
+    if (/\sdata-cid\s*=/i.test(tag)) return tag;
+    const src = SRC_ATTR.exec(tag);
+    const cid = cids.get((src?.[1] ?? src?.[2] ?? '').trim());
+    if (!cid) return tag;
+    return tag.replace(/^<img\b/i, `<img data-cid="${cid.replace(/"/g, '&quot;')}"`);
+  });
+}
+
 /** Convert a plain-text template body to composer HTML (escape + <br>). */
 export function templateBodyToHtml(template: Pick<EmailTemplate, 'body' | 'isHTML'>): string {
   if (template.isHTML) return template.body;

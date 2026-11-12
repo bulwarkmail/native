@@ -11,6 +11,7 @@ import {
   getPlaceholdersFromTemplate,
   getPlaceholderDefaults,
   placeholderPromptValues,
+  embedTemplateImages,
 } from '../template-utils';
 
 describe('placeholders', () => {
@@ -132,5 +133,39 @@ describe('placeholder defaults', () => {
     expect(placeholderPromptValues(t, { sender_name: 'Ada' })).toEqual({ checkin_time: '15:00' });
     expect(placeholderPromptValues(tpl({ body: 'Hi {{guest}}' }), {})).toEqual({ guest: '' });
     expect(placeholderPromptValues(tpl({ body: 'On {{date}}' }), { date: '1 May' })).toEqual({});
+  });
+});
+
+// Webmail #1492: a template's pictures went out as data: URIs that Gmail and
+// Outlook don't show. They are uploaded and sent as inline cid: parts.
+describe('embedTemplateImages', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+
+  it('uploads each data: image once and tags it with its cid', async () => {
+    const uploads: Array<{ type: string; size: number; name: string }> = [];
+    let n = 0;
+    const html = `<p>Hi</p><img src="${PNG}" alt="logo"><img src='${PNG}'><img src="https://x.test/a.png">`;
+    const out = await embedTemplateImages(html, async (image) => {
+      uploads.push({ type: image.type, size: image.bytes.byteLength, name: image.name });
+      n += 1;
+      return { cid: `c${n}@x` };
+    });
+    expect(uploads).toEqual([{ type: 'image/png', size: 8, name: 'image-1.png' }]);
+    expect(out).toBe(`<p>Hi</p><img data-cid="c1@x" src="${PNG}" alt="logo"><img data-cid="c1@x" src='${PNG}'><img src="https://x.test/a.png">`);
+  });
+
+  it('leaves an image whose upload fails, and HTML without data: images, as it is', async () => {
+    const html = `<img src="${PNG}">`;
+    expect(await embedTemplateImages(html, async () => null)).toBe(html);
+    expect(await embedTemplateImages(html, async () => { throw new Error('offline'); })).toBe(html);
+    const none = '<p><img src="cid:a@b"></p>';
+    expect(await embedTemplateImages(none, async () => ({ cid: 'x' }))).toBe(none);
+  });
+
+  it('skips an image the editor already tracks and a non-image data: URI', async () => {
+    const html = `<img data-cid="old@x" src="${PNG}"><img src="data:text/html;base64,PGI+">`;
+    let called = false;
+    expect(await embedTemplateImages(html, async () => { called = true; return { cid: 'new@x' }; })).toBe(html);
+    expect(called).toBe(false);
   });
 });

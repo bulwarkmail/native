@@ -126,7 +126,7 @@ import {
   plainTextBodyHasSignature, plainTextBodyWithoutSignature, SIGNATURE_RANGE_MARKER, wantsSignatureSeparator,
 } from '../lib/signature-utils';
 import {
-  getAutoFilledPlaceholders, getPlaceholdersFromTemplate, placeholderPromptValues, substitutePlaceholders, templateBodyToHtml,
+  embedTemplateImages, getAutoFilledPlaceholders, getPlaceholdersFromTemplate, placeholderPromptValues, substitutePlaceholders, templateBodyToHtml,
 } from '../lib/template-utils';
 import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
@@ -2425,7 +2425,32 @@ export default function ComposeScreen({ route, navigation }: Props) {
     });
   };
 
-  const applyTemplate = (template: EmailTemplate, values: Record<string, string>) => {
+  // A template's data: image goes up like a picked one and is tagged with
+  // its cid, so it is sent as an inline part (webmail #1492).
+  const uploadTemplateImage = async (image: { bytes: Uint8Array; type: string; name: string }): Promise<{ cid: string } | null> => {
+    if (!checkAttachmentSize(image.bytes.byteLength, true)) return null;
+    try {
+      const { blobId } = await uploadBytesForLogin(ownerLoginRef.current, image.bytes, image.type);
+      const cid = genCid();
+      inlineRegistryRef.current.set(cid, {
+        localId: `cid-${cid}`,
+        name: image.name,
+        type: image.type,
+        size: image.bytes.byteLength,
+        uri: '',
+        inline: true,
+        cid,
+        blobId,
+        uploading: false,
+      });
+      return { cid };
+    } catch (err) {
+      console.warn('[compose] template image upload failed', err);
+      return null;
+    }
+  };
+
+  const applyTemplate = async (template: EmailTemplate, values: Record<string, string>) => {
     const hasValues = Object.keys(values).length > 0;
     const filledSubject = hasValues ? substitutePlaceholders(template.subject, values) : template.subject;
     const filledBody = hasValues ? substitutePlaceholders(template.body, values, { html: !!template.isHTML }) : template.body;
@@ -2436,7 +2461,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
     } else {
       // Inserted at the caret so it lands after any text already typed and
       // leaves the signature / quote alone (#539/#540).
-      editorRef.current?.insertHtml(templateBodyToHtml({ body: filledBody, isHTML: template.isHTML }));
+      const html = await embedTemplateImages(templateBodyToHtml({ body: filledBody, isHTML: template.isHTML }), uploadTemplateImage);
+      editorRef.current?.insertHtml(html);
     }
     const addChips = (field: Field, list?: string[]) => {
       if (!list?.length) return;
@@ -2494,7 +2520,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     });
     const values = placeholderPromptValues(template, auto);
     if (Object.keys(values).length === 0) {
-      applyTemplate(template, placeholders.length ? auto : {});
+      void applyTemplate(template, placeholders.length ? auto : {});
       return;
     }
     setPlaceholderPrompt({ template, auto, values });
@@ -3800,7 +3826,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 onPress={() => {
                   const p = placeholderPrompt;
                   setPlaceholderPrompt(null);
-                  if (p) applyTemplate(p.template, {});
+                  if (p) void applyTemplate(p.template, {});
                 }}
               >
                 <Text style={styles.modalCancelText}>{t('templates.insert_raw', 'Insert Raw')}</Text>
@@ -3813,7 +3839,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                   if (!p) return;
                   const values: Record<string, string> = { ...p.auto };
                   for (const [k, v] of Object.entries(p.values)) if (v.trim()) values[k] = v.trim();
-                  applyTemplate(p.template, values);
+                  void applyTemplate(p.template, values);
                 }}
               >
                 <Text style={styles.modalConfirmText}>{t('templates.insert_with_values', 'Insert with Values')}</Text>

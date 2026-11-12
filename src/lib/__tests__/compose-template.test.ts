@@ -30,4 +30,13 @@ describe('save as template', () => {
     expect(src).toMatch(/setSaveTemplateName\(subject\.trim\(\)\);/);
     expect(src).toMatch(/addTemplate\(made\.template\);/);
   });
+
+  // Webmail #1492: a template's data: images go up as inline parts.
+  it('uploads the pictures of a template before it goes into the editor', () => {
+    const src = read('screens/ComposeScreen.tsx');
+    expect(src).toMatch(/const html = await embedTemplateImages\(templateBodyToHtml\(\{ body: filledBody, isHTML: template\.isHTML \}\), uploadTemplateImage\);\s+editorRef\.current\?\.insertHtml\(html\);/);
+    const upload = src.slice(src.indexOf('const uploadTemplateImage'), src.indexOf('const applyTemplate'));
+    expect(upload).toMatch(/uploadBytesForLogin\(ownerLoginRef\.current, image\.bytes, image\.type\)/);
+    expect(upload).toMatch(/inlineRegistryRef\.current\.set\(cid, \{/);
+  });
 });

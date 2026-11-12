@@ -24,6 +24,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { JMAPClient } from '../jmap-client';
 import {
   cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreadDrafts, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  type OutgoingAttachment,
 } from '../email';
 import { uploadBytes } from '../blob';
 import { deleteFileNodes } from '../files';
@@ -34,7 +35,8 @@ import {
 import { CAPABILITIES } from '../types';
 import { cancelScheduledToDrafts } from '../../lib/compose-scheduled';
 import { formatScheduledSendAt, schedulePresets } from '../../lib/compose-schedule';
-import { htmlToPlainText } from '../../lib/compose-html';
+import { htmlToPlainText, rewriteInlineImages } from '../../lib/compose-html';
+import { embedTemplateImages } from '../../lib/template-utils';
 import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature-utils';
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
@@ -333,6 +335,36 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
         { ownEmails: [], catchAll: false },
       );
       expect(resolved?.identityId).toBe(identity.id);
+    }, 60_000);
+  });
+
+  describe('template pictures', () => {
+    // A template's data: image goes up and out as an inline cid: part (webmail #1492).
+    it('saves a template picture as an inline part, not a data: URI', async () => {
+      const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      const parts = new Map<string, OutgoingAttachment>();
+      const html = await embedTemplateImages(`<p>Logo</p><img src="data:image/png;base64,${png}">`, async (image) => {
+        const up = await uploadBytes(image.bytes, image.type);
+        const cid = `tpl-${RUN}@bulwark.local`;
+        parts.set(cid, { blobId: up.blobId, type: image.type, name: image.name, size: image.bytes.byteLength, disposition: 'inline', cid });
+        return { cid };
+      });
+      const rewritten = rewriteInlineImages(html);
+      expect(rewritten.html).toContain(`src="cid:tpl-${RUN}@bulwark.local"`);
+      expect(rewritten.html).not.toContain('data:image');
+      const saved = await saveDraftVersion({
+        from: [{ email: USER }], to: [{ email: USER }], subject: `template picture ${tag}`,
+        htmlBody: rewritten.html, textBody: 'Logo',
+        attachments: rewritten.usedCids.map((cid) => parts.get(cid)!),
+      }, drafts);
+      createdEmails.push(saved.id);
+      const [kept] = await getFullEmails([saved.id]);
+      const part = [...(kept.attachments ?? [])].find((a) => a.cid && a.cid.includes(`tpl-${RUN}`));
+      expect(part?.type).toBe('image/png');
+      expect(part?.disposition).toBe('inline');
+      const body = Object.values(kept.bodyValues ?? {}).map((v) => v.value).join('');
+      expect(body).toContain(`cid:tpl-${RUN}@bulwark.local`);
+      expect(body).not.toContain('data:image');
     }, 60_000);
   });
 
