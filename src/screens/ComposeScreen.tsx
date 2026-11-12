@@ -37,6 +37,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useNoThirdPartyTraffic, usePolicyFeature, usePolicyStore } from '../stores/policy-store';
 import { effectiveSignatureIdentity, finalizeOrgOutgoing, orgSignatureSetup, htmlCarriesDisclaimer, textCarriesDisclaimer } from '../lib/org-signature';
+import { policyForSender } from '../lib/sender-policy';
 import { useHasContacts } from '../lib/capabilities';
 import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
@@ -1127,7 +1128,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const orgPolicy = usePolicyStore((s) => s.effective);
   const orgCompany = usePolicyStore((s) => s.links.companyName ?? '');
   const orgSetup = React.useMemo(
-    () => orgSignatureSetup(orgPolicy, primaryIdentity, null, orgCompany),
+    () => orgSignatureSetup(policyForSender(orgPolicy, primaryIdentity?.email), primaryIdentity, null, orgCompany),
     [orgPolicy, primaryIdentity, orgCompany],
   );
   const signatureIdentity = React.useMemo(
@@ -1552,7 +1553,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // removed goes back in, and the disclaimer goes below everything
     // (webmail lib/org/outgoing.ts).
     if (!opts.forDraft) {
-      const setup = orgSignatureSetup(usePolicyStore.getState().effective, identity, null, usePolicyStore.getState().links.companyName ?? '');
+      const setup = orgSignatureSetup(policyForSender(usePolicyStore.getState().effective, identity?.email), identity, null, usePolicyStore.getState().links.companyName ?? '');
       const finished = finalizeOrgOutgoing({ html: htmlBody, text: textBody }, setup, { separator: signatureSeparatorEnabled });
       htmlBody = finished.html;
       textBody = finished.text;
