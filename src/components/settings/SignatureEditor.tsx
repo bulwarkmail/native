@@ -109,7 +109,7 @@ export function SignatureEditor({ html, text, plainOnly, label, onChange }: {
             {tool('italic', t('email_composer.toolbar.italic', 'Italic'), <Italic size={16} color={iconColor} />)}
             {tool('underline', t('email_composer.toolbar.underline', 'Underline'), <Underline size={16} color={iconColor} />)}
             {tool('insertUnorderedList', t('email_composer.toolbar.bullet_list', 'Bullet list'), <List size={16} color={iconColor} />)}
-            {tool('insertOrderedList', t('email_composer.toolbar.numbered_list', 'Numbered list'), <ListOrdered size={16} color={iconColor} />)}
+            {tool('insertOrderedList', t('email_composer.toolbar.ordered_list', 'Ordered list'), <ListOrdered size={16} color={iconColor} />)}
             <Pressable
               onPress={() => setLinkValue('https://')}
               hitSlop={4}
