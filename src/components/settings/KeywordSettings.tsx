@@ -167,7 +167,8 @@ export function KeywordSettings() {
                 </View>
               </View>
               <View style={styles.kwCardBottom}>
-                <Text style={[styles.kwId, { flex: 1 }]} numberOfLines={1}>$label:{kw.id}</Text>
+                {/* The stored keyword ($label:...) stays out of sight (webmail 3609b5c99). */}
+                <View style={{ flex: 1 }} />
                 <Text style={styles.kwVisibilityLabel}>{t('settings.keywords.visibility_field', 'Sidebar visibility')}</Text>
                 <Select
                   value={getKeywordVisibility(kw)}
@@ -303,7 +304,6 @@ function SharedTagsSection() {
                 <View key={kw.id} style={styles.kwRow}>
                   <View style={[styles.kwDot, { backgroundColor: (c.tagsAsPicked ?? c.tags)[kw.color]?.dot ?? c.textMuted }]} />
                   <Text style={styles.kwLabel}>{kw.label}</Text>
-                  <Text style={styles.kwId}>$label:{kw.id}</Text>
                 </View>
               ))
             )}
@@ -383,7 +383,6 @@ function KeywordForm({ initial, existingIds, keywords, nested, onSave, onCancel 
           maxLength={30}
           autoFocus
         />
-        {nested && normalizedId.length > 0 && <Text style={[styles.kwId, { marginTop: 4 }]}>$label:{normalizedId}</Text>}
         {isDuplicate && <Text style={styles.errorText}>{t('settings.keywords.name_exists', 'A tag with this name already exists')}</Text>}
         {isTooLong && (
           <Text style={styles.errorText}>
