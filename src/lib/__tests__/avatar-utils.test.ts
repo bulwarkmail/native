@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getAccountInitials, getContactPhotoForEmail, getContactPhotoIndex, getEmailInitials } from '../avatar-utils';
+import {
+  generateAvatarColor, generateEmailAvatarColor, getAccountInitials, getContactPhotoForEmail, getContactPhotoIndex, getEmailInitials,
+} from '../avatar-utils';
 import type { ContactCard, ContactMedia } from '../../api/types';
 
 function card(id: string, emails: string[], photo?: string, mediaType?: string): ContactCard {
@@ -101,14 +103,38 @@ describe('initials, as the webmail Avatar works them out', () => {
 
   it('takes two letters of a single name and falls back to the address', () => {
     expect(getEmailInitials('Madonna')).toBe('MA');
-    expect(getEmailInitials('', 'bob@example.org')).toBe('B');
     expect(getEmailInitials('')).toBe('?');
     expect(getEmailInitials('!!!')).toBe('!!');
+  });
+
+  // webmail #1581: the same person had other letters in other places.
+  it('reads the local part of the address as the name when there is no real one', () => {
+    expect(getEmailInitials('', 'max.mustermann@example.org')).toBe('MM');
+    expect(getEmailInitials('', 'xaver@example.org')).toBe('XA');
+    expect(getEmailInitials('max.mustermann@example.org')).toBe('MM');
+    expect(getEmailInitials('max.mustermann@example.org', 'max.mustermann@example.org')).toBe('MM');
+    expect(getEmailInitials('', 'bob+news@example.org')).toBe('BN');
+  });
+
+  it('shows the given name of an all-Han name', () => {
+    expect(getEmailInitials('王阳明')).toBe('阳明');
+    expect(getEmailInitials('陈阳')).toBe('陈阳');
+    expect(getEmailInitials('司马光')).toBe('光');
+    expect(getEmailInitials('欧阳娜娜')).toBe('娜娜');
+    // Mixed, Hangul and longer names keep the Western rule.
+    expect(getEmailInitials('김민준')).toBe('김민');
+    expect(getEmailInitials('王 Wang')).toBe('王W');
+  });
+
+  it('colours a person by the address, the same as the account switcher', () => {
+    expect(generateEmailAvatarColor('Ada Lovelace', 'Ada@Example.org')).toBe(generateEmailAvatarColor('', 'ada@example.org'));
+    expect(generateEmailAvatarColor('', 'ada@example.org')).toBe(generateAvatarColor('ada@example.org'));
+    expect(generateEmailAvatarColor('ada@example.org')).toBe(generateAvatarColor('ada@example.org'));
   });
 
   it('works the same for account avatars, which the webmail draws with the same Avatar', () => {
     expect(getAccountInitials('Ada Lovelace', 'ada@example.org')).toBe('AL');
     expect(getAccountInitials('Ada', 'ada@example.org')).toBe('AD');
-    expect(getAccountInitials('', 'ada@example.org')).toBe('A');
+    expect(getAccountInitials('', 'ada@example.org')).toBe('AD');
   });
 });
