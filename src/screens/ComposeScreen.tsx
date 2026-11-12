@@ -87,6 +87,7 @@ import { TagSheet } from '../components/TagSheet';
 import { useAccountKeywordDefs } from '../stores/keywords-store';
 import { initialTagTokens, tagTokensAsKeywords, toggleTagToken } from '../lib/compose-tags';
 import { answerSendWarnings, collectSendWarnings, type SendWarning } from '../lib/compose-send-warnings';
+import { linkPromptInput } from '../lib/compose-link';
 import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
 import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
 import { prepareSecureSend, resolveRecipientKeys, SecureSendError, type SecureChoice } from '../lib/crypto/compose-secure';
@@ -163,8 +164,6 @@ type AttachmentEntry = {
 };
 
 type Field = 'to' | 'cc' | 'bcc';
-
-const URL_RE = /^https?:\/\/.+/i;
 
 // The webmail's 2 x 8 palette, used for text and background colour alike.
 const TEXT_COLORS = [
@@ -2359,21 +2358,26 @@ export default function ComposeScreen({ route, navigation }: Props) {
   };
 
   // ── Link prompt (Modal) ──────────────────────────────────────────────
+  // "Text" and "Link", as the webmail's link dialog (components/email/
+  // link-dialog.tsx) and Gmail ask. Empty text: the selection, or the address.
   const [linkPromptVisible, setLinkPromptVisible] = React.useState(false);
   const [linkPromptValue, setLinkPromptValue] = React.useState('');
+  const [linkPromptText, setLinkPromptText] = React.useState('');
   const linkInset = useSheetBottomInset(linkPromptVisible);
+  const linkPromptCheck = linkPromptInput(linkPromptValue);
 
   const openLinkPrompt = () => {
     setLinkPromptValue('https://');
+    setLinkPromptText('');
     setLinkPromptVisible(true);
   };
 
   const submitLinkPrompt = () => {
-    const trimmed = linkPromptValue.trim();
+    const link = linkPromptInput(linkPromptValue);
+    if (link.error) return;
     setLinkPromptVisible(false);
-    if (!trimmed || trimmed === 'https://' || trimmed === 'http://') return;
-    const url = URL_RE.test(trimmed) ? trimmed : `https://${trimmed}`;
-    editorRef.current?.insertLink(url);
+    if (!link.url) return;
+    editorRef.current?.insertLink(link.url, linkPromptText);
   };
 
   const onLinkPress = () => {
@@ -3462,21 +3466,36 @@ export default function ComposeScreen({ route, navigation }: Props) {
               {t('email_composer.add_link', 'Add link')}
             </Text>
             <Text style={styles.modalLabel}>
-              {t('email_composer.link_url_prompt', 'Enter the URL')}
+              {t('email_composer.toolbar.link_text', 'Text')}
             </Text>
             <TextInput
-              accessibilityLabel={t('email_composer.link_url_prompt', 'Enter the URL')}
+              accessibilityLabel={t('email_composer.toolbar.link_text', 'Text')}
+              style={styles.modalInput}
+              value={linkPromptText}
+              onChangeText={setLinkPromptText}
+              autoFocus
+              returnKeyType="next"
+            />
+            <Text style={styles.modalLabel}>
+              {t('email_composer.toolbar.link', 'Link')}
+            </Text>
+            <TextInput
+              accessibilityLabel={t('email_composer.toolbar.link', 'Link')}
               style={styles.modalInput}
               value={linkPromptValue}
               onChangeText={setLinkPromptValue}
-              placeholder="https://example.com"
+              placeholder={t('email_composer.toolbar.link_address', 'Link address')}
               placeholderTextColor={c.textMuted}
               keyboardType="url"
               autoCapitalize="none"
               autoCorrect={false}
-              autoFocus
               onSubmitEditing={submitLinkPrompt}
             />
+            {linkPromptCheck.error ? (
+              <Text style={{ color: c.error, fontSize: 12 }} accessibilityRole="alert">
+                {t('email_composer.toolbar.link_invalid', "The address can't contain spaces")}
+              </Text>
+            ) : null}
             <View style={styles.modalActions}>
               <Pressable
                 style={styles.modalCancel}

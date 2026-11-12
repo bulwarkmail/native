@@ -558,7 +558,8 @@ export function buildEditorHtml(opts: {
       if (!trimmed || !safeScheme) return;
       var sel = window.getSelection();
       var hasSelection = sel && sel.rangeCount && !sel.getRangeAt(0).collapsed;
-      if (hasSelection) {
+      // A text typed in the link prompt replaces the selection (insertHTML).
+      if (hasSelection && !(label && label.trim())) {
         try { document.execCommand('createLink', false, trimmed); } catch (e) {}
         // execCommand doesn't set rel; tag every anchor that points at this URL.
         Array.prototype.forEach.call(editor.getElementsByTagName('a'), function (a) {
