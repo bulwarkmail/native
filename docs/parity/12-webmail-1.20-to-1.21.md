@@ -476,7 +476,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: discovery runs and, when it finds nothing, goes to the manual server step (`src/screens/LoginScreen.tsx:378-405`, `src/screens/login/ServerStep.tsx:17`). No provider names in src.
   - Fix hint: port unsupportedProvider and show its note on the email step before discovery.
 
-- [ ] **No language choice before sign-in** — `P3` — `missing`
+- [x] **No language choice before sign-in** — `P3` — `missing` — fixed in a5324408
   - What WEB does: a language picker next to the theme button on the login page, carried into the account after sign-in (`components/auth/login-language-picker.tsx`, `lib/signed-out-choices.ts`). 32dc8b7ef.
   - What RN does: the sign-in screens follow the phone's language (`src/screens/login/LoginShell.tsx:45`); the language picker is under Settings after sign-in (`src/components/settings/LanguageSettings.tsx`). No Android per-app locale config in app.config.js or the manifest.
   - Fix hint: a language button in LoginShell that sets the locale store, or declare the locales for the Android 13+ per-app language setting.
