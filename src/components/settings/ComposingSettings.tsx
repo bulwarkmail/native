@@ -66,8 +66,9 @@ export function ComposingSettings() {
   };
 
   const SEND_DELAY_OPTIONS: { label: string; value: number }[] = [
-    // Same set the webmail accepts (0/10/30/60); the store rejects others.
+    // Same set the webmail accepts (0/5/10/30/60); the store rejects others.
     { label: t('settings.email_behavior.send_delay.off', "Off"), value: 0 },
+    { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 5 }), value: 5 },
     { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 10 }), value: 10 },
     { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 30 }), value: 30 },
     { label: t('settings.email_behavior.send_delay.seconds', '{seconds} seconds', { seconds: 60 }), value: 60 },

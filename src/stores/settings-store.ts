@@ -448,7 +448,8 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   sendConfirmation: false,
   confirmDelete: false,
   confirmArchive: false,
-  sendDelaySeconds: 0,
+  // Undo send is on by default with 5 seconds (webmail 1.21).
+  sendDelaySeconds: 5,
   signaturePosition: 'below_quote',
   signatureSeparatorEnabled: true,
   signatureNewMailEnabled: true,
@@ -687,7 +688,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   density: oneOf(['extra-compact', 'compact', 'regular', 'comfortable']),
   attachmentReminderKeywords: stringArray,
   // Same set the webmail accepts (stores/settings-store.ts importSettings).
-  sendDelaySeconds: oneOf([0, 10, 30, 60]),
+  sendDelaySeconds: oneOf([0, 5, 10, 30, 60]),
   signaturePosition: oneOf(['above_quote', 'below_quote']),
   replyIdentityMatch: oneOf(['exact', 'domain']),
   autoSaveDraftInterval: intBetween(1000, 3600000),

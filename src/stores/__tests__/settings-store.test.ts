@@ -46,7 +46,7 @@ describe('settings-store', () => {
       });
       expect(out.density).toBe('regular');
       expect(out.swipeLeftAction).toBe('archive');
-      expect(out.sendDelaySeconds).toBe(0);
+      expect(out.sendDelaySeconds).toBe(5);
       expect(out.emailsPerPage).toBe(25);
       expect(out.theme).toBe('dark');
     });
@@ -115,7 +115,7 @@ describe('settings-store', () => {
       const s = useSettingsStore.getState();
       expect(s.calendarFirstDayOfWeek).toBe(0);
       expect(s.density).toBe('compact');
-      expect(s.sendDelaySeconds).toBe(0);
+      expect(s.sendDelaySeconds).toBe(5);
       expect(s.swipeMode).toBe('instant');
     });
 
