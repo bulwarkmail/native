@@ -42,7 +42,7 @@ import { isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { useAccountStore } from '../stores/account-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
-import { type EmailTemplate } from '../stores/templates-store';
+import { useTemplatesStore, type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import {
@@ -88,6 +88,8 @@ import { useAccountKeywordDefs } from '../stores/keywords-store';
 import { initialTagTokens, tagTokensAsKeywords, toggleTagToken } from '../lib/compose-tags';
 import { answerSendWarnings, collectSendWarnings, type SendWarning } from '../lib/compose-send-warnings';
 import { linkPromptInput } from '../lib/compose-link';
+import { templateFromComposer } from '../lib/compose-template';
+import Dialog from '../components/Dialog';
 import { UnlockKeyDialog } from '../components/crypto/UnlockKeyDialog';
 import { ownKeyFor, isUnlocked, needsPassphrase, unlock } from '../lib/crypto/keyring';
 import { prepareSecureSend, resolveRecipientKeys, SecureSendError, type SecureChoice } from '../lib/crypto/compose-secure';
@@ -2455,6 +2457,34 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
+  // "Save as template": a name and Save, the HTML kept as HTML (webmail
+  // quick-save-template-dialog.tsx, #1506). The name starts as the subject.
+  const addTemplate = useTemplatesStore((s) => s.addTemplate);
+  const [saveTemplateName, setSaveTemplateName] = React.useState<string | null>(null);
+  const [saveTemplateError, setSaveTemplateError] = React.useState<string | null>(null);
+  const openSaveAsTemplate = () => {
+    setOptionsSheetOpen(false);
+    setSaveTemplateError(null);
+    setSaveTemplateName(subject.trim());
+  };
+  const saveAsTemplate = async () => {
+    if (saveTemplateName === null) return;
+    let html = latestRef.current.bodyHtml;
+    if (!plainTextMode) {
+      try { html = (await editorRef.current?.getHtml()) ?? html; } catch { /* the last change message */ }
+    }
+    const made = templateFromComposer({ name: saveTemplateName, subject, body: plainTextMode ? plainBody : html, plainTextMode });
+    if ('error' in made) {
+      setSaveTemplateError(made.error === 'too_long'
+        ? t('settings.templates.validation.too_long', 'Template name must be 200 characters or less')
+        : t('settings.templates.validation.empty', 'Template name is required'));
+      return;
+    }
+    addTemplate(made.template);
+    setSaveTemplateName(null);
+    toast.success(t('compose_send.template_saved', 'Template saved'));
+  };
+
   const onPickTemplate = (template: EmailTemplate) => {
     const placeholders = getPlaceholdersFromTemplate(template);
     const auto = getAutoFilledPlaceholders({
@@ -3715,6 +3745,21 @@ export default function ComposeScreen({ route, navigation }: Props) {
         />
       )}
 
+      <Dialog
+        visible={saveTemplateName !== null}
+        title={t('email_composer.save_as_template', 'Save as template')}
+        message={saveTemplateError ?? undefined}
+        confirmText={t('common.save', 'Save')}
+        confirmDisabled={!saveTemplateName?.trim()}
+        input={{
+          value: saveTemplateName ?? '',
+          onChangeText: (v) => { setSaveTemplateName(v); setSaveTemplateError(null); },
+          placeholder: t('compose_send.template_name', 'Template name'),
+        }}
+        onConfirm={() => { void saveAsTemplate(); }}
+        onCancel={() => setSaveTemplateName(null)}
+      />
+
       <SendWarningsSheet
         warnings={sendWarnings?.items ?? null}
         scheduling={sendWarnings?.scheduling}
@@ -3906,6 +3951,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         dsnAvailable={dsnAvailable}
         requireTlsAvailable={requireTlsAvailable}
         onChange={onComposerOptionsChange}
+        onSaveAsTemplate={templatesEnabled ? openSaveAsTemplate : undefined}
         onClose={() => setOptionsSheetOpen(false)}
         secureAvailable={secureAvailable}
         secureHint={secureHint}
