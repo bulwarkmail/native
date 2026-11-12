@@ -47,6 +47,7 @@ import {
   changePassword,
   disableTotp,
   fetchAuthInfo,
+  getManagementCapability,
   isLimitedStalwartSignIn,
   isStalwartSupported,
   serverOffersSecurityScope,
@@ -533,6 +534,8 @@ live('live Stalwart sign-in', () => {
     const client = new JMAPClient();
     await client.connect(SERVER, USER, PASS);
     useSingleton(client);
+    // Stalwart's extension, not Inbuxa's registry, picks the `using`.
+    expect(getManagementCapability()).toBe('urn:stalwart:jmap');
     const info = await fetchAuthInfo();
     expect(info.otpEnabled).toBe(false);
     expect(Array.isArray(info.appPasswords)).toBe(true);

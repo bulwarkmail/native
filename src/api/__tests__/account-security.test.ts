@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { fake } = vi.hoisted(() => ({
   fake: {
@@ -41,7 +41,9 @@ import {
   encryptionDialect,
   fetchAuthInfo,
   fetchCryptoInfo,
+  getManagementCapability,
   isLimitedStalwartSignIn,
+  isStalwartSupported,
   serverOffersSecurityScope,
   signedInWithPassword,
   updateEncryptionAtRest,
@@ -242,5 +244,39 @@ describe('serverOffersSecurityScope', () => {
     expect(await serverOffersSecurityScope()).toBe(false);
     discovery.scopes = null;
     expect(await serverOffersSecurityScope()).toBe(false);
+  });
+});
+
+describe('account security on Inbuxa (urn:inbuxa:jmap:registry)', () => {
+  const originalCap = fake.hasAccountCapability;
+  const originalRequest = fake.request;
+  let usings: unknown[] = [];
+  beforeEach(() => {
+    usings = [];
+    fake.currentSession = {};
+    fake.hasAccountCapability = (cap: string) => cap === 'urn:inbuxa:jmap:registry';
+    fake.request = async function request(this: typeof fake, calls: unknown[][], using?: unknown) {
+      usings.push(using);
+      this.sent.push(...calls);
+      return { methodResponses: this.responses };
+    } as typeof fake.request;
+  });
+  afterEach(() => {
+    fake.hasAccountCapability = originalCap;
+    fake.request = originalRequest;
+  });
+
+  it("counts as supported and asks with Inbuxa's capability", async () => {
+    expect(isStalwartSupported()).toBe(true);
+    fake.responses = [['x:AccountPassword/get', { list: [{ otpAuth: {} }] }, 'p'], ...queries];
+    await fetchAuthInfo();
+    expect(usings).toEqual([['urn:ietf:params:jmap:core', 'urn:inbuxa:jmap:registry']]);
+  });
+
+  it('prefers Stalwart\'s where an account lists both, and is unsupported with neither', () => {
+    fake.hasAccountCapability = () => true;
+    expect(getManagementCapability()).toBe('urn:stalwart:jmap');
+    fake.hasAccountCapability = () => false;
+    expect(isStalwartSupported()).toBe(false);
   });
 });

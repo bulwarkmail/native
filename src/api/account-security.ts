@@ -11,8 +11,15 @@ import { jmapClient } from './jmap-client';
 import { CAPABILITIES } from './types';
 import { generateAccountId } from '../lib/account-utils';
 
-const STALWART_CAPABILITY = 'urn:stalwart:jmap';
-const STALWART_USING = [CAPABILITIES.CORE, STALWART_CAPABILITY];
+// The account-management extension: Stalwart's, or Inbuxa's registry, which
+// takes the same x:* methods (webmail lib/stalwart/management-capability.ts).
+const MANAGEMENT_CAPABILITIES = ['urn:stalwart:jmap', 'urn:inbuxa:jmap:registry'] as const;
+export type ManagementCapability = typeof MANAGEMENT_CAPABILITIES[number];
+
+/** The management capability the signed-in account lists, or null. */
+export function getManagementCapability(): ManagementCapability | null {
+  return MANAGEMENT_CAPABILITIES.find((capability) => jmapClient.hasAccountCapability(capability)) ?? null;
+}
 
 /**
  * Encryption at rest as the server names it. 0.16, 1.0.0 and 1.0.1 have a
@@ -94,15 +101,15 @@ export interface PrincipalInfo {
 
 type MethodResponse = [string, Record<string, any>, string];
 
-// True once a live session advertises Stalwart's JMAP extension. Without it
-// none of the x:* methods exist, so the screen shows a "not available" notice.
-// Stalwart lists `urn:stalwart:jmap` only under the account's
-// `accountCapabilities` (verified on 0.16.19), never at session level, so the
-// account-level map is what has to be checked (native #47).
+// True once a live session advertises Stalwart's JMAP extension (or Inbuxa's
+// registry). Without it none of the x:* methods exist, so the screen shows a
+// "not available" notice. Stalwart lists `urn:stalwart:jmap` only under the
+// account's `accountCapabilities` (verified on 0.16.19), never at session
+// level, so the account-level map is what has to be checked (native #47).
 export function isStalwartSupported(): boolean {
   const session = jmapClient.currentSession;
   if (!session || !jmapClient.isConnected) return false;
-  return jmapClient.hasAccountCapability(STALWART_CAPABILITY);
+  return getManagementCapability() !== null;
 }
 
 /**
@@ -187,7 +194,7 @@ function resultFor<T = Record<string, any>>(responses: MethodResponse[], callId:
 }
 
 async function send(methodCalls: [string, Record<string, unknown>, string][]): Promise<MethodResponse[]> {
-  const res = await jmapClient.request(methodCalls, STALWART_USING);
+  const res = await jmapClient.request(methodCalls, [CAPABILITIES.CORE, getManagementCapability() ?? 'urn:stalwart:jmap']);
   return res.methodResponses as MethodResponse[];
 }
 
