@@ -109,7 +109,7 @@ export function buildQuoteCollapseScript(labels: QuoteCollapseLabels): string {
   // quote is followed by more quote, not by a reply below it (#1476).
   function onlyQuotesAfter(marker) {
     var containers = C.containers.join(',');
-    var walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    var walker = pageCall(doc, 'createTreeWalker', [body, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT]);
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
       var rel = marker.compareDocumentPosition(node);
       if (rel & Node.DOCUMENT_POSITION_CONTAINED_BY) continue;
