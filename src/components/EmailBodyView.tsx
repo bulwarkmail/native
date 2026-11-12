@@ -3,7 +3,7 @@ import { View, StyleSheet, Linking, Platform, Text, Pressable, PixelRatio, useWi
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Image as ImageIcon, ShieldCheck } from './icons';
+import { Image as ImageIcon, ShieldAlert, ShieldCheck } from './icons';
 import type { Email } from '../api/types';
 import { extractCidRefs, isUserLinkNavigation } from '../lib/email-html';
 import { buildEmailDarkModeScript } from '../lib/email-dark-mode';
@@ -15,6 +15,7 @@ import { parseMailtoUrl } from '../lib/unsubscribe';
 import { fetchInlineImageDataUri } from '../lib/email-export';
 import { isSenderContentTrusted, isTrustedSendersSyncOn } from '../lib/trusted-senders';
 import { senderVerificationOf } from '../lib/email-headers';
+import { isPhishingMarked, turnOffLinks } from '../lib/phishing-links';
 import { plainTextReading } from '../lib/html-to-readable-text';
 import { buildMailTextSizeScript, mailTextFactor } from '../lib/mail-reading';
 import { buildPauseAnimatedImagesScript, withReducedMotion } from '../lib/mail-motion';
@@ -624,10 +625,17 @@ export default function EmailBodyView({
     messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont,
   ]);
 
-  const source = React.useMemo(
-    () => ({ html: reduceMotion && prepared.isHtml ? withReducedMotion(prepared.html) : prepared.html }),
-    [prepared.html, prepared.isHtml, reduceMotion],
-  );
+  // Reported as phishing ($phishing, on this device or elsewhere): every
+  // link is turned off and a banner says so (webmail 50f95f446).
+  const phishingMarked = isPhishingMarked(email);
+  const linksOff = React.useMemo(() => ({
+    title: t('phishing_report.link_off', 'link turned off'),
+    note: t('phishing_report.link_off_note', '(link turned off)'),
+  }), [t]);
+  const source = React.useMemo(() => {
+    const html = reduceMotion && prepared.isHtml ? withReducedMotion(prepared.html) : prepared.html;
+    return { html: phishingMarked ? turnOffLinks(html, linksOff) : html };
+  }, [prepared.html, prepared.isHtml, reduceMotion, phishingMarked, linksOff]);
   const pauseLabels = React.useMemo(() => ({
     play: t('email_viewer.play_animation', 'Play animation'),
     pause: t('email_viewer.pause_animation', 'Pause animation'),
@@ -725,6 +733,14 @@ export default function EmailBodyView({
 
   return (
     <View style={[styles.wrapper, fill && styles.wrapperFill]}>
+      {phishingMarked && (
+        <View style={styles.phishingBanner} accessibilityRole="alert" testID="phishing-mark-banner">
+          <ShieldAlert size={16} color={c.error} />
+          <Text style={styles.phishingText}>
+            {t('phishing_report.banner', 'You reported this message as phishing. Its links are turned off.')}
+          </Text>
+        </View>
+      )}
       {plainText !== null && (
         <View style={styles.plainNote}>
           <Text style={styles.bannerText}>
@@ -825,6 +841,7 @@ export default function EmailBodyView({
             // iOS says how a navigation started, so anything but a tap is
             // refused there as well. Android always reports 'other'.
             if (!isUserLinkNavigation(request, Platform.OS)) return false;
+            if (phishingMarked) return false;
             if (/^mailto:/i.test(url)) {
               openMailto(url);
               return false;
@@ -855,6 +872,22 @@ function makeStyles(c: ThemePalette) {
   bannerText: {
     ...typography.caption,
     color: c.textMuted,
+  },
+  phishingBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    backgroundColor: c.errorBg,
+    borderBottomWidth: 1,
+    borderBottomColor: c.errorBorder,
+  },
+  phishingText: {
+    ...typography.caption,
+    flex: 1,
+    color: c.error,
+    fontWeight: '600',
   },
   bannerActions: {
     flexDirection: 'row',

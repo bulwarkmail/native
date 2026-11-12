@@ -25,9 +25,11 @@ interface TagSheetProps {
   selectedEmails: Email[];
   /** Toggle a keyword token on/off across the whole selection. */
   onToggle: (token: string, on: boolean) => void;
+  /** Offer "New tag" (not in a group account: see NewTagRow). Default true. */
+  allowNewTag?: boolean;
 }
 
-export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle }: TagSheetProps) {
+export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle, allowNewTag = true }: TagSheetProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -148,7 +150,7 @@ export function TagSheet({ visible, onClose, keywords, selectedEmails, onToggle 
               </Pressable>
             );
           })}
-          <NewTagRow keywords={keywords} onCreated={(token) => onToggle(token, true)} />
+          {allowNewTag && <NewTagRow keywords={keywords} onCreated={(token) => onToggle(token, true)} />}
         </ScrollView>
       </Animated.View>
     </Modal>

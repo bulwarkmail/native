@@ -88,7 +88,13 @@ export default function SenderAvatar({ name, email, size = 40, style, disableIma
 
   const primaryName = (name ?? '').split(',')[0].trim();
   const initials = getEmailInitials(primaryName, email ?? undefined);
-  const bgColor = generateEmailAvatarColor(primaryName, email ?? undefined);
+  // A signed-in account's own address keeps the colour it has in the account switcher.
+  const accountColor = useAccountStore((s) => {
+    const key = email?.trim().toLowerCase();
+    if (!key) return undefined;
+    return s.accounts.find((a) => (a.email || a.username || '').trim().toLowerCase() === key)?.avatarColor;
+  });
+  const bgColor = accountColor ?? generateEmailAvatarColor(primaryName, email ?? undefined);
 
   const faviconDomain = getFaviconDomain(email ?? undefined);
   const domainFailed = faviconDomain ? hasFaviconFailed(faviconDomain) : false;

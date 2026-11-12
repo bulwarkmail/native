@@ -63,14 +63,16 @@ describe('parseArchivedItems', () => {
     expect(parseArchivedItems(undefined, ACCOUNT)).toEqual([]);
   });
 
-  it("keeps only the account's own items from a mixed answer, never one without an account", () => {
+  it("keeps the account's own items and items without an account, never another account's", () => {
     const items = parseArchivedItems([
       archivedEmail('a'),
       archivedEmail('z', { accountId: 'cz' }),
       archivedEmail('n', { accountId: undefined }),
       archivedEmail('e', { accountId: '' }),
     ], ACCOUNT);
-    expect(items.map((i) => i.id)).toEqual(['a']);
+    // Stalwart 1.0 leaves accountId out for a user without Impersonate (#1480).
+    expect(items.map((i) => i.id)).toEqual(['a', 'n']);
+    expect(items[1].accountId).toBe(ACCOUNT);
   });
 });
 

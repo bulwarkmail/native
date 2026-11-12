@@ -33,6 +33,7 @@ vi.mock('../../api/email', () => ({
   searchEmails: vi.fn(),
   markAsSpam: vi.fn(),
   undoSpam: vi.fn(),
+  createMailbox: vi.fn(async () => 'new-archive'),
   unprefixMailboxId: (id: string, accountId?: string) =>
     (accountId && id.startsWith(`${accountId}:`) ? id.slice(accountId.length + 1) : id),
 }));
@@ -220,6 +221,18 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
     useSettingsStore.getState().updateSetting('deleteAction', 'trash');
   });
 
+  // Report phishing: Junk with $phishing, read, and the report's own line in
+  // the undo bar; undo takes $phishing off again.
+  it('adds $phishing and marks read for a phishing report, and names the report in the undo bar', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+
+    await useEmailStore.getState().markSpam(['e1'], TEAM_VIEWED, { keywords: ['$phishing'], markRead: true, label: 'Reported' });
+
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', 'grp-1', { markRead: true, keywords: ['$phishing'] });
+    const undo = useEmailStore.getState().pendingUndo!;
+    expect(undo).toMatchObject({ kind: 'spam', label: 'Reported', keywordPatch: { $junk: true, $notjunk: null, $seen: true, $phishing: true } });
+  });
+
   it('files a team message back into the team Inbox with $notjunk', async () => {
     useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
     const junked = { ...TEAM_MESSAGE, keywords: { $junk: true }, mailboxIds: { j: true } } as unknown as Email;
@@ -256,6 +269,50 @@ describe('viewer Archive of a message the list does not hold', () => {
     expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'x', 'single', teamRaw, 'grp-1');
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
     expect(useEmailStore.getState().pendingUndo?.accountId).toBe('grp-1');
+  });
+});
+
+// Stalwart's default folders have no Archive, and Archive did nothing there
+// (webmail ensureArchiveMailbox, #1176).
+describe('Archive without an Archive folder', () => {
+  const RECEIVED = '2026-09-01T10:00:00Z';
+  const NO_ARCHIVE = MAILBOXES.filter((m) => m.role !== 'archive');
+
+  it('makes the Archive folder in the message\'s account, then archives into it', async () => {
+    const fetchMailboxes = vi.fn(async () => {
+      useEmailStore.setState({ mailboxes: [...NO_ARCHIVE, own('new-archive', 'archive')] });
+    });
+    useEmailStore.setState({ mailboxes: NO_ARCHIVE, currentMailboxId: 'a', emails: [], fetchMailboxes });
+    const opened = { ...OWN_ROW, receivedAt: RECEIVED } as Email;
+
+    await useEmailStore.getState().archiveEmail('e1', { email: opened, accountId: undefined });
+
+    expect(emailApi.createMailbox).toHaveBeenCalledWith({ name: 'Archive', role: 'archive' }, undefined);
+    expect(fetchMailboxes).toHaveBeenCalled();
+    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'new-archive', 'single', expect.any(Array), undefined);
+  });
+
+  it('makes it in the group account for a group message', async () => {
+    const fetchMailboxes = vi.fn(async () => {
+      useEmailStore.setState({ mailboxes: [...NO_ARCHIVE, team('gx', 'archive')] });
+    });
+    useEmailStore.setState({ mailboxes: NO_ARCHIVE, currentMailboxId: 'a', emails: [OWN_ROW], fetchMailboxes });
+    const opened = { ...TEAM_MESSAGE, receivedAt: RECEIVED } as Email;
+
+    await useEmailStore.getState().archiveEmail('e1', { email: opened, accountId: 'grp-1' });
+
+    expect(emailApi.createMailbox).toHaveBeenCalledWith({ name: 'Archive', role: 'archive' }, 'grp-1');
+    expect(mockArchive).toHaveBeenCalledWith([{ id: 'e1', receivedAt: RECEIVED }], 'gx', 'single', expect.any(Array), 'grp-1');
+  });
+
+  it('says so when the folder cannot be made', async () => {
+    (emailApi.createMailbox as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('offline'));
+    useEmailStore.setState({ mailboxes: NO_ARCHIVE, currentMailboxId: 'a', emails: [] });
+
+    await useEmailStore.getState().archiveEmail('e1', { email: OWN_ROW, accountId: undefined });
+
+    expect(mockArchive).not.toHaveBeenCalled();
+    expect(useEmailStore.getState().error).toBe('Could not find an Archive folder on the server.');
   });
 });
 

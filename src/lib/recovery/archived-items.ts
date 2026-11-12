@@ -113,8 +113,10 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
 /**
  * The deleted messages of `accountId` in an x:ArchivedItem/get list. Other
  * kinds (files, events, contacts, scripts) are left out: the server can't
- * restore them. So is every item of another account, and every item that
- * doesn't say whose it is.
+ * restore them. So is every item that names another account. An item
+ * without `accountId` is kept: Stalwart 1.0 leaves that property out for a
+ * user without Impersonate, and only after it has limited the list to the
+ * account the call names.
  */
 export function parseArchivedItems(list: unknown, accountId: string): ArchivedEmail[] {
   if (!Array.isArray(list)) return [];
@@ -125,7 +127,7 @@ export function parseArchivedItems(list: unknown, accountId: string): ArchivedEm
     const id = str(item.id);
     const archivedAt = isoOrNull(item.archivedAt);
     if (!id || !archivedAt) continue;
-    if (str(item.accountId) !== accountId) continue;
+    if (item.accountId !== undefined && str(item.accountId) !== accountId) continue;
     const from = parseArchivedFrom(str(item.from));
     out.push({
       id,

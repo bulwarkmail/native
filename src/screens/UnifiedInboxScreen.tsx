@@ -7,7 +7,7 @@ import { useDensity, useTypography } from '../theme/dynamic';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ArrowLeft, Star, Paperclip, AlertTriangle, Search, X, Square, SquareCheck,
-  Mail as MailIcon, MailOpen, Archive, Trash2, ShieldAlert, ShieldCheck, Folder,
+  Mail as MailIcon, MailOpen, Archive, Trash2, ShieldAlert, ShieldCheck, Folder, Eraser,
 } from '../components/icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -15,10 +15,11 @@ import SenderAvatar from '../components/SenderAvatar';
 import MessagePane from '../components/MessagePane';
 import { SwipeableRow } from '../components/SwipeableRow';
 import {
-  fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash,
+  fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash, emptyUnifiedRole,
   unifiedSnippetStamp, type UnifiedEmail, type UnifiedRole, type CrossView, type UnifiedInboxResult,
 } from '../api/unified-inbox';
 import { withSearchSnippets } from '../lib/search-snippet';
+import { toast } from '../stores/toast-store';
 import { SearchSnippetText } from '../components/email/SearchSnippetText';
 import { useAccountStore } from '../stores/account-store';
 import { useAuthStore } from '../stores/auth-store';
@@ -37,6 +38,7 @@ import { confirmMailRemoval } from '../lib/mail-removal-confirm';
 import { onStateChangeType } from '../lib/state-change-bus';
 import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
+import { useInternalMailDomains } from '../lib/avatar-internal-domains';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
 import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
@@ -408,7 +410,31 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   const errorCount = Object.keys(errors).length;
   const showRecipient = role === 'sent' || role === 'drafts';
+  const canEmpty = !view && (role === 'trash' || role === 'junk') && emails.length > 0;
+  const onEmpty = () => {
+    const emptied = role === 'junk' ? 'junk' : 'trash';
+    Alert.alert(
+      t('email_list.empty_folder.confirm_title', 'Empty folder'),
+      t('email_list.empty_folder.confirm_message', 'All emails in this folder will be permanently deleted. This action cannot be undone.'),
+      [
+        { text: t('common.cancel', 'Cancel'), style: 'cancel' },
+        {
+          text: t('email_list.empty_folder.confirm_button', 'Empty folder'),
+          style: 'destructive',
+          onPress: () => {
+            void emptyUnifiedRole(accountIds, emptied, { includeGroup })
+              .then(({ failed }) => {
+                if (failed > 0) toast.error(t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder'));
+              })
+              .catch(() => toast.error(t('mailbox_context_menu.toast_error_empty', 'Failed to empty folder')))
+              .finally(() => { void load(); });
+          },
+        },
+      ],
+    );
+  };
   const formatAddress = useOwnDomainAddress();
+  const internalDomains = useInternalMailDomains();
   const title = view
     ? t(`sidebar.unified_all_${view === 'all' ? 'mail' : view}`, { all: 'All mail', unread: 'All unread', starred: 'All starred' }[view])
     : role === 'inbox'
@@ -423,6 +449,11 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     const isActive = layout.isSplit && pane.activeKey === rowKey(item);
     // Sent and Drafts rows show the recipient: the check says nothing about them.
     const verification = showRecipient ? null : senderWarningOf(item);
+    const rowName = senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress);
+    const selectLabel = t('email_list.batch_actions.select_row', 'Select {sender}: {subject}', {
+      sender: rowName,
+      subject: singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)'),
+    });
     return (
       <SwipeableRow
         leftAction={selectionMode ? 'none' : swipeLeftAction}
@@ -449,19 +480,40 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
               {isSelected ? <SquareCheck size={16} color={c.primary} /> : <Square size={16} color={c.textMuted} />}
             </View>
           )}
-          {density.showAvatar && <View style={styles.avatarWrap}>
+          {!density.showAvatar && !selectionMode && (
+            // Extra compact has no avatar: the row's left edge picks it instead (#91).
+            <Pressable
+              onPress={() => toggleSelect(item)}
+              style={styles.selectGutter}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isSelected }}
+              accessibilityLabel={selectLabel}
+              testID="unified-row-select-gutter"
+            />
+          )}
+          {density.showAvatar && <Pressable
+            // A tap on the avatar picks the row and starts selection mode,
+            // like a long press (#91).
+            onPress={() => toggleSelect(item)}
+            hitSlop={4}
+            style={styles.avatarWrap}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isSelected }}
+            accessibilityLabel={selectLabel}
+            testID="unified-row-avatar"
+          >
             <SenderAvatar
-              name={senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress)}
+              name={rowName}
               email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
               size={componentSizes.avatarMd}
               disableImages={role === 'junk' && !showAvatarsInJunk}
               senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
-              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item)}
+              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item, internalDomains)}
             />
             {acc && accountIds.length > 1 && (
               <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
             )}
-          </View>}
+          </Pressable>}
           <View style={styles.content}>
             <View style={styles.line}>
               <Text style={[styles.sender, dyn.bodyMedium, unread && styles.bold]} numberOfLines={1}>
@@ -590,6 +642,20 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             <ArrowLeft size={22} color={c.text} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
+          {canEmpty && (
+            // All Trash / All Junk: empty that folder in every account the view
+            // covers, after one confirm (webmail #1540).
+            <Pressable
+              onPress={onEmpty}
+              style={styles.headerBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={t('mailbox_context_menu.empty_folder', 'Empty folder')}
+              testID="unified-empty"
+            >
+              <Eraser size={20} color={c.text} />
+            </Pressable>
+          )}
           <View style={styles.headerBtn}>
             {opening ? <ActivityIndicator size="small" color={c.primary} /> : null}
           </View>
@@ -767,6 +833,8 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.unread,
     },
     avatarWrap: { position: 'relative' },
+    // A strip over the row's left padding (extra compact, no avatar).
+    selectGutter: { position: 'absolute', left: 0, top: 0, bottom: 0, width: spacing.lg + spacing.sm, zIndex: 1 },
     accountDot: {
       position: 'absolute',
       right: -2, bottom: -2,

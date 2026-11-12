@@ -98,21 +98,6 @@ const SPF_SEVERITY: Record<SpfResult, number> = {
 };
 
 /**
- * Whether "via <identity>" on a message sent as one of the user's identities
- * tells the reader anything: only when the identity's name differs from its
- * address, the From address and the name already shown as the sender, so it
- * no longer reads "ann@x via ann@x" (webmail email-identity-badge.tsx).
- */
-export function viaIdentityNameShown(
-  identity: Pick<Identity, 'name' | 'email'>,
-  from: { name?: string | null; email?: string | null } | undefined,
-): boolean {
-  const name = identity.name?.trim();
-  if (!name) return false;
-  return name !== identity.email && name !== from?.email && name !== from?.name;
-}
-
-/**
  * Whether the authentication results indicate the visible From identity can't
  * be trusted (i.e. the message is likely spoofed). Used to suppress UI that
  * would otherwise imply the message legitimately came from one of the user's
@@ -136,6 +121,26 @@ function hasDkimPass(auth: AuthenticationResults): boolean {
 function domainOf(address: string): string | undefined {
   const domain = address.slice(address.lastIndexOf('@') + 1).trim().toLowerCase().replace(/\.$/, '');
   return /^[^\s<>@]+\.[^\s<>@]+$/.test(domain) ? domain : undefined;
+}
+
+/**
+ * The original envelope domain of a Sender Rewriting Scheme address, or
+ * undefined when `address` isn't one. A forwarder rewrites
+ * `user@orig.example` to `SRS0=hash=tt=orig.example=user@forwarder`, and a
+ * second forwarder to `SRS1=hash=forwarder==hash=tt=orig.example=user@...`.
+ * Only the leading fields are split off: the local part may contain `=`
+ * (webmail lib/email-headers.ts, #1542).
+ */
+export function srsOriginalDomain(address: string): string | undefined {
+  const at = address.lastIndexOf('@');
+  if (at < 0) return undefined;
+  const fields = address.slice(0, at).split('=');
+  const tag = fields[0].toUpperCase();
+  // SRS0: tag, hash, timestamp, domain, local part...
+  // SRS1: tag, hash, first forwarder, '', hash, timestamp, domain, local part...
+  const index = tag === 'SRS0' ? 3 : tag === 'SRS1' && fields[3] === '' ? 6 : -1;
+  if (index < 0 || fields.length <= index + 1) return undefined;
+  return domainOf(`@${fields[index]}`);
 }
 
 /**
@@ -209,12 +214,18 @@ export function getSenderVerification(
   const domain = domainOf(fromEmail);
   if (!domain) return null;
 
-  // DMARC only counts the MAIL FROM identity; a HELO pass proves nothing
-  // about who wrote the message.
+  // Name the sender by a passing DKIM signature first: it survives
+  // forwarding, where the envelope is the forwarder's. Otherwise use the
+  // MAIL FROM identity (a HELO pass proves nothing about who wrote the
+  // message), decoding an SRS rewrite back to the original envelope domain.
+  const dkimPass = (auth.dkim?.all ?? (auth.dkim ? [auth.dkim] : []))
+    .find((entry) => entry.result === 'pass' && entry.domain);
   const mailFrom = auth.spf?.all?.find((entry) => entry.identity === 'mailfrom');
   const envelope = mailFrom?.domain ?? auth.spf?.domain;
-  const envelopeDomain = envelope ? domainOf(envelope) : undefined;
-  const sentFrom = envelopeDomain && envelopeDomain !== domain ? envelopeDomain : undefined;
+  const senderDomain = dkimPass?.domain
+    ? domainOf(`@${dkimPass.domain}`)
+    : envelope ? srsOriginalDomain(envelope) ?? domainOf(envelope) : undefined;
+  const sentFrom = senderDomain && senderDomain !== domain ? senderDomain : undefined;
 
   if (isAuthenticationSpoofed(auth)) return { status: 'failed', domain, sentFrom };
   // Only a pass that aligns with the From domain counts: `spf=pass` for the

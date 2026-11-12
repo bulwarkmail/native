@@ -32,9 +32,11 @@ import {
   markAsSpam as apiMarkAsSpam,
   undoSpam as apiUndoSpam,
   destroyEmails as apiDestroyEmails,
+  createMailbox,
   unprefixMailboxId,
   type EmailChangesResult,
 } from '../api/email';
+import { CAPABILITIES } from '../api/types';
 import { applyOwnWritesToList, ownEmailWritesBetween, whenOwnWritesSettled } from '../api/own-writes';
 import { provideLoadedMailboxes } from '../lib/mailbox-source';
 import { useNetworkStore } from './network-store';
@@ -50,6 +52,7 @@ import { compareEmails, levelKeyword, orderForMailbox, sanitizeSortLevels, type 
 import { buildListSort, markKeywordSortUnsupported } from '../lib/keyword-sort-polarity';
 import { generateAccountId } from '../lib/account-utils';
 import { applyKeywordPatch, revertKeywordPatch, type KeywordPatch } from '../lib/keyword-patch';
+import { rememberTrashOrigins } from '../lib/trash-origin';
 import { t } from './locale-store';
 import { useSettingsStore } from './settings-store';
 import { useOfflineCacheStore } from './offline-cache-store';
@@ -153,6 +156,13 @@ function currentAccountId(state: EmailState): string | undefined {
 export interface ViewedEmail {
   email: Email;
   accountId?: string;
+}
+
+/** Report phishing: also set `keywords` ($phishing), mark read, and say so in the undo bar. */
+export interface MarkSpamOptions {
+  keywords?: string[];
+  markRead?: boolean;
+  label?: string;
 }
 
 // The message an action works on, and whether the loaded list holds it: the
@@ -283,18 +293,21 @@ export const SCOPE_EXCEPT_TRASH_JUNK = 'all-except-trash-junk';
 /**
  * The folder scope a query runs in, resolving the unset default. A search
  * from inside Spam or Trash looks there; anywhere else it spans every
- * folder (and leaves Spam and Trash out, see `searchSkipsTrashAndJunk`).
- * Webmail 763732fdc, 3904af2cb.
+ * folder (and leaves Spam and Trash out, see `searchSkipsTrashAndJunk`),
+ * unless "Search in" is set to the open folder (#1485).
+ * Webmail 763732fdc, 3904af2cb, e4338ac47.
  */
 export function effectiveFolderScope(
   searchQuery: string,
   filters: EmailFilters,
   openRole?: string | null,
+  defaultScope: 'all' | 'folder' = useSettingsStore.getState().searchDefaultScope,
 ): SearchFolderScope {
   if (filters.keyword) return 'all';
   if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return 'all';
   if (filters.folder) return filters.folder;
   if (!searchQuery.trim()) return 'current';
+  if (defaultScope === 'folder') return 'current';
   return isTrashOrJunkRole(openRole) ? 'current' : 'all';
 }
 
@@ -533,7 +546,7 @@ export interface EmailState {
    * Works for one id or a selection; offers undo. With `viewed`, the viewer's
    * message goes to its own account's Junk (#695).
    */
-  markSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
+  markSpam: (emailIds: string[], viewed?: ViewedEmail, opts?: MarkSpamOptions) => Promise<void>;
   /** Inverse of markSpam: back to Inbox with `$notjunk`. */
   unmarkSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
   // ── Batch (multi-select) actions ──────────────────────────────
@@ -1354,7 +1367,22 @@ export const useEmailStore = create<EmailState>()(
     if (!currentMailboxId || loading || position >= totalEmails) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
 
+    const mine = Symbol('load-more');
+    loadMoreOwner = mine;
     set({ loading: true });
+    // The answer belongs to another list now (account, folder, search or
+    // filters changed meanwhile): drop it, and give `loading` back unless a
+    // list load took it over (webmail fa7c58ca0, c1d4edb80).
+    const stale = () => {
+      const now = get();
+      return now.activeAccountId !== activeAccountId || now.currentMailboxId !== currentMailboxId
+        || now.searchQuery !== searchQuery || now.filters !== filters;
+    };
+    const release = () => {
+      if (loadMoreOwner !== mine) return;
+      loadMoreOwner = null;
+      set({ loading: false });
+    };
     try {
       const scope = queryScope(state, refFor(state.mailboxes, currentMailboxId));
       const filter = buildJmapFilter(searchQuery, filters);
@@ -1367,10 +1395,8 @@ export const useEmailStore = create<EmailState>()(
         }
         const page = await fetchSpanningPage(state, loaded, filter, limit);
         const now = get();
-        if (
-          now.activeAccountId !== activeAccountId || now.currentMailboxId !== currentMailboxId ||
-          now.searchQuery !== searchQuery || now.filters !== filters
-        ) return;
+        if (stale()) return release();
+        loadMoreOwner = null;
         const shown = new Set(now.emails.map(rowKeyOf));
         const added = page.list.filter((e) => !shown.has(rowKeyOf(e)));
         set({
@@ -1393,7 +1419,8 @@ export const useEmailStore = create<EmailState>()(
         accountId: scope.accountId,
         threads: !useSettingsStore.getState().disableThreading,
       });
-      if (get().activeAccountId !== activeAccountId || get().currentMailboxId !== currentMailboxId) return;
+      if (stale()) return release();
+      loadMoreOwner = null;
       const total = pagingTotal(serverTotal, position + ids.length, ids.length, limit);
       // A message that arrived between pages shifts positions and would come
       // back a second time — drop ids we already show (duplicate keys).
@@ -1422,7 +1449,8 @@ export const useEmailStore = create<EmailState>()(
       set(updates);
       highlightSearchHits({ searchQuery, filters }, filter, newEmails, scope.accountId);
     } catch (err) {
-      if (get().activeAccountId !== activeAccountId) return;
+      if (stale()) return release();
+      loadMoreOwner = null;
       set({ loading: false, error: err instanceof Error ? err.message : 'Failed to load more' });
     }
   },
@@ -1435,6 +1463,7 @@ export const useEmailStore = create<EmailState>()(
     // Both the blob upload and the import have to target the folder's owning
     // account, or the import references a blob the server can't see.
     const ref = refFor(get().mailboxes, mailboxId);
+    const keywords = importKeywords(get().mailboxes.find((m) => m.id === mailboxId)?.role);
     let imported = 0;
     let failed = 0;
     for (const file of files) {
@@ -1445,7 +1474,7 @@ export const useEmailStore = create<EmailState>()(
         for (const eml of emls) {
           try {
             const { blobId } = await uploadBytes(eml.bytes, 'message/rfc822', ref.accountId);
-            await importEmailBlob(blobId, ref.id, undefined, ref.accountId);
+            await importEmailBlob(blobId, ref.id, keywords, ref.accountId);
             imported += 1;
           } catch {
             failed += 1;
@@ -1671,7 +1700,7 @@ export const useEmailStore = create<EmailState>()(
     patchCache(email.id, { keywords: patch }, rowAccountId(state, email));
   },
 
-  markSpam: async (emailIds, viewed) => {
+  markSpam: async (emailIds, viewed, opts) => {
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1686,9 +1715,13 @@ export const useEmailStore = create<EmailState>()(
       return;
     }
     const junk = refFor(state.mailboxes, junkMailbox.id);
-    const markRead = useSettingsStore.getState().deleteAction === 'trash-and-read';
+    const markRead = opts?.markRead || useSettingsStore.getState().deleteAction === 'trash-and-read';
+    const extraKeywords = opts?.keywords ?? [];
     const junkTarget = { [junk.id]: true };
-    const keywordPatch: KeywordPatch = { $junk: true, $notjunk: null, ...(markRead ? { $seen: true } : {}) };
+    const keywordPatch: KeywordPatch = {
+      $junk: true, $notjunk: null, ...(markRead ? { $seen: true } : {}),
+      ...Object.fromEntries(extraKeywords.map((k) => [k, true])),
+    };
     const items = targets.map((e) => ({
       email: e,
       originalMailboxIds: { ...e.mailboxIds },
@@ -1700,7 +1733,7 @@ export const useEmailStore = create<EmailState>()(
         { kind: 'mailboxes', emailId: e.id, accountId: junk.accountId, mailboxIds: junkTarget },
         { kind: 'keywords', emailId: e.id, accountId: junk.accountId, patch: keywordPatch },
       ]),
-      () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead }),
+      () => apiMarkAsSpam(targets.map((e) => e.id), junk.id, junk.accountId, { markRead, ...(extraKeywords.length ? { keywords: extraKeywords } : {}) }),
     );
 
     const removed = new Set(listed ? targets.map(rowKeyOf) : []);
@@ -1708,9 +1741,9 @@ export const useEmailStore = create<EmailState>()(
       emails: get().emails.filter((e) => !removed.has(rowKeyOf(e))),
       pendingUndo: {
         kind: 'spam',
-        label: targets.length === 1
+        label: opts?.label ?? (targets.length === 1
           ? t('email_list.marked_as_spam', 'Marked as spam')
-          : t('email_list.marked_as_spam_count', `${targets.length} emails marked as spam`, { count: targets.length }),
+          : t('email_list.marked_as_spam_count', `${targets.length} emails marked as spam`, { count: targets.length })),
         createdAt: Date.now(),
         accountId: junk.accountId,
         keywordPatch,
@@ -1833,10 +1866,10 @@ export const useEmailStore = create<EmailState>()(
 
     // Archive into the *same account's* Archive folder — a shared mailbox's
     // messages can't be filed into the user's own.
-    const scoped = actionMailboxes(state, viewed);
-    const archiveMailbox = findArchiveMailbox(scoped);
+    const archiveMailbox = await ensureArchiveMailbox(() => actionMailboxes(get(), viewed));
     if (!archiveMailbox) return;
-    const archive = refFor(state.mailboxes, archiveMailbox.id);
+    const scoped = actionMailboxes(get(), viewed);
+    const archive = refFor(get().mailboxes, archiveMailbox.id);
     if (email.mailboxIds?.[archive.id]) return;
 
     const mode = useSettingsStore.getState().archiveMode;
@@ -1927,6 +1960,8 @@ export const useEmailStore = create<EmailState>()(
         { kind: 'mailboxes', emailId, accountId: source.accountId, mailboxIds: target },
         () => apiDeleteEmail(emailId, trash.id, source.id, source.accountId),
       );
+      // So Restore can put it back where it was (lib/trash-origin.ts).
+      rememberTrashOrigins([emailId], currentMailboxId, trashMailboxId);
       // "Move to Trash and mark as read" (#323): when the user picked that
       // delete action, also clear unread state for messages moved to trash.
       if (settings.deleteAction === 'trash-and-read' && email && !email.keywords?.$seen) {
@@ -1976,10 +2011,10 @@ export const useEmailStore = create<EmailState>()(
     // A list spanning accounts files each row in its own account (#1082).
     const spanning = spanningRows(state, emailIds);
     if (spanning.length > 0) return fileAcrossAccounts('archive', spanning);
-    const scoped = mailboxesForSiblingOf(state.mailboxes, state.currentMailboxId);
-    const archiveMailbox = findArchiveMailbox(scoped);
+    const archiveMailbox = await ensureArchiveMailbox(() => mailboxesForSiblingOf(get().mailboxes, get().currentMailboxId));
     if (!archiveMailbox) return;
-    const archive = refFor(state.mailboxes, archiveMailbox.id);
+    const scoped = mailboxesForSiblingOf(get().mailboxes, get().currentMailboxId);
+    const archive = refFor(get().mailboxes, archiveMailbox.id);
     const targets = rowsByKey(state, emailIds).filter((e) => !e.mailboxIds?.[archive.id]);
     if (targets.length === 0) return;
 
@@ -2179,6 +2214,8 @@ export const useEmailStore = create<EmailState>()(
     });
     const destroyed = toDestroy.filter((e) => !kept.has(e.id));
     const trashed = toTrash.filter((e) => !kept.has(e.id));
+    // So Restore can put them back where they were (lib/trash-origin.ts).
+    rememberTrashOrigins(trashed.map((e) => e.id), currentMailboxId, trashMailboxId);
 
     if (destroyed.length > 0) dropFromCache(destroyed.map((e) => e.id), trash.accountId);
     for (const e of trashed) {
@@ -3110,6 +3147,49 @@ async function fillThreadCounts(emails: Email[], accountId: string | undefined):
   }
 }
 
+/**
+ * The Archive folder of the account `scope()` lists, created when it has none
+ * (webmail ensureArchiveMailbox, #1176): Stalwart's default folders have no
+ * archive-role mailbox, so on a fresh account Archive did nothing. Made in
+ * that account with the `archive` role, then the folder list is read again.
+ * Undefined, with the store's error set, when it can't be made (offline, or
+ * the account may not create top-level folders).
+ */
+export async function ensureArchiveMailbox(scope: () => Mailbox[]): Promise<Mailbox | undefined> {
+  const store = useEmailStore;
+  const existing = findArchiveMailbox(scope());
+  if (existing) return existing;
+  const missing = () => {
+    store.setState({ error: t('email_list.no_archive_folder', 'Could not find an Archive folder on the server.') });
+    return undefined;
+  };
+  const sample = scope()[0];
+  const accountId = sample?.isShared ? sample.accountId : undefined;
+  const mail = jmapClient.getAccountCapability?.(CAPABILITIES.MAIL, accountId) as { mayCreateTopLevelMailbox?: boolean } | undefined;
+  if (mail?.mayCreateTopLevelMailbox === false) return missing();
+  try {
+    await createMailbox({ name: 'Archive', role: 'archive' }, accountId);
+    await store.getState().fetchMailboxes();
+  } catch (err) {
+    console.warn('[email-store] creating the Archive folder failed', err);
+    return missing();
+  }
+  return findArchiveMailbox(scope()) ?? missing();
+}
+
+/**
+ * The keywords of a message imported into a folder: read, and in Drafts also
+ * a draft, so it opens in the composer to be edited and sent (webmail
+ * lib/file-drop/import-keywords.ts, #1535).
+ */
+export function importKeywords(role: string | null | undefined): Record<string, boolean> {
+  return role === 'drafts' ? { $seen: true, $draft: true } : { $seen: true };
+}
+
+// The page load that set `loading`, if one did: a load whose answer is
+// dropped clears the flag only while no list load has taken it over since.
+let loadMoreOwner: symbol | null = null;
+
 async function refreshEmailsImpl(): Promise<void> {
   const get = useEmailStore.getState;
   const set = useEmailStore.setState;
@@ -3117,6 +3197,7 @@ async function refreshEmailsImpl(): Promise<void> {
     const { currentMailboxId, searchQuery, filters, emails: existing, activeAccountId } = state;
     if (!currentMailboxId) return;
     if (!jmapClientServesActiveAccount(activeAccountId)) return;
+    loadMoreOwner = null;
     set({ loading: true, error: null });
 
     // A shared (group account) folder is queried against its owning account

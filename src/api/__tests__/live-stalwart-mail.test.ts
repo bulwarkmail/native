@@ -183,6 +183,17 @@ live('live Stalwart: mail, contacts, search (0.16 and 1.0)', () => {
       // Neither server stores the 129-byte keyword as sent.
       expect(flags.keywords[long]).toBeUndefined();
     }, 60_000);
+
+    it('keeps the generated keyword of a tag named in Cyrillic (#1613)', async () => {
+      const { checkNewTag } = await import('../../lib/new-tag');
+      const { id: tagId, error } = checkNewTag('Работа', []);
+      expect(error).toBeNull();
+      const keyword = `$label:${tagId}`;
+      const id = await importMessage(scratch, `kw cyrillic ${mailTag}`, 'x');
+      await patchKeywordsForEmails([id], { [keyword]: true });
+      const [flags] = (await getEmailFlags([id])).list;
+      expect(flags.keywords[keyword]).toBe(true);
+    }, 60_000);
   });
 
   describe('submissions', () => {
@@ -661,4 +672,202 @@ live('live Stalwart: recover deleted items (x:ArchivedItem)', () => {
     expect(Object.keys(restored.mailboxIds ?? {})).toContain(inbox);
     expect(await findArchived()).toBeUndefined();
   }, 120_000);
+});
+
+// Folder lists over the server's get limit (#1502). Hundreds of folders are
+// too many to create on a test server, so the case reads maxObjectsInGet and
+// runs the Mailbox/query + get paging with a page size of 2.
+live('live Stalwart: folder list in query pages (#1502)', () => {
+  const made: string[] = [];
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    for (const n of [1, 2, 3]) made.push(await createMailbox({ name: `live-pages-${RUN}-${n}` }));
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    for (const id of made) await deleteMailbox(id).catch(() => undefined);
+  }, 60_000);
+
+  it('reads every own and shared folder through Mailbox/query pages of 2', async () => {
+    const { fetchMailboxTree, getSharedMailboxes } = await import('../email');
+    const maxGet = client.getMaxObjectsInGet();
+    expect(maxGet).toBeGreaterThan(0);
+
+    const whole = await getMailboxesWithState();
+    const paged = await fetchMailboxTree(client.accountId, { pageSize: 2 });
+    expect(paged.list.length).toBeGreaterThan(4);
+    expect(paged.list.map((m) => m.id).sort()).toEqual(whole.list.map((m) => m.id).sort());
+    for (const id of made) expect(paged.list.some((m) => m.id === id)).toBe(true);
+    expect(paged.state).toBeTruthy();
+
+    // The shared accounts the session lists go through the same path.
+    for (const acc of singleton.getSharedMailAccounts()) {
+      const shared = await fetchMailboxTree(acc.id, { pageSize: 2 });
+      const viaGet = (await getSharedMailboxes()).filter((m) => m.accountId === acc.id);
+      expect(shared.list.map((m) => m.id).sort()).toEqual(viaGet.map((m) => m.originalId).sort());
+    }
+  }, 60_000);
+});
+// Report phishing (webmail 50f95f446): the report goes to the organisation's
+// address (userb here) with no copy left in Drafts or Sent, in both formats,
+// and the message moves to Junk with $phishing.
+live('live Stalwart: report phishing', () => {
+  const tag = `bulwark-phish-${RUN}`;
+  let scratch = '';
+  let second: JMAPClient | null = null;
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    scratch = await createMailbox({ name: `live-phish-${RUN}` });
+    if (USER2) {
+      second = new JMAPClient();
+      await second.connect(SERVER!, USER2, PASS2);
+    }
+  }, 60_000);
+
+  afterAll(async () => {
+    if (second) {
+      await useLogin(second);
+      const got = await second.request([['Email/query', { accountId: second.accountId, filter: { subject: tag } }, '0']]).catch(() => null);
+      const ids = (got?.methodResponses?.[0]?.[1]?.ids as string[] | undefined) ?? [];
+      if (ids.length) await destroyEmails(ids).catch(() => undefined);
+    }
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+    if (scratch) {
+      await emptyMailbox(scratch).catch(() => undefined);
+      await deleteMailbox(scratch).catch(() => undefined);
+    }
+  }, 60_000);
+
+  (USER2 ? it : it.skip)('sends a forward and an ARF report to the address, keeps no copy and files the message in Junk with $phishing', async () => {
+    const { sendPhishingReport } = await import('../phishing-report');
+    const { markAsSpam } = await import('../email');
+    const id = await importMessage(scratch, `${tag} win a prize`, 'Click https://evil.example/login now.');
+    const [original] = await getFullEmails([id]);
+
+    for (const format of ['forward', 'arf'] as const) {
+      await sendPhishingReport(original, { setup: { address: USER2!, format } });
+    }
+    // Nothing of the reports stays with the reporter: only the original has the tag.
+    expect(await eventually(() => messagesWith(tag), (ids) => ids.length === 1, 10_000)).toEqual([id]);
+
+    const junk = (await getMailboxes()).find((m) => m.role === 'junk')!;
+    await markAsSpam([id], junk.id, undefined, { markRead: true, keywords: ['$phishing'] });
+    const [flags] = (await getEmailFlags([id])).list;
+    expect(flags.keywords).toMatchObject({ $junk: true, $seen: true, $phishing: true });
+
+    // Delivered to the address (both reports), when the server delivers locally.
+    await useLogin(second!);
+    const query = async () => {
+      const res = await second!.request([['Email/query', { accountId: second!.accountId, filter: { subject: tag } }, '0']]);
+      return (res.methodResponses[0][1].ids as string[]) ?? [];
+    };
+    const received = await eventually(query, (ids) => ids.length >= 2, 20_000);
+    expect(received.length).toBe(2);
+    const reports = await getFullEmails(received);
+    expect(reports.map((r) => r.subject).sort()).toEqual([`Phishing: ${tag} win a prize`, `Phishing: ${tag} win a prize`]);
+    expect(reports.every((r) => (r.attachments ?? []).some((a) => a.type === 'message/rfc822'))).toBe(true);
+    await useLogin(client);
+  }, 120_000);
+});
+// An .eml imported into Drafts is a draft the composer opens (#1535).
+live('live Stalwart: .eml import into Drafts', () => {
+  const tag = `bulwark-import-${RUN}`;
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+  }, 60_000);
+
+  it('keeps $draft and $seen on a message imported into Drafts', async () => {
+    const { importKeywords } = await import('../../stores/email-store');
+    const drafts = (await getMailboxes()).find((m) => m.role === 'drafts')!;
+    const id = await importMessage(drafts.id, `${tag} imported draft`, 'Edit me.', importKeywords(drafts.role));
+    const [flags] = (await getEmailFlags([id])).list;
+    expect(flags.keywords).toMatchObject({ $draft: true, $seen: true });
+  }, 60_000);
+});
+// Emptying All Trash / All Junk (#1540) destroys a folder in pages of a
+// query and a back-referenced destroy. Run here on a scratch folder, never
+// on the account's real Trash.
+live('live Stalwart: emptying a folder in pages', () => {
+  const tag = `bulwark-empty-${RUN}`;
+  let scratch = '';
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+    scratch = await createMailbox({ name: `live-empty-${RUN}` });
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    const leftovers = await messagesWith(tag).catch(() => [] as string[]);
+    if (leftovers.length) await destroyEmails(leftovers).catch(() => undefined);
+    if (scratch) await deleteMailbox(scratch).catch(() => undefined);
+  }, 60_000);
+
+  it('destroys every message of the folder, two per request', async () => {
+    const { destroyFolderContents } = await import('../unified-inbox');
+    for (const n of [1, 2, 3, 4, 5]) await importMessage(scratch, `${tag} ${n}`, 'x');
+    const post = async (calls: [string, Record<string, unknown>, string][]) =>
+      (await client.request(calls)).methodResponses as Array<[string, Record<string, any>, string]>;
+    expect(await destroyFolderContents(post, client.accountId, scratch, 2)).toBe(5);
+    expect(await eventually(() => messagesWith(tag), (ids) => ids.length === 0, 10_000)).toEqual([]);
+  }, 60_000);
+});
+// Archive on an account without an Archive folder makes one with the
+// archive role (#1176). Run only where the account has none; the folder is
+// removed again.
+live('live Stalwart: Archive folder made on first archive', () => {
+  let made = '';
+
+  beforeAll(async () => {
+    const mod = await import('../jmap-client');
+    singleton = mod.jmapClient as unknown as JMAPClient;
+    client = new JMAPClient();
+    await client.connect(SERVER!, USER, PASS);
+    await useLogin(client);
+  }, 60_000);
+
+  afterAll(async () => {
+    await useLogin(client);
+    if (made) await deleteMailbox(made).catch(() => undefined);
+  }, 60_000);
+
+  it('creates a folder with the archive role that the folder list finds', async (ctx) => {
+    const { findArchiveMailbox } = await import('../../lib/mailbox-tree');
+    if ((await getMailboxes()).some((m) => m.role === 'archive')) {
+      ctx.skip('This account has an Archive folder already');
+      return;
+    }
+    made = await createMailbox({ name: `Archive-${RUN}`, role: 'archive' });
+    const found = findArchiveMailbox(await getMailboxes());
+    expect(found?.id).toBe(made);
+    expect(found?.role).toBe('archive');
+  }, 60_000);
 });

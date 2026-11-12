@@ -57,6 +57,9 @@ import {
 import { serverSupportsEmailPush } from '../lib/push-notifications';
 import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import { gateFolderActions, unreadInTree } from '../lib/folder-sheet-actions';
+import { compactSharedTree, type CompactMailboxNode } from '../lib/compact-shared-mailbox';
+import { useNetworkStore } from '../stores/network-store';
 import { unreadRowLabel } from '../lib/unread-row-label';
 
 const CHEVRON_SLOT = 20;
@@ -247,10 +250,12 @@ interface SheetAction {
   label: string;
   icon: AppIcon;
   destructive?: boolean;
+  /** Greyed out: nothing to do (no unread mail) or no connection. */
+  disabled?: boolean;
   onPress: () => void;
 }
 
-function ActionSheet({ title, actions, onClose }: { title: string; actions: SheetAction[]; onClose: () => void }) {
+function ActionSheet({ title, note, actions, onClose }: { title: string; note?: string; actions: SheetAction[]; onClose: () => void }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   // The Modal reaches under a tablet's taskbar: keep the last action above it.
@@ -260,13 +265,16 @@ function ActionSheet({ title, actions, onClose }: { title: string; actions: Shee
       <Pressable style={styles.sheetOverlay} onPress={onClose} />
       <View style={[styles.sheet, { paddingBottom: spacing.xl + bottomInset }]}>
         <Text style={styles.sheetTitle} numberOfLines={1}>{title}</Text>
+        {note && <Text style={[styles.sheetRowText, { paddingHorizontal: spacing.lg, color: c.textMuted }]}>{note}</Text>}
         {actions.map((a) => {
           const Icon = a.icon;
           return (
             <Pressable
               key={a.key}
+              disabled={a.disabled}
+              accessibilityState={{ disabled: !!a.disabled }}
               onPress={() => { onClose(); a.onPress(); }}
-              style={({ pressed }) => [styles.sheetRow, pressed && styles.rowPressed]}
+              style={({ pressed }) => [styles.sheetRow, pressed && styles.rowPressed, a.disabled && { opacity: 0.4 }]}
             >
               <Icon size={16} color={a.destructive ? c.error : c.textSecondary} />
               <Text style={[styles.sheetRowText, a.destructive && { color: c.error }]}>{a.label}</Text>
@@ -385,7 +393,11 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   // "Show all (N)": the tags the visibility settings hide, for now.
   const [showAllTags, setShowAllTags] = React.useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = React.useState(false);
-  const [sheet, setSheet] = React.useState<{ title: string; actions: SheetAction[] } | null>(null);
+  const [sheet, setSheet] = React.useState<{ title: string; note?: string; actions: SheetAction[] } | null>(null);
+  // Folder actions greyed out offline, under this note (webmail f92b7d942).
+  const offlineNote = () => (useNetworkStore.getState().online
+    ? undefined
+    : t('menuAudit.offline_header', "You're offline. Some actions need a connection."));
   const [prompt, setPrompt] = React.useState<{
     title: string; message?: string; initial?: string; confirmLabel: string; onSubmit: (v: string) => void;
   } | null>(null);
@@ -454,15 +466,17 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
       } catch { /* ignore */ }
     }, () => undefined);
   }, []);
-  const tree = React.useMemo(() => {
+  // "Compact shared mailboxes" (webmail #1483): a shared account as its Inbox's row.
+  const compactShared = useSettingsStore((s) => s.compactSharedMailboxes);
+  const tree = React.useMemo<CompactMailboxNode[]>(() => {
     const built = buildMailboxTree(mailboxes, { hideOwnRoles });
     const shared = built.filter((n) => n.isAccountNode);
-    if (shared.length < 2) return built;
-    return [
+    const ordered = shared.length < 2 ? built : [
       ...built.filter((n) => !n.isAccountNode),
       ...sortSharedMailAccounts(shared, sharedMailOrderIds(sharedOrder, activeAccountId)),
     ];
-  }, [mailboxes, hideOwnRoles, sharedOrder, activeAccountId]);
+    return compactShared ? compactSharedTree(ordered) : ordered;
+  }, [mailboxes, hideOwnRoles, sharedOrder, activeAccountId, compactShared]);
   const moveSharedAccount = (accountId: string, delta: -1 | 1) => {
     if (!activeAccountId) return;
     const current = tree.filter((n) => n.isAccountNode && n.accountId).map((n) => n.accountId!);
@@ -757,7 +771,16 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
         ),
       });
     }
-    setSheet({ title: name, actions });
+    setSheet({
+      title: name,
+      note: offlineNote(),
+      actions: gateFolderActions(actions, {
+        offline: !useNetworkStore.getState().online,
+        unreadHere: mb.unreadEmails,
+        unreadBelow: unreadInTree(mb, mailboxes),
+        unreadAll: ownMailboxes(mailboxes).reduce((n, m) => n + (m.unreadEmails ?? 0), 0),
+      }),
+    });
   };
   const openSharedAccountSheet = (node: MailboxNode) => {
     const accountId = node.accountId;
@@ -808,7 +831,14 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
         }),
       });
     }
-    setSheet({ title: node.name, actions });
+    setSheet({
+      title: node.name,
+      note: offlineNote(),
+      actions: gateFolderActions(actions, {
+        offline: !useNetworkStore.getState().online,
+        unreadHere: mailboxes.filter((m) => m.isShared && m.accountId === accountId).reduce((n, m) => n + (m.unreadEmails ?? 0), 0),
+      }),
+    });
   };
 
   // ── Unified rows ──────────────────────────────────────────────────────
@@ -1289,7 +1319,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                         color={node.isAccountNode ? c.textMuted : iconColor(c, node.role, isSelected)}
                       />
                     }
-                    label={node.isAccountNode ? node.name : localizeMailboxName(node.role, node.name, t)}
+                    label={node.isAccountNode ? node.name : (node as CompactMailboxNode).compactAccountName ?? localizeMailboxName(node.role, node.name, t)}
                     depth={node.depth}
                     isSelected={isSelected}
                     isAccountHeader={node.isAccountNode}
@@ -1379,7 +1409,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     return (
       <View style={styles.docked}>
         {panel}
-        {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
+        {sheet && <ActionSheet title={sheet.title} note={sheet.note} actions={sheet.actions} onClose={() => setSheet(null)} />}
         {prompt && (
           <NamePrompt
             title={prompt.title}
@@ -1415,7 +1445,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
         {panel}
       </Animated.View>
 
-      {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
+      {sheet && <ActionSheet title={sheet.title} note={sheet.note} actions={sheet.actions} onClose={() => setSheet(null)} />}
       {prompt && (
         <NamePrompt
           title={prompt.title}

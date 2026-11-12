@@ -228,6 +228,9 @@ export interface PersistedSettings {
   // Offer the one-time code of a sign-in mail as a copy chip in the list
   // (for a day) and in the reader.
   showVerificationCodes: boolean;
+  // The attached files under each list row (webmail showAttachmentChips,
+  // #1604). The paperclip and the verification code chip show either way.
+  showAttachmentChips: boolean;
   emailsPerPage: number;
   // Mail list sort order: oldest-first when true. Applies to every mailbox
   // (the JMAP Email/query sorts by receivedAt).
@@ -242,9 +245,15 @@ export interface PersistedSettings {
   showAvatarsInJunk: boolean;
   // Show the "/ total" part of the folder counts in the drawer (#498).
   showFolderTotalCount: boolean;
+  // A shared account with an Inbox as one row in the drawer (webmail
+  // compactSharedMailboxes, #1483).
+  compactSharedMailboxes: boolean;
   // Opening a folder drops an active search and filters and browses it,
   // instead of re-running the search there (#553, the default).
   clearSearchOnFolderChange: boolean;
+  // "Search in": where a new search looks, all folders (but Spam and Trash)
+  // or only the open one (webmail searchDefaultScope, #1485).
+  searchDefaultScope: 'all' | 'folder';
   // Unified views span every logged-in account instead of just the active
   // one (own + its shared/group folders). Off by default like the webmail.
   unifiedCrossAccount: boolean;
@@ -459,6 +468,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   permanentlyDeleteJunk: false,
   showPreview: true,
   showVerificationCodes: true,
+  showAttachmentChips: true,
   emailsPerPage: 25,
   mailSortAscending: false,
   disableThreading: false,
@@ -466,7 +476,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   messageListOrderScope: 'inbox',
   showAvatarsInJunk: false,
   showFolderTotalCount: true,
+  compactSharedMailboxes: false,
   clearSearchOnFolderChange: false,
+  searchDefaultScope: 'all',
   unifiedCrossAccount: false,
   enableCrossUnreadView: false,
   enableCrossStarredView: false,

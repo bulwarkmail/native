@@ -34,7 +34,8 @@ describe('archive gate wiring', () => {
     expect(src).not.toMatch(/normalizeBottomQuickActions\(bottomQuickActionsRaw\)/);
     // canArchive feeds the toolbar button, the quick action, the more menu
     // and the after-export move.
-    expect(src).toMatch(/const canArchive = archiveEnabled && !!archiveMailbox/);
+    // Without an Archive folder it is still offered: the store makes one (#1176).
+    expect(src).toMatch(/const canArchive = archiveEnabled && \(!archiveMailbox \|\| sourceMailbox\?\.id !== archiveMailbox\.id\);/);
   });
 
   it('offers no move to archive after an export', () => {

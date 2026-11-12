@@ -34,11 +34,19 @@ describe('avatar initials colour', () => {
       const ink = parseColor(initialsColor(`hsl(${h}, 70%, 50%)`))!;
       expect(contrast(hsl(h), ink), `hue ${h}`).toBeGreaterThanOrEqual(4.5);
     }
-    expect(generateEmailAvatarColor('Ann')).toMatch(/^hsl\(\d+, 70%, 50%\)$/);
+  });
+
+  it('reaches 4.5:1 on every colour an avatar is given', () => {
+    for (let i = 0; i < 500; i++) {
+      const bg = generateEmailAvatarColor('', `person${i}@example.org`);
+      expect(contrast(parseColor(bg)!, parseColor(initialsColor(bg))!), bg).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it('is what the sender avatar draws its initials in', () => {
     const src = fs.readFileSync(path.resolve(__dirname, '../../components/SenderAvatar.tsx'), 'utf8');
     expect(src).toMatch(/color: initialsColor\(bgColor\)/);
+    // A signed-in account's own address keeps its switcher colour.
+    expect(src).toMatch(/const bgColor = accountColor \?\? generateEmailAvatarColor\(primaryName, email \?\? undefined\);/);
   });
 });

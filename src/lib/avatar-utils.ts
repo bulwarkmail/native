@@ -39,14 +39,53 @@ export function getAccountInitials(name: string, email?: string): string {
 
 // --- Email-row avatar -----------------------------------------------------
 
+// A display name that is only an address, as many headers and contacts have.
+function isAddress(value: string): boolean {
+  const v = value.trim();
+  return v.includes('@') && !/\s/.test(v);
+}
+
+/**
+ * The background behind the initials: picked from the address, so a person
+ * has one colour whether or not a place knows their name, and the same one
+ * the account switcher gives a signed-in account. Only without an address
+ * does the name pick it (webmail components/ui/avatar.tsx avatarColor,
+ * e2b383bd2, #1581).
+ */
 export function generateEmailAvatarColor(name: string, email?: string): string {
-  const str = name || email || '';
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  const key = email?.trim().toLowerCase() || (name && isAddress(name) ? name.trim().toLowerCase() : name?.trim()) || '';
+  return generateAvatarColor(key);
+}
+
+// An unspaced Han-character name is usually surname + given name. Compound
+// surnames take two characters, so the given name of 司马光 starts at the
+// third character, not the second.
+const HAN_CHAR = /\p{Script=Han}/u;
+const COMPOUND_SURNAMES = new Set([
+  '欧阳', '司马', '上官', '诸葛', '东方', '独孤', '南宫', '万俟', '闻人',
+  '夏侯', '令狐', '尉迟', '公孙', '长孙', '慕容', '司徒', '司空', '皇甫',
+  '宇文', '呼延', '端木', '申屠', '公冶', '太叔', '西门', '鲜于', '闾丘',
+  '轩辕', '百里', '拓跋', '澹台', '谷梁',
+]);
+
+/**
+ * The given-name initials of an all-Han name, which is written without
+ * spaces: 王阳明 → 阳明, 陈阳 → 陈阳, 司马光 → 光. Two characters are the
+ * whole name, three are surname + given name, four only with a known
+ * compound surname; anything longer, mixed, Latin or kana keeps the Western
+ * rule (webmail hanGivenName, dde5bbf5a). Hangul is not Han script.
+ */
+function hanGivenName(name: string): string | null {
+  const compact = name.replace(/\s+/g, '');
+  if (compact.length < 2) return null;
+  for (const ch of compact) {
+    if (!HAN_CHAR.test(ch)) return null;
   }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 70%, 50%)`;
+  if (compact.length === 2) return compact;
+  const compound = COMPOUND_SURNAMES.has(compact.slice(0, 2));
+  if (compact.length === 3) return compound ? compact.slice(2, 3) : compact.slice(1, 3);
+  if (compact.length === 4 && compound) return compact.slice(2, 4);
+  return null;
 }
 
 /** `hsl(h, s%, l%)` as RGB; null for anything else. */
@@ -88,26 +127,31 @@ export function initialsColor(background: string): string {
 }
 
 /**
- * Initials as the webmail's `Avatar` (components/ui/avatar.tsx) works them
- * out: the first letters of the first and last name part, ignoring
- * punctuation and symbols in front of a part (`"Sofia" Russo` is SR), two
- * letters of a single part, else the first letter of the address.
+ * The letters shown when an avatar has no picture, as the webmail's
+ * avatarInitials (components/ui/avatar.tsx, #1581): every avatar takes them
+ * from here, so one person gets the same letters everywhere. A name gives
+ * its first and last word's first letters (punctuation in front of a word
+ * skipped: `"Sofia" Russo` is SR), or the first two letters of a single
+ * word; an all-Han name its given name. Without a real name, the part of the
+ * address before the @ is read as one, split at dots, dashes, underscores
+ * and plus signs: "max.mustermann@" gives "MM", "xaver@" gives "XA".
  */
 export function getEmailInitials(name: string, email?: string): string {
-  if (name) {
-    const parts = name
-      .trim()
-      .split(/\s+/)
-      .map((p) => p.replace(/^[^\p{L}\p{N}]+/u, ''))
-      .filter((p) => p.length > 0);
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return name.slice(0, 2).toUpperCase();
+  const realName = name && !isAddress(name) ? name.trim() : '';
+  const address = email?.trim() || (name && isAddress(name) ? name.trim() : '');
+  const source = realName || (address.split('@')[0] ?? '').split(/[._+-]+/).filter(Boolean).join(' ');
+  if (!source) return '?';
+  const han = hanGivenName(source);
+  if (han) return han;
+  const parts = source
+    .split(/\s+/)
+    .map((p) => p.replace(/^[^\p{L}\p{N}]+/u, ''))
+    .filter((p) => p.length > 0);
+  if (parts.length >= 2) {
+    return `${Array.from(parts[0])[0]}${Array.from(parts[parts.length - 1])[0]}`.toUpperCase();
   }
-  if (email) return email[0]?.toUpperCase() ?? '?';
-  return '?';
+  if (parts.length === 1) return Array.from(parts[0]).slice(0, 2).join('').toUpperCase();
+  return Array.from(source).slice(0, 2).join('').toUpperCase();
 }
 
 // --- Favicon lookup -------------------------------------------------------

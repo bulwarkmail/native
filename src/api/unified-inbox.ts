@@ -604,6 +604,71 @@ export async function deleteUnifiedEmails(
   return { destroyed, trashed };
 }
 
+/**
+ * Empties the Trash or Junk of every account the unified view covers (its
+ * own folder, and the group accounts' with `includeGroup`), as the webmail's
+ * All Trash and All Junk menu does (#1540). Each folder is read in pages and
+ * destroyed in chunks; an account that fails is counted and skipped.
+ */
+/**
+ * Destroys every message of one folder through `post`: a query of up to
+ * `chunk` ids and an Email/set destroying them, in one request, until the
+ * folder is empty. Resolves to how many went.
+ */
+export async function destroyFolderContents(
+  post: (calls: [string, Record<string, unknown>, string][]) => Promise<MethodResponses>,
+  jmapAccountId: string,
+  mailboxId: string,
+  chunk = 500,
+): Promise<number> {
+  let destroyed = 0;
+  for (;;) {
+    const res = await post([
+      ['Email/query', { accountId: jmapAccountId, filter: { inMailbox: mailboxId }, limit: chunk }, 'q'],
+      ['Email/set', { accountId: jmapAccountId, '#destroy': { resultOf: 'q', name: 'Email/query', path: '/ids' } }, 's'],
+    ]);
+    const query = res.find(([, , id]) => id === 'q');
+    const set = res.find(([, , id]) => id === 's');
+    if (query?.[0] !== 'Email/query' || set?.[0] !== 'Email/set') {
+      throw new Error(set?.[1]?.description || query?.[1]?.description || 'Emptying failed');
+    }
+    const ids = (query[1].ids as string[] | undefined) ?? [];
+    const gone = ((set[1].destroyed as string[] | undefined) ?? []).length;
+    destroyed += gone;
+    if (ids.length < chunk || gone === 0) return destroyed;
+  }
+}
+
+export async function emptyUnifiedRole(
+  accountIds: string[],
+  role: 'trash' | 'junk',
+  opts: { includeGroup?: boolean } = {},
+): Promise<{ destroyed: number; failed: number }> {
+  let destroyed = 0;
+  let failed = 0;
+  for (const accountId of accountIds) {
+    let entry: AccountEntry;
+    try {
+      entry = await entryFor(accountId);
+    } catch {
+      failed += 1;
+      continue;
+    }
+    const jmapIds = [entry.primaryJmapId, ...(opts.includeGroup ? entry.shared.map((a) => a.id) : [])];
+    for (const jmapAccountId of jmapIds) {
+      try {
+        const box = findByRole(await mailboxesFor(entry, jmapAccountId, true), role);
+        if (!box) continue;
+        destroyed += await destroyFolderContents((calls) => entry.transport.post(calls), jmapAccountId, box.id);
+      } catch {
+        failed += 1;
+      }
+    }
+    entry.mailboxes.clear();
+  }
+  return { destroyed, failed };
+}
+
 /** Whether a message sits in its account's Trash (drives the permanent-delete confirm). */
 export function isInUnifiedTrash(email: UnifiedEmail): boolean {
   const entry = entries.get(email.sourceAccountId);

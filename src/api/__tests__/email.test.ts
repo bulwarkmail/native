@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock the jmap-client module
 vi.mock('../jmap-client', () => ({
@@ -17,8 +17,10 @@ vi.mock('../jmap-client', () => ({
 }));
 
 import { jmapClient } from '../jmap-client';
+import type { JMAPMethodCall } from '../types';
 import {
   getMailboxes,
+  getMailboxesWithState,
   getSharedMailboxes,
   queryEmails,
   queryEmailPage,
@@ -152,6 +154,120 @@ describe('email operations', () => {
       expect(mockRequest).toHaveBeenCalledTimes(2);
       expect(mockRequest.mock.calls[0][0]).toHaveLength(2);
       expect(mockRequest.mock.calls[1][0]).toHaveLength(1);
+    });
+  });
+
+  // #1502: Mailbox/get without ids over maxObjectsInGet is cut on 0.16 and
+  // refused with requestTooLarge on 1.0.
+  describe('folder lists over the get limit', () => {
+    const mockMaxGet = jmapClient.getMaxObjectsInGet as ReturnType<typeof vi.fn>;
+    const mockMaxCalls = jmapClient.getMaxCallsInRequest as ReturnType<typeof vi.fn>;
+    const mockShared = jmapClient.getSharedMailAccounts as ReturnType<typeof vi.fn>;
+    const folders = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `mb-${i}`, name: `Folder ${i}` }));
+
+    /** A server with `all` folders that caps a get without ids at `cap` the 0.16 or 1.0 way. */
+    function fakeServer(all: ReturnType<typeof folders>, cap: number, mode: '0.16' | '1.0', states: string[] = ['s1']) {
+      let gets = 0;
+      mockRequest.mockImplementation(async (calls: [string, Record<string, any>, string][]) => {
+        const out: unknown[] = [];
+        let lastIds: string[] = [];
+        for (const [name, args, callId] of calls) {
+          if (name === 'Mailbox/query') {
+            const position = args.position ?? 0;
+            lastIds = all.slice(position, position + args.limit).map((m) => m.id);
+            out.push(['Mailbox/query', { ids: lastIds, queryState: 'q1', position, ...(args.calculateTotal ? { total: all.length } : {}) }, callId]);
+          } else if (name === 'Mailbox/get') {
+            const ids: string[] | undefined = args['#ids'] ? lastIds : args.ids;
+            const state = states[Math.min(gets++, states.length - 1)];
+            if (!ids) {
+              if (all.length > cap) {
+                out.push(mode === '1.0'
+                  ? ['error', { type: 'requestTooLarge' }, callId]
+                  : ['Mailbox/get', { list: all.slice(0, cap), state }, callId]);
+              } else {
+                out.push(['Mailbox/get', { list: all, state }, callId]);
+              }
+            } else {
+              out.push(['Mailbox/get', { list: all.filter((m) => ids.includes(m.id)), notFound: [], state }, callId]);
+            }
+          }
+        }
+        return { methodResponses: out };
+      });
+    }
+
+    it.each(['0.16', '1.0'] as const)('pages through Mailbox/query on Stalwart %s and returns every folder', async (mode) => {
+      mockMaxGet.mockReturnValue(4);
+      mockMaxCalls.mockReturnValue(16);
+      fakeServer(folders(10), 4, mode);
+
+      const { list, state } = await getMailboxesWithState();
+
+      expect(list.map((m) => m.id)).toEqual(folders(10).map((m) => m.id));
+      expect(state).toBe('s1');
+      const queries = mockRequest.mock.calls.flatMap(([calls]) => calls).filter(([n]: JMAPMethodCall) => n === 'Mailbox/query');
+      expect(queries.map(([, a]: JMAPMethodCall) => a.position)).toEqual([0, 4, 8]);
+    });
+
+    it('asks for each page by id on a server that takes one call per request', async () => {
+      mockMaxGet.mockReturnValue(4);
+      mockMaxCalls.mockReturnValue(1);
+      fakeServer(folders(6), 4, '1.0');
+
+      const { list } = await getMailboxesWithState();
+
+      expect(list).toHaveLength(6);
+      for (const [calls] of mockRequest.mock.calls) expect(calls).toHaveLength(1);
+    });
+
+    it('starts again when the folder state moves mid-load', async () => {
+      mockMaxGet.mockReturnValue(4);
+      mockMaxCalls.mockReturnValue(16);
+      // The first get (capped) and the first page see s1, the second page s2,
+      // then the retry sees s2 throughout.
+      fakeServer(folders(6), 4, '0.16', ['s1', 's1', 's2', 's2']);
+
+      const { list, state } = await getMailboxesWithState();
+
+      expect(list).toHaveLength(6);
+      expect(state).toBe('s2');
+    });
+
+    it('keeps the single get below the limit', async () => {
+      mockMaxGet.mockReturnValue(4);
+      mockMaxCalls.mockReturnValue(16);
+      fakeServer(folders(3), 4, '1.0');
+
+      expect((await getMailboxesWithState()).list).toHaveLength(3);
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('pages a shared account whose folder list is over the limit', async () => {
+      mockMaxGet.mockReturnValue(4);
+      mockMaxCalls.mockReturnValue(16);
+      mockShared.mockReturnValue([{ id: 'grp-1', name: 'Support' }]);
+      fakeServer(folders(9), 4, '1.0');
+
+      const result = await getSharedMailboxes();
+
+      expect(result.map((m) => m.id)).toEqual(folders(9).map((m) => `grp-1:${m.id}`));
+      mockShared.mockReturnValue([]);
+    });
+
+    it('also reads a cut 0.16 list of a shared account to the end', async () => {
+      mockMaxGet.mockReturnValue(4);
+      mockMaxCalls.mockReturnValue(16);
+      mockShared.mockReturnValue([{ id: 'grp-1', name: 'Support' }]);
+      fakeServer(folders(5), 4, '0.16');
+
+      expect(await getSharedMailboxes()).toHaveLength(5);
+      mockShared.mockReturnValue([]);
+    });
+
+    afterEach(() => {
+      mockMaxGet.mockReturnValue(500);
+      mockMaxCalls.mockReturnValue(16);
+      mockRequest.mockReset();
     });
   });
 

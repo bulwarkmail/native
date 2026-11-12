@@ -732,6 +732,8 @@ async function showLookupFailedNotification(
 }
 
 function hslToHex(hsl: string): string {
+  // The avatar colours are hex now (avatar-utils generateEmailAvatarColor).
+  if (/^#[0-9a-f]{6}$/i.test(hsl)) return hsl;
   const match = hsl.match(/hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)/);
   if (!match) return '#2563eb';
   const h = Number(match[1]);

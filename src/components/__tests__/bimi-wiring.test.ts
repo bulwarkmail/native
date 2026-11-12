@@ -13,19 +13,19 @@ const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', '..'
 describe('BIMI logo wiring', () => {
   it('gives list rows the brand domain, none on rows that show the recipient', () => {
     const src = read('screens/EmailListScreen.tsx');
-    expect(src).toMatch(/const brandDomain = React\.useMemo\(\(\) => \(showRecipient \? undefined : brandIndicatorDomain\(item\)\), \[showRecipient, item\]\);/);
+    expect(src).toMatch(/\(\) => \(showRecipient \? undefined : brandIndicatorDomain\(item, internalDomains\)\),\s*\[showRecipient, item, internalDomains\],/);
     expect(src).toMatch(/senderWarning=\{senderWarning\}\s+brandDomain=\{brandDomain\}/);
   });
 
   it('gives unified inbox rows the brand domain', () => {
     const src = read('screens/UnifiedInboxScreen.tsx');
-    expect(src).toMatch(/brandDomain=\{showRecipient \? undefined : brandIndicatorDomain\(item\)\}/);
+    expect(src).toMatch(/brandDomain=\{showRecipient \? undefined : brandIndicatorDomain\(item, internalDomains\)\}/);
   });
 
   it('gives the reader header and collapsed thread cards the brand domain', () => {
-    expect(read('components/email/MessageHeader.tsx')).toMatch(/brandDomain=\{brandIndicatorDomain\(email\)\}/);
+    expect(read('components/email/MessageHeader.tsx')).toMatch(/brandDomain=\{brandIndicatorDomain\(email, internalDomains\)\}/);
     expect(read('components/email/ThreadMessageCard.tsx')).toMatch(
-      /<SenderAvatar [^>]*brandDomain=\{brandIndicatorDomain\(email\)\}/,
+      /<SenderAvatar [^>]*brandDomain=\{brandIndicatorDomain\(email, internalDomains\)\}/,
     );
   });
 

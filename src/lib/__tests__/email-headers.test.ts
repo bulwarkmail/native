@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  srsOriginalDomain,
   parseAuthenticationResults, parseSpamScore, parseSpamLLM, extractListHeaders,
   isAuthenticationSpoofed, headersToRecord, deriveHeaderInfo, deliveryDeltaMs, formatDelta,
   findReceivingIdentity, getSenderVerification, hasAlignedAuthenticationPass,
@@ -89,8 +90,9 @@ describe('getSenderVerification', () => {
     const from = 'noreply@example.org';
     expect(getSenderVerification(parseAuthenticationResults('mx.example.net; dkim=pass header.i=@example.org'), from)).toBeNull();
     expect(getSenderVerification(parseAuthenticationResults('mx; dkim=pass header.i=bounce@mail.example.org'), from)).toBeNull();
+    // The passing signature names the sender (#1542).
     expect(getSenderVerification(parseAuthenticationResults('mx; dkim=pass header.i=@other.example'), from))
-      .toEqual({ status: 'unverified', domain: 'example.org' });
+      .toEqual({ status: 'unverified', domain: 'example.org', sentFrom: 'other.example' });
     // header.d still wins when both are there.
     expect(parseAuthenticationResults('mx; dkim=pass header.d=a.example header.i=@b.example').dkim?.domain).toBe('a.example');
   });
@@ -236,5 +238,34 @@ describe('describeSenderVerification / senderVerificationOf', () => {
     };
     expect(senderVerificationOf(genuine)).toBeNull();
     expect(senderVerificationOf({ from: [{ email: 'a@b.example' }], headers: [] })).toBeNull();
+  });
+});
+// The unverified-sender notice named the forwarder (ik2.com) instead of the
+// original sender (webmail #1542): a passing DKIM domain first, else the
+// MAIL FROM with an SRS rewrite decoded.
+describe('sender verification of forwarded mail (#1542)', () => {
+  it('names the original sender, not the SRS forwarder', () => {
+    const forwarded = parseAuthenticationResults(
+      'mail1.guise.net.nz;\r\n\tdkim=pass header.d=sendgrid.net header.s=smtpapi header.b=WrL9Wlof;\r\n\tspf=none (mail1.guise.net.nz: no SPF records found for postmaster@s480g.ik2.com) smtp.helo=s480g.ik2.com;\r\n\tspf=pass (mail1.guise.net.nz: domain of SRS0XWhZIZsendgrid.netbounces+8061082-df95-aaronguise.net.nz@ik2.com designates 64.38.239.86 as permitted sender) smtp.mailfrom="SRS0=XWhZ=IZ=sendgrid.net=bounces+8061082-df95-aaron=guise.net.nz@ik2.com";\r\n\tiprev=pass policy.iprev=64.38.239.86;\r\n\tdmarc=none header.from=libraries.io policy.dmarc=none',
+    );
+    expect(getSenderVerification(forwarded, 'notifications@libraries.io')).toEqual({
+      status: 'unverified',
+      domain: 'libraries.io',
+      sentFrom: 'sendgrid.net',
+    });
+
+    // Without a DKIM pass, the SRS envelope itself is decoded (SRS0 and SRS1).
+    const from = 'notifications@libraries.io';
+    expect(getSenderVerification(
+      parseAuthenticationResults('mx; spf=pass smtp.mailfrom="SRS0=XWhZ=IZ=sendgrid.net=bounces+1-aaron=guise.net.nz@ik2.com"; dmarc=none header.from=libraries.io'),
+      from,
+    )?.sentFrom).toBe('sendgrid.net');
+    expect(getSenderVerification(
+      parseAuthenticationResults('mx; spf=pass smtp.mailfrom="SRS1=Ab12=fwd1.example==XWhZ=IZ=sendgrid.net=bounces+1-a=b.example@fwd2.example"; dmarc=none header.from=libraries.io'),
+      from,
+    )?.sentFrom).toBe('sendgrid.net');
+    // An address that only looks like SRS stays as it is.
+    expect(srsOriginalDomain('SRS0=x@fwd.example')).toBeUndefined();
+    expect(srsOriginalDomain('bounce@fwd.example')).toBeUndefined();
   });
 });

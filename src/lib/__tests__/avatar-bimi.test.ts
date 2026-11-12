@@ -10,6 +10,7 @@ import {
   showBrandLogo,
 } from '../avatar-bimi';
 import { avatarContent } from '../avatar-utils';
+import { internalMailDomains, policyInternalDomains } from '../avatar-internal-domains';
 import { LIST_AUTH_RESULTS_PROPERTY } from '../email-headers';
 import type { Email } from '../../api/types';
 
@@ -31,6 +32,36 @@ function row(auth?: string[], from = 'billing@bank.example'): Email {
 }
 
 beforeEach(() => resetBrandLogosForTests());
+
+// Mail handed in on the same server has no Authentication-Results, so mail
+// between the organisation's own domains never showed its logo (webmail
+// 531358eb3).
+describe("brandIndicatorDomain for mail between the organisation's domains", () => {
+  it('names an internal From domain of a message without any Authentication-Results', () => {
+    const internal = internalMailDomains(['me@bank.example', '*@Bänk.example'], ['corp.example']);
+    expect(internal).toEqual(['bank.example', 'xn--bnk-qla.example', 'corp.example']);
+    expect(brandIndicatorDomain(row(), internal)).toBe('bank.example');
+    expect(brandIndicatorDomain(row(undefined, 'hr@eu.corp.example'), internal)).toBe('eu.corp.example');
+    expect(brandIndicatorDomain(row(undefined, 'x@other.example'), internal)).toBeUndefined();
+    expect(brandIndicatorDomain(row(), [])).toBeUndefined();
+    // The same domain's mail from outside carries the header and still needs the pass.
+    expect(brandIndicatorDomain(row([NO_DMARC]), internal)).toBeUndefined();
+    expect(brandIndicatorDomain(row([FAIL]), internal)).toBeUndefined();
+  });
+
+  it("reads the admin's domains from the policy's external mail part", () => {
+    expect(policyInternalDomains({ externalMail: { domains: ['corp.example', 3] } })).toEqual(['corp.example']);
+    expect(policyInternalDomains(undefined)).toEqual([]);
+  });
+
+  it('is handed the internal domains wherever a sender avatar shows the logo', () => {
+    const src = (p: string) => fs.readFileSync(path.resolve(__dirname, '../..', p), 'utf8');
+    expect(src('screens/EmailListScreen.tsx')).toMatch(/brandIndicatorDomain\(item, internalDomains\)/);
+    expect(src('screens/UnifiedInboxScreen.tsx')).toMatch(/brandIndicatorDomain\(item, internalDomains\)/);
+    expect(src('components/email/MessageHeader.tsx')).toMatch(/brandIndicatorDomain\(email, internalDomains\)/);
+    expect(src('components/email/ThreadMessageCard.tsx')).toMatch(/brandIndicatorDomain\(email, internalDomains\)/);
+  });
+});
 
 describe('brandIndicatorDomain', () => {
   it('names the From domain of a message that passed DMARC for it, from the list property or the headers', () => {

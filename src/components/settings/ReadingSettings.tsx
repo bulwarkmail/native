@@ -37,7 +37,9 @@ export function ReadingSettings() {
   const permanentlyDeleteJunk = useSettingsStore((s) => s.permanentlyDeleteJunk);
   const showPreview = useSettingsStore((s) => s.showPreview);
   const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
+  const showAttachmentChips = useSettingsStore((s) => s.showAttachmentChips);
   const clearSearchOnFolderChange = useSettingsStore((s) => s.clearSearchOnFolderChange);
+  const searchDefaultScope = useSettingsStore((s) => s.searchDefaultScope);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
@@ -218,6 +220,18 @@ export function ReadingSettings() {
         <ToggleSwitch checked={clearSearchOnFolderChange} onChange={(v) => update('clearSearchOnFolderChange', v)} />
       </SettingItem>
 
+      <View style={styles.group}>
+        <SettingItem label={t('settings.email_behavior.search_default_scope.label', 'Search in')} description={t('settings.email_behavior.search_default_scope.description', 'Where a new search looks. You can still pick another folder in the search filters.')} noBorder />
+        <Select
+          value={searchDefaultScope}
+          onChange={(v) => update('searchDefaultScope', v === 'folder' ? 'folder' : 'all')}
+          options={[
+            { value: 'all', label: t('settings.email_behavior.search_default_scope.all', 'All folders except Spam and Trash') },
+            { value: 'folder', label: t('settings.email_behavior.search_default_scope.folder', 'The open folder') },
+          ]}
+        />
+      </View>
+
       {!showPreviewHidden && (
         <SettingItem label={t('settings.email_behavior.show_preview.label', "Show Preview Text")} description={t('settings.email_behavior.show_preview.description', "Display email preview in the list")} locked={showPreviewLocked}>
           <ToggleSwitch checked={showPreview} onChange={(v) => update('showPreview', v)} />
@@ -226,6 +240,10 @@ export function ReadingSettings() {
 
       <SettingItem label={t('settings.email_behavior.show_verification_codes.label', "Show Verification Codes")} description={t('settings.email_behavior.show_verification_codes.description', "Offer the code from sign-in and confirmation emails for one-click copying, in the list for a day and in the message")}>
         <ToggleSwitch checked={showVerificationCodes} onChange={(v) => update('showVerificationCodes', v)} />
+      </SettingItem>
+
+      <SettingItem label={t('settings.email_behavior.show_attachment_chips.label', 'Show attachments in the list')} description={t('settings.email_behavior.show_attachment_chips.description', 'Show attached files under each message, to open them from the list. The paperclip shows either way.')}>
+        <ToggleSwitch checked={showAttachmentChips} onChange={(v) => update('showAttachmentChips', v)} />
       </SettingItem>
 
       <SettingItem label={t('settings.email_behavior.disable_threading.label', "Disable Conversation Grouping")} description={t('settings.email_behavior.disable_threading.description', "Show emails as individual messages instead of grouped by conversation")}>

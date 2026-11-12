@@ -91,6 +91,9 @@ export function MessageContent({
   const calendarBannerShown = calendarBannerShownFor(email, calendarParsing);
   const from = email.from?.[0];
 
+  // The body reads as plain text (the setting or the per-message switch, as
+  // EmailBodyView decides): its inline images are nowhere else (#1614).
+  const plainTextMode = useSettingsStore((s) => s.plainTextMode);
   const chips = (
     <AttachmentChips
       email={email}
@@ -99,6 +102,7 @@ export function MessageContent({
       tnefUnpacked={unwrap.tnefUnpacked}
       extracted={extracted}
       hidePart={hidePart}
+      plainView={plainView ?? plainTextMode}
     />
   );
 

@@ -26,7 +26,7 @@ describe('nested tags and tag visibility on screen', () => {
     const source = read('components/settings/KeywordSettings.tsx');
     expect(source).toMatch(/settings\.keywords\.nesting\.label/);
     expect(source).toMatch(/onChange=\{setNested\}/);
-    expect(source).toMatch(/composeKeywordId\(parentId \|\| null, label\)/);
+    expect(source).toMatch(/chooseKeywordId\(parentId \|\| null, label, existingIds\)/);
     expect(source).toMatch(/updateKeyword\(kw\.id, \{ visibility: value as KeywordVisibility \}\)/);
   });
 

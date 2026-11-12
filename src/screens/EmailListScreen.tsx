@@ -34,6 +34,7 @@ import { showsPaperclip } from '../lib/list-attachments';
 import { VerificationCodeChip, useListVerificationCode } from '../components/email/VerificationCodeChip';
 import { useSenderWarning } from '../components/email/use-sender-warning';
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
+import { useInternalMailDomains } from '../lib/avatar-internal-domains';
 import type { LoadListAttachments } from '../lib/list-attachments';
 import { useNetworkStore } from '../stores/network-store';
 import {
@@ -84,6 +85,8 @@ import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
+import { listSenderMatches, mergePersonSuggestions } from '../lib/search-suggestions';
+import { loadTrashOrigins, restoreTargetForAll } from '../lib/trash-origin';
 import { usePendingMailFolder } from '../navigation/pending-mail-folder';
 import { resolveFolderRef } from '../lib/folder-ref';
 import type { Attachment, Email } from '../api/types';
@@ -229,8 +232,13 @@ const EmailRow = React.memo(function EmailRow({
   const attachments = useListAttachments(item, onOpenAttachment ? loadAttachments : undefined);
   // Sent and Drafts rows show the recipient: the check says nothing about them.
   const senderWarning = useSenderWarning(showRecipient ? undefined : item);
-  // The sender's BIMI logo, for a message that passed DMARC for its From domain.
-  const brandDomain = React.useMemo(() => (showRecipient ? undefined : brandIndicatorDomain(item)), [showRecipient, item]);
+  // The sender's BIMI logo, for a message that passed DMARC for its From
+  // domain or was handed in on the same server from one of the organisation's.
+  const internalDomains = useInternalMailDomains();
+  const brandDomain = React.useMemo(
+    () => (showRecipient ? undefined : brandIndicatorDomain(item, internalDomains)),
+    [showRecipient, item, internalDomains],
+  );
 
   return (
     <Pressable
@@ -287,6 +295,20 @@ const EmailRow = React.memo(function EmailRow({
             brandDomain={brandDomain}
           />
         </Pressable>
+      )}
+      {!density.showAvatar && !selectionMode && (
+        // Extra compact has no avatar: the row's left edge picks it instead.
+        <Pressable
+          onPress={handleLongPress}
+          style={styles.selectGutter}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: selected }}
+          accessibilityLabel={tr('email_list.batch_actions.select_row', 'Select {sender}: {subject}', {
+            sender: senderName,
+            subject: singleLine(item.subject) || tr('email_viewer.no_subject', '(No Subject)'),
+          })}
+          testID="email-row-select-gutter"
+        />
       )}
 
       {/* Content */}
@@ -570,6 +592,8 @@ export default function EmailListScreen({
   const swipeRightAction = swipeActionShown(useSettingsStore((s) => s.swipeRightAction), archiveEnabled);
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showPreview = useSettingsStore((s) => s.showPreview);
+  // Off: no chips and no loading of the rows' parts (webmail #1604).
+  const showAttachmentChips = useSettingsStore((s) => s.showAttachmentChips);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const sortAscending = useSettingsStore((s) => s.mailSortAscending);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
@@ -614,7 +638,9 @@ export default function EmailListScreen({
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   // A search started in Sent runs over every folder: each row names its
   // recipient only when it is in Sent or Drafts itself.
-  const rowScope = effectiveFolderScope(storeSearchQuery, filters, currentRole);
+  // "Search in" (#1485), subscribed so the rows and chips follow a change.
+  const searchDefaultScope = useSettingsStore((s) => s.searchDefaultScope);
+  const rowScope = effectiveFolderScope(storeSearchQuery, filters, currentRole, searchDefaultScope);
   const showRecipientFor = React.useCallback(
     (item: Email) => rowShowsRecipient(
       item.mailboxIds,
@@ -870,17 +896,13 @@ export default function EmailListScreen({
     if (!email || !currentMailboxId) return;
     switch (action) {
       case 'archive':
-        if (archiveMailboxId && currentMailboxId !== archiveMailboxId) {
+        // Without an Archive folder the store makes one (webmail #1176).
+        if (currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
           reportFailure(confirmMailRemoval('archive', ids.length, t).then((ok) => {
             if (!ok) return undefined;
             return ids.length > 1 ? archiveEmailsBatch(ids) : archiveEmailAction(id);
           }));
-        } else if (!archiveMailboxId) {
-          Alert.alert(
-            t('email_list.error', 'Error'),
-            t('email_list.no_archive_folder', 'Could not find an Archive folder on the server.'),
-          );
         }
         break;
       case 'delete':
@@ -957,8 +979,8 @@ export default function EmailListScreen({
           selectionMode={selectionMode}
           onPress={handleRowPress}
           onLongPress={toggleSelect}
-          loadAttachments={loadAttachments}
-          onOpenAttachment={openAttachment}
+          loadAttachments={showAttachmentChips ? loadAttachments : undefined}
+          onOpenAttachment={showAttachmentChips ? openAttachment : undefined}
         />
       );
     },
@@ -966,7 +988,7 @@ export default function EmailListScreen({
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipientFor, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
-      loadAttachments, openAttachment,
+      loadAttachments, openAttachment, showAttachmentChips,
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
@@ -1011,6 +1033,19 @@ export default function EmailListScreen({
     return emails.filter((e) => wanted.has(rowKeyOf(e)));
   }, [emails, selectedMessageIds]);
   const allSelectedAreRead = selectedEmails.length > 0 && selectedEmails.every((e) => !isUnread(e));
+  // Read and unread mail selected: offer both (webmail e8d8486b8).
+  const selectionMixedRead = !allSelectedAreRead && selectedEmails.some((e) => !isUnread(e));
+  const handleBulkSetRead = async (read: boolean) => {
+    try {
+      await setKeywordForEmails(selectedMessageIds, '$seen', read);
+      clearSelection();
+    } catch (err) {
+      reportKeywordFailure(t('notifications.error_updating', 'Failed to update email'), err);
+    }
+  };
+  // In Trash: Restore puts the selection back where this device saw it come
+  // from, else in the Inbox (lib/trash-origin.ts).
+  React.useEffect(() => { void loadTrashOrigins(); }, []);
   const allSelectedAreStarred = selectedEmails.length > 0 && selectedEmails.every((e) => isStarred(e));
 
   // One Email/set for the whole selection, not a request per message.
@@ -1072,7 +1107,7 @@ export default function EmailListScreen({
   };
 
   const canArchiveSelection =
-    archiveEnabled && archiveMailboxId != null && currentMailboxId !== archiveMailboxId;
+    archiveEnabled && currentMailboxId !== archiveMailboxId;
   const canSpamSelection =
     currentRole !== 'sent' && currentRole !== 'drafts' && (inJunk || junkMailboxId != null);
 
@@ -1135,8 +1170,20 @@ export default function EmailListScreen({
     if (query.trim()) submitSearch(query);
     else setTimeout(() => searchInputRef.current?.focus(), 300);
   }, [pendingSearch, submitSearch]);
+  // "Find mail" on an address: the mail from that sender, as picking them
+  // from the search suggestions does.
+  const pendingSender = usePendingMailSearch((s) => s.from);
+  React.useEffect(() => {
+    if (pendingSender === null) return;
+    const from = usePendingMailSearch.getState().consumeFrom();
+    if (!from) return;
+    setSearchInput('');
+    setSearchFocused(false);
+    setFilters({ ...useEmailStore.getState().filters, from });
+  }, [pendingSender, setFilters]);
   // People whose name/address matches what is being typed (#845); picking
-  // one turns the search into a `from:` filter like the webmail.
+  // one turns the search into a `from:` filter like the webmail. Then the
+  // senders of the mail on screen, read as typed (webmail 4c5f3d8f2).
   const contactSuggestions = React.useMemo(() => {
     const q = searchInput.trim().toLowerCase();
     if (q.length < 2) return [];
@@ -1153,7 +1200,7 @@ export default function EmailListScreen({
       }
       if (out.length >= 4) break;
     }
-    return out;
+    return mergePersonSuggestions(out, listSenderMatches(useEmailStore.getState().emails, q));
   }, [contacts, searchInput]);
 
   const activeFilterCount =
@@ -1190,7 +1237,7 @@ export default function EmailListScreen({
   }, [backStep, clearSelection, clearSearchAndFilters]);
   useBackWhileFocused(backStep !== 'leave', handleBack);
   const openRole = currentMailbox?.role;
-  const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole);
+  const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole, searchDefaultScope);
   // The default search scope leaves Spam and Trash out; "All folders" doesn't.
   const skipsTrashAndJunk = searchSkipsTrashAndJunk(storeSearchQuery, filters, openRole);
   // Accounts an "All folders" list could not reach (#1082).
@@ -1365,8 +1412,17 @@ export default function EmailListScreen({
 
   // The selection toolbar's actions, in bar order. What doesn't fit the
   // list column goes into a "More" menu, the least used first.
-  type SelectionAction = 'star' | 'read' | 'tag' | 'move' | 'spam' | 'archive' | 'delete';
+  type SelectionAction = 'restore' | 'star' | 'read' | 'unread' | 'tag' | 'move' | 'spam' | 'archive' | 'delete';
+  const restoreTo = currentRole === 'trash' && currentMailboxId && selectedEmails.length > 0
+    ? restoreTargetForAll(selectedEmails.map((e) => e.id), currentMailboxId, mailboxes)
+    : undefined;
   const selectionActions: Array<{ key: SelectionAction; label: string; icon: React.ReactNode; onPress: () => void }> = [
+    ...(restoreTo ? [{
+      key: 'restore' as const,
+      label: t('recover_deleted.restore', 'Restore'),
+      icon: <RotateCcw size={20} color={c.text} />,
+      onPress: () => handleBatchMovePick(restoreTo),
+    }] : []),
     {
       key: 'star',
       label: allSelectedAreStarred ? t('context_menu.unstar', 'Unstar') : t('context_menu.star', 'Star'),
@@ -1387,6 +1443,12 @@ export default function EmailListScreen({
       icon: allSelectedAreRead ? <MailIcon size={20} color={c.text} /> : <MailOpen size={20} color={c.text} />,
       onPress: () => reportFailure(handleBulkMarkReadToggle()),
     },
+    ...(selectionMixedRead ? [{
+      key: 'unread' as const,
+      label: t('email_list.batch_actions.mark_unread', 'Mark as unread'),
+      icon: <MailIcon size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkSetRead(false)),
+    }] : []),
     {
       key: 'tag',
       label: t('context_menu.tag', 'Tag'),
@@ -1423,7 +1485,7 @@ export default function EmailListScreen({
     // Padding (sm each side), the close button and the count (min 24 + xs each side).
     reserved: spacing.sm * 2 + componentSizes.buttonLg + 24 + spacing.xs * 2,
     button: componentSizes.buttonLg,
-    overflowOrder: ['spam', 'tag', 'star', 'read', 'move', 'archive', 'delete'],
+    overflowOrder: ['spam', 'tag', 'star', 'unread', 'read', 'move', 'restore', 'archive', 'delete'],
   });
 
   const renderSearchBar = (inHeader: boolean) => (
@@ -2335,6 +2397,7 @@ export default function EmailListScreen({
         keywords={folderKeywordDefs}
         selectedEmails={selectedEmails}
         onToggle={handleBatchTagToggle}
+        allowNewTag={!currentOwnerAccountId}
       />
     </View>
   );
@@ -2818,6 +2881,15 @@ function makeStyles(c: ThemePalette) {
     height: 8,
     borderRadius: 4,
     backgroundColor: c.unread,
+  },
+  // A strip over the row's left padding (extra compact, no avatar).
+  selectGutter: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: spacing.lg + spacing.sm,
+    zIndex: 1,
   },
   rowCheckboxWrap: {
     width: 16,
