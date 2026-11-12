@@ -333,7 +333,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Tasks
 
-- [ ] **A repeating task shows only once in the calendar, and checking it off completes the whole series** — `P2` — `bug`
+- [x] **A repeating task shows only once in the calendar, and checking it off completes the whole series** — `P2` — `bug` — fixed in 7dbf2908
   - What WEB does: expands repeating tasks in month, week and day, honours overrides, ticks one occurrence through recurrenceOverrides, and moves a series to its next due (or start) date when it is checked off; reads Stalwart's singular `recurrenceRule` for tasks (`lib/calendar-tasks.ts:51`, `:60`, `:126`, `stores/task-store.ts:249`). 7ee54fa10, dbdf9efed, 4049ad2a8, 57f294f01 (#1621).
   - What RN does: task chips drop the rules (`src/screens/CalendarScreen.tsx:344-366`, `recurrenceRules: undefined` at `:362`), and the tick sets `progress: completed` on the task itself (`src/stores/calendar-store.ts:1588-1605`), so a weekly task is gone for good after one tick. RN's getEvents already normalises recurrenceRule (`src/api/calendar.ts:989`).
   - Fix hint: port the occurrence expansion and the toggle logic from task-store, keeping RN's own `originalId` for shared tasks (the web's later seriesId fix).
