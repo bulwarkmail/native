@@ -1560,6 +1560,7 @@
       "events_on": "wydarzenia włączone",
       "files": "Widok, sortowanie, miniatury",
       "filters": "Reguły dla poczty przychodzącej",
+      "first_day": "{firstDay, plural, =0 {Niedziela} =6 {Sobota} other {Poniedziałek}}",
       "folders": "Tworzenie, zmiana nazw, role",
       "identities": "Adresy, z których wysyłasz",
       "keywords": "Nazwy i kolory etykiet",

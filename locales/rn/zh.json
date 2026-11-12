@@ -1559,6 +1559,7 @@
       "events_on": "活动已开启",
       "files": "视图、排序、缩略图",
       "filters": "收件规则",
+      "first_day": "{firstDay, plural, =0 {周日} =6 {周六} other {周一}}",
       "folders": "创建、重命名、角色",
       "identities": "用于发件的地址",
       "keywords": "标签名称和颜色",

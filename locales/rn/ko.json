@@ -1558,6 +1558,7 @@
       "events_on": "일정 켜짐",
       "files": "보기, 정렬, 미리보기 이미지",
       "filters": "받은 메일 규칙",
+      "first_day": "{firstDay, plural, =0 {일요일} =6 {토요일} other {월요일}}",
       "folders": "만들기, 이름 변경, 역할",
       "identities": "보내는 주소",
       "keywords": "태그 이름과 색상",

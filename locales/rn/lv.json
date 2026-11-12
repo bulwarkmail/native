@@ -1559,6 +1559,7 @@
       "events_on": "notikumi ieslēgti",
       "files": "Skats, kārtošana, sīktēli",
       "filters": "Noteikumi ienākošajam pastam",
+      "first_day": "{firstDay, plural, =0 {Svētdiena} =6 {Sestdiena} other {Pirmdiena}}",
       "folders": "Izveide, pārdēvēšana, lomas",
       "identities": "Adreses, no kurām sūtāt",
       "keywords": "Tagu nosaukumi un krāsas",

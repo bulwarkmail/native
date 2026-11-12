@@ -1557,6 +1557,7 @@
       "events_on": "begivenheder til",
       "files": "Visning, sortering, miniaturer",
       "filters": "Regler for indgående mail",
+      "first_day": "{firstDay, plural, =0 {Søndag} =6 {Lørdag} other {Mandag}}",
       "folders": "Opret, omdøb, roller",
       "identities": "Adresser, du sender fra",
       "keywords": "Tagnavne og farver",

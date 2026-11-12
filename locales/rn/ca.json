@@ -1560,6 +1560,7 @@
       "events_on": "esdeveniments activats",
       "files": "Visualització, ordenació, miniatures",
       "filters": "Regles per al correu entrant",
+      "first_day": "{firstDay, plural, =0 {Diumenge} =6 {Dissabte} other {Dilluns}}",
       "folders": "Crea, canvia el nom, rols",
       "identities": "Adreces des de les quals envieu",
       "keywords": "Noms i colors de les etiquetes",

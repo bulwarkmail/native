@@ -1564,6 +1564,7 @@
       "events_on": "événements activés",
       "files": "Affichage, tri, miniatures",
       "filters": "Règles pour les e-mails entrants",
+      "first_day": "{firstDay, plural, =0 {Dimanche} =6 {Samedi} other {Lundi}}",
       "folders": "Créer, renommer, rôles",
       "identities": "Adresses d'expédition",
       "keywords": "Noms et couleurs des étiquettes",

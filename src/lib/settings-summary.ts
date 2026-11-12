@@ -26,12 +26,6 @@ export interface SummaryState {
   update: 'none' | 'current' | 'available' | 'security';
 }
 
-const WEEKDAY: Record<0 | 1 | 6, [string, string]> = {
-  0: ['calendar.days.sunday', 'Sunday'],
-  1: ['calendar.days.monday', 'Monday'],
-  6: ['calendar.days.saturday', 'Saturday'],
-};
-
 const STATIC: Partial<Record<SettingsTabId, [string, string]>> = {
   accessibility: ['settings.summary.accessibility', 'Text size, motion, confirmations'],
   layout: ['settings.summary.layout', 'Quick actions, swipes, list order'],
@@ -76,11 +70,15 @@ export function settingsSummary(tab: SettingsTabId, s: SummaryState, t: T): stri
     case 'themes':
       return s.themeName ?? t('settings.themes.default_name', 'Bulwark');
     case 'calendar': {
-      const [dayKey, dayFallback] = WEEKDAY[s.calendarFirstDayOfWeek] ?? WEEKDAY[1];
       const view = s.calendarDefaultView;
+      // The weekday as it reads inside the sentence: lowercase in Dutch
+      // ("week begint op maandag"), where the day's own label is capitalised.
+      const day = t('settings.summary.first_day', '{firstDay, plural, =0 {Sunday} =6 {Saturday} other {Monday}}', {
+        firstDay: s.calendarFirstDayOfWeek,
+      });
       return [
         t(`calendar.views.${view}`, view[0].toUpperCase() + view.slice(1)),
-        t('settings.summary.week_starts', 'week starts {day}', { day: t(dayKey, dayFallback) }),
+        t('settings.summary.week_starts', 'week starts {day}', { day }),
       ].join(' · ');
     }
     case 'about_data':

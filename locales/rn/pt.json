@@ -1563,6 +1563,7 @@
       "events_on": "eventos ativados",
       "files": "Visualização, ordenação, miniaturas",
       "filters": "Regras para e-mails recebidos",
+      "first_day": "{firstDay, plural, =0 {Domingo} =6 {Sábado} other {Segunda-feira}}",
       "folders": "Criar, renomear, funções",
       "identities": "Endereços dos quais você envia",
       "keywords": "Nomes e cores das etiquetas",

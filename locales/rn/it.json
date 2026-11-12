@@ -1562,6 +1562,7 @@
       "events_on": "eventi attivi",
       "files": "Vista, ordinamento, miniature",
       "filters": "Regole per la posta in arrivo",
+      "first_day": "{firstDay, plural, =0 {Domenica} =6 {Sabato} other {Lunedì}}",
       "folders": "Crea, rinomina, ruoli",
       "identities": "Indirizzi da cui invii",
       "keywords": "Nomi e colori delle etichette",

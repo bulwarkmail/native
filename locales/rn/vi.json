@@ -1554,6 +1554,7 @@
       "events_on": "bật sự kiện",
       "files": "Chế độ xem, sắp xếp, hình thu nhỏ",
       "filters": "Quy tắc cho thư đến",
+      "first_day": "{firstDay, plural, =0 {Chủ nhật} =6 {Thứ Bảy} other {Thứ Hai}}",
       "folders": "Tạo, đổi tên, vai trò",
       "identities": "Các địa chỉ bạn gửi thư",
       "keywords": "Tên và màu thẻ",

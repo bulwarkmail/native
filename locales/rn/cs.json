@@ -1560,6 +1560,7 @@
       "events_on": "události zapnuty",
       "files": "Zobrazení, řazení, náhledy",
       "filters": "Pravidla pro příchozí poštu",
+      "first_day": "{firstDay, plural, =0 {Neděle} =6 {Sobota} other {Pondělí}}",
       "folders": "Vytvoření, přejmenování, role",
       "identities": "Adresy, ze kterých odesíláte",
       "keywords": "Názvy a barvy štítků",

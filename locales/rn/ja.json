@@ -1560,6 +1560,7 @@
       "events_on": "予定はオン",
       "files": "表示、並べ替え、サムネイル",
       "filters": "受信メールのルール",
+      "first_day": "{firstDay, plural, =0 {日曜日} =6 {土曜日} other {月曜日}}",
       "folders": "作成、名前変更、役割",
       "identities": "送信に使うアドレス",
       "keywords": "ラベルの名前と色",

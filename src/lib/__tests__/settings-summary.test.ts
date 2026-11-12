@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { settingsSummary, type SummaryState } from '../settings-summary';
 import { formatMessage, type MessageParams } from '../../i18n/format';
+import { translate, type LocaleCode } from '../../i18n';
 
 const t = (_key: string, fallback: string, params?: MessageParams) => formatMessage(fallback, params, 'en');
 
@@ -29,6 +30,16 @@ describe('settings list summaries', () => {
     expect(settingsSummary('notifications', BASE, t)).toBe('Mail on · events off');
     expect(settingsSummary('calendar', { ...BASE, calendarDefaultView: 'week', calendarFirstDayOfWeek: 0 }, t))
       .toBe('Week · week starts Sunday');
+  });
+
+  // Dutch read "week begint op Maandag": weekday names are lowercase in Dutch.
+  it('writes the first weekday as the language does inside a sentence', () => {
+    const tr = (locale: LocaleCode) => (key: string, fallback: string, params?: MessageParams) =>
+      translate(locale, key, fallback, params);
+    expect(settingsSummary('calendar', BASE, tr('nl'))).toBe('Maand · week begint op maandag');
+    expect(settingsSummary('calendar', { ...BASE, calendarFirstDayOfWeek: 6 }, tr('nl'))).toMatch(/op zaterdag$/);
+    expect(settingsSummary('calendar', { ...BASE, calendarFirstDayOfWeek: 0 }, tr('de'))).toMatch(/Sonntag$/);
+    expect(settingsSummary('calendar', BASE, tr('en'))).toBe('Month · week starts Monday');
   });
 
   it('describes offline mail on Storage & backup', () => {

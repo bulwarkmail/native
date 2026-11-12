@@ -1561,6 +1561,7 @@
       "events_on": "etkinlikler açık",
       "files": "Görünüm, sıralama, küçük resimler",
       "filters": "Gelen postalar için kurallar",
+      "first_day": "{firstDay, plural, =0 {Pazar} =6 {Cumartesi} other {Pazartesi}}",
       "folders": "Oluştur, yeniden adlandır, roller",
       "identities": "Gönderim yaptığınız adresler",
       "keywords": "Etiket adları ve renkleri",

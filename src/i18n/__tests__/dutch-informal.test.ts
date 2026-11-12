@@ -1,8 +1,12 @@
 // Dutch addresses the reader as "je", in one form throughout. The phone's
 // own strings mixed "u/uw" (about a third of them) with "je/jouw".
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+vi.mock('expo-localization', () => ({ getLocales: () => [] }));
+
+import { translate } from '../index';
 
 const NL = JSON.parse(readFileSync(join(__dirname, '..', '..', '..', 'locales', 'rn', 'nl.json'), 'utf8')) as Record<string, unknown>;
 
@@ -21,6 +25,13 @@ const FORMAL = /(?<!\}\s)\b(u|uw)\b/i;
 describe('Dutch phone strings', () => {
   it('say "je", not "u"', () => {
     expect(strings(NL).filter(([, text]) => FORMAL.test(text)).map(([key]) => key)).toEqual([]);
+  });
+
+  // The webmail's Dutch catalog says "Beheer uw wachtwoord" on the Security page.
+  it('say "je" on the Security page, over the webmail catalog', () => {
+    const text = translate('nl', 'settings.security.description');
+    expect(text).toMatch(/\bje\b/);
+    expect(FORMAL.test(text)).toBe(false);
   });
 
   it('still read "u" after a number as hours', () => {

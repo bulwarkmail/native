@@ -1554,6 +1554,7 @@
       "events_on": "hendingar på",
       "files": "Vising, sortering, miniatyrbilete",
       "filters": "Reglar for innkomande e-post",
+      "first_day": "{firstDay, plural, =0 {Søndag} =6 {Laurdag} other {Måndag}}",
       "folders": "Opprett, gje nytt namn, roller",
       "identities": "Adresser du sender frå",
       "keywords": "Namn og fargar på etikettar",

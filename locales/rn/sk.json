@@ -1559,6 +1559,7 @@
       "events_on": "udalosti zapnuté",
       "files": "Zobrazenie, triedenie, miniatúry",
       "filters": "Pravidlá pre prichádzajúcu poštu",
+      "first_day": "{firstDay, plural, =0 {Nedeľa} =6 {Sobota} other {Pondelok}}",
       "folders": "Vytváranie, premenovanie, roly",
       "identities": "Adresy, z ktorých odosielate",
       "keywords": "Názvy a farby štítkov",

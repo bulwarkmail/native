@@ -1101,6 +1101,7 @@
       "events_on": "sündmused sees",
       "files": "Vaade, sortimine, pisipildid",
       "filters": "Reeglid saabuvatele kirjadele",
+      "first_day": "{firstDay, plural, =0 {Pühapäev} =6 {Laupäev} other {Esmaspäev}}",
       "folders": "Loomine, ümbernimetamine, rollid",
       "identities": "Aadressid, millelt saadad",
       "keywords": "Siltide nimed ja värvid",

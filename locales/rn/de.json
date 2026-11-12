@@ -1507,6 +1507,7 @@
     "summary": {
       "events_off": "Termine aus",
       "events_on": "Termine an",
+      "first_day": "{firstDay, plural, =0 {Sonntag} =6 {Samstag} other {Montag}}",
       "mail_off": "Mail aus",
       "mail_on": "Mail an",
       "offline_off": "Offline-Mails aus",

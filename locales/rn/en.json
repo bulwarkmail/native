@@ -1663,6 +1663,7 @@
         "remove_message": "Any client using it will stop working.",
         "remove_title": "Remove credential?"
       },
+      "description": "Manage your password, two-factor authentication, and security settings",
       "display_name": {
         "error_title": "Update failed"
       },
@@ -1756,6 +1757,7 @@
       "events_on": "events on",
       "files": "View, sorting, thumbnails",
       "filters": "Rules for incoming mail",
+      "first_day": "{firstDay, plural, =0 {Sunday} =6 {Saturday} other {Monday}}",
       "folders": "Create, rename, roles",
       "identities": "Addresses you send from",
       "keywords": "Tag names and colors",

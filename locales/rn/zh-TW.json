@@ -1559,6 +1559,7 @@
       "events_on": "活動已開啟",
       "files": "檢視、排序、縮圖",
       "filters": "收信規則",
+      "first_day": "{firstDay, plural, =0 {週日} =6 {週六} other {週一}}",
       "folders": "建立、重新命名、角色",
       "identities": "用來寄信的地址",
       "keywords": "標籤名稱和顏色",

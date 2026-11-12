@@ -1566,6 +1566,7 @@
       "events_on": "eventos activados",
       "files": "Vista, orden, miniaturas",
       "filters": "Reglas para el correo entrante",
+      "first_day": "{firstDay, plural, =0 {Domingo} =6 {Sábado} other {Lunes}}",
       "folders": "Crear, renombrar, roles",
       "identities": "Direcciones desde las que envías",
       "keywords": "Nombres y colores de etiquetas",

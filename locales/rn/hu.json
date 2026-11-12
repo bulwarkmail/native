@@ -1556,6 +1556,7 @@
       "events_on": "események be",
       "files": "Nézet, rendezés, miniatűrök",
       "filters": "Szabályok a beérkező levelekhez",
+      "first_day": "{firstDay, plural, =0 {Vasárnap} =6 {Szombat} other {Hétfő}}",
       "folders": "Létrehozás, átnevezés, szerepkörök",
       "identities": "Címek, amelyekről küldesz",
       "keywords": "Címkenevek és színek",

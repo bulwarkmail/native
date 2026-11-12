@@ -1314,6 +1314,7 @@
         "remove_message": "Elke client die het gebruikt, werkt dan niet meer.",
         "remove_title": "Inloggegevens verwijderen?"
       },
+      "description": "Beheer je wachtwoord, tweefactorauthenticatie en beveiligingsinstellingen",
       "display_name": {
         "error_title": "Bijwerken mislukt"
       },
@@ -1560,6 +1561,7 @@
       "events_on": "evenementen aan",
       "files": "Weergave, sortering, miniaturen",
       "filters": "Regels voor inkomende e-mail",
+      "first_day": "{firstDay, plural, =0 {zondag} =6 {zaterdag} other {maandag}}",
       "folders": "Maken, hernoemen, rollen",
       "identities": "Adressen waarmee je verzendt",
       "keywords": "Labelnamen en -kleuren",
