@@ -78,10 +78,23 @@ describe('setTaskDone', () => {
   it('moves a repeating task to its next due date instead of completing the series (#1621)', async () => {
     const { client: c, sets } = client({
       id: 't1', progress: 'needs-action', due: '2026-11-12T09:00:00', showWithoutTime: false,
-      recurrenceRules: [{ '@type': 'RecurrenceRule', frequency: 'daily' }],
+      recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'daily' },
     });
     expect(await setTaskDone(c, 't1', true)).toBe(true);
     expect(sets).toEqual([{ t1: { progress: 'needs-action', due: '2026-11-13T09:00:00' } }]);
+  });
+
+  it('writes a counted rule back in the singular, one occurrence shorter', async () => {
+    const { client: c, sets } = client({
+      id: 't1', progress: 'needs-action', due: '2026-11-12T09:00:00',
+      recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'weekly', count: 4, until: null },
+    });
+    await setTaskDone(c, 't1', true);
+    expect(sets).toEqual([{ t1: {
+      progress: 'needs-action',
+      due: '2026-11-19T09:00:00',
+      recurrenceRule: { '@type': 'RecurrenceRule', frequency: 'weekly', count: 3 },
+    } }]);
   });
 
   it('completes a task that does not repeat, and reopens one without reading it', async () => {
