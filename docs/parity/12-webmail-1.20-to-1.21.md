@@ -276,7 +276,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Calendar
 
-- [ ] **An HTML event description shows its markup, and editing keeps it marked as HTML** — `P2` — `bug`
+- [x] **An HTML event description shows its markup, and editing keeps it marked as HTML** — `P2` — `bug` — fixed in 227974f6
   - What WEB does: shows an HTML description as text, saves an edit as plain text, and duplicating keeps the format (`lib/calendar-description.ts:11`, `:35`). Changelog 1.20.0.
   - What RN does: shows `event.description` as text with the tags in it (`src/components/calendar/EventDetailSheet.tsx:363-366`); the editor loads it raw (`src/components/calendar/EventModal.tsx:299`) and saves `description` without touching `descriptionContentType` (`:412`). Device sync already converts (`src/device-sync/calendar/image.ts:66`).
   - Fix hint: port lib/calendar-description.ts: htmlToPlainText for display and editing, and send `descriptionContentType: 'text/plain'` with an edited description.
