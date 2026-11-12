@@ -16,6 +16,7 @@ import { emailExportFilename } from '../../lib/download-filename';
 import { attachmentKind } from '../../lib/list-attachments';
 import { ATTACHMENT_ICONS, attachmentIconColor } from './attachment-icons';
 import { ActionSheet, type ActionSheetItem } from './ActionSheet';
+import { RenameAttachmentPrompt } from './RenameAttachmentPrompt';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
 import type { ExtractedAttachment } from './use-body-override';
 import { previewKindOf, useFilePreview, type PreviewSource } from './use-file-preview';
@@ -74,6 +75,8 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
   const [expanded, setExpanded] = React.useState(false);
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [sheetItem, setSheetItem] = React.useState<Item | null>(null);
+  // "Save as…": the attachment whose copy gets a typed name (webmail #1623).
+  const [renaming, setRenaming] = React.useState<Item | null>(null);
   // The attachment Save to Files picks a folder for.
   const [filesTarget, setFilesTarget] = React.useState<Extract<Item, { kind: 'blob' }> | null>(null);
   const preview = useFilePreview();
@@ -122,6 +125,12 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
   const save = (item: Item) => run(item.key, async () => {
     if (item.kind === 'blob') await downloadAttachment(item.att.blobId, item.att.name, item.att.type, email, jmapAccountId);
     else await shareBytes(item.part.bytes, item.name, item.type, { forceSheet: true });
+  }, t('email_viewer.attachment_failed', 'Could not save attachment'));
+
+  // The copy saves under the typed name, without the filename template.
+  const saveAs = (item: Item, name: string) => run(item.key, async () => {
+    if (item.kind === 'blob') await downloadAttachment(item.att.blobId, name, item.att.type, null, jmapAccountId);
+    else await shareBytes(item.part.bytes, name, item.type, { forceSheet: true });
   }, t('email_viewer.attachment_failed', 'Could not save attachment'));
 
   const share = (item: Item) => run(item.key, async () => {
@@ -217,6 +226,12 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
       onPress: () => { const it = sheetItem; setSheetItem(null); void save(it); },
     },
     {
+      key: 'save_as',
+      label: t('email_viewer.attachment_actions.save_as', 'Save as…'),
+      icon: <Save size={18} color={c.textSecondary} />,
+      onPress: () => { const it = sheetItem; setSheetItem(null); setRenaming(it); },
+    },
+    {
       key: 'share',
       label: t('email_viewer.attachment_actions.share', 'Share'),
       icon: <Share2 size={18} color={c.textSecondary} />,
@@ -283,6 +298,12 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
         subtitle={sheetItem ? `${sheetItem.type}${sheetItem.size ? ` · ${formatSize(sheetItem.size)}` : ''}` : undefined}
         items={sheetActions}
         onClose={() => setSheetItem(null)}
+      />
+
+      <RenameAttachmentPrompt
+        name={renaming?.name ?? null}
+        onClose={() => setRenaming(null)}
+        onSubmit={(name) => { const it = renaming; if (it) void saveAs(it, name); }}
       />
 
       <AttachmentPreviewModal {...preview.modalProps} />

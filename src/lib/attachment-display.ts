@@ -163,6 +163,29 @@ function isSameImage(a: PartLike, b: PartLike): boolean {
     && b.size === a.size;
 }
 
+/**
+ * A file name split before its extension, for renaming without changing the
+ * type: "report.pdf" gives ["report", ".pdf"], "archive.tar.gz" gives
+ * ["archive.tar", ".gz"]. A name with no extension ("README", ".bashrc",
+ * "name.") comes back whole (webmail lib/attachment-name.ts).
+ */
+export function splitAttachmentName(name: string): [stem: string, ext: string] {
+  const dot = name.lastIndexOf('.');
+  if (dot > 0 && dot < name.length - 1) return [name.slice(0, dot), name.slice(dot)];
+  return [name, ''];
+}
+
+/** Longest name a renamed copy may have, in characters (webmail DEFAULT_MAX_NAME_BYTES). */
+const MAX_RENAMED_NAME = 255;
+
+/** What is wrong with a typed file name, or null (webmail plainFileNameProblem). */
+export function renameAttachmentProblem(name: string): 'tooLong' | 'chars' | null {
+  if ([...name].length > MAX_RENAMED_NAME) return 'tooLong';
+  // eslint-disable-next-line no-control-regex
+  if (/[/\\\u0000-\u001f\u007f-\u009f]/.test(name)) return 'chars';
+  return null;
+}
+
 export interface VisibleAttachmentOptions {
   hideInlineImageAttachments: boolean;
   /** True when the calendar-invitation banner renders for this message. */
