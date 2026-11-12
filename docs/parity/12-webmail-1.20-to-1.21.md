@@ -37,7 +37,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: nothing reads `$phishing` (no match in `src/`), so a message reported on the webmail opens on the phone with live links and no warning; the body goes through EmailBodyView unchanged (`src/components/EmailBodyView.tsx:613`).
   - Fix hint: first strip links and show the banner for `$phishing` in the body HTML; then add the action behind the org policy's `phishingReport` address.
 
-- [ ] **Received mail doesn't show its classification label** — `P3` — `missing`
+- [x] **Received mail doesn't show its classification label** — `P3` — `missing` — fixed in 54cae455
   - What WEB does: shows the SIO-Label / Sensitivity label of received mail that matches a label the organisation defined (`lib/classification/labels.ts:286`, `components/email/received-label-chip.tsx:8`). 912462054.
   - What RN does: no classification code; MessageHeader shows tags, flags and the via badge only (`src/components/email/MessageHeader.tsx:244-280`).
   - Fix hint: port `receivedLabel` and show a chip in MessageHeader when the org policy has labels.
