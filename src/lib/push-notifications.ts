@@ -174,7 +174,7 @@ const ACCOUNT_REGISTRY_KEY = 'account-registry';
  *    or never answered by its webmail): off.
  *  - A policy cache that can't be read or parsed: on, unless the login
  *    signed in to the mail server directly.
- *  - An answer without the organisation part (the public subset for no
+ *  - An answer that doesn't say what the rule is (the public subset for no
  *    token or a refused one, or anything else) keeps the rule a full policy
  *    turned on (CachedPolicy.pushWithoutContent).
  */

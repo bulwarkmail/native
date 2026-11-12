@@ -55,7 +55,7 @@ export interface CachedPolicy {
   links?: WebmailLinks;
   /**
    * The rule pushWithoutContent, kept from the last full policy for the
-   * account while the webmail answers without the organisation part (the
+   * account while the webmail answers without saying what the rule is (the
    * public subset, or anything else): only a full policy turns it off again.
    */
   pushWithoutContent?: true;
@@ -116,29 +116,63 @@ function sameClientAccount(account: AccountEntry): boolean {
   return jmapClient.serverUrl === account.serverUrl && jmapClient.username === account.username;
 }
 
-/**
- * Who the policy is for (webmail lib/admin/policy-subject.ts): the
- * account's address, and the group accounts its session shows (shared,
- * not personal, named by an address).
- */
-export function policySubjectFor(account: AccountEntry): PolicySubject {
-  const session = sameClientAccount(account) ? jmapClient.currentSession : null;
-  // The address the session names for the login's own account, as the
-  // webmail takes it; the registry may hold a user name without a domain.
-  const own = session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
-  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
-  const groups = session
+/** The live session of the account, when the client serves it. */
+function sessionOf(account: AccountEntry) {
+  return sameClientAccount(account) ? jmapClient.currentSession : null;
+}
+
+/** The name the session gives the login's own mail account. */
+function ownAccountName(session: ReturnType<typeof sessionOf>): string | undefined {
+  return session?.accounts?.[session.primaryAccounts?.[CAPABILITIES.MAIL] ?? '']?.name;
+}
+
+/** The group accounts the session shows: shared, not personal, named by an address. */
+function sessionGroups(session: ReturnType<typeof sessionOf>): string[] {
+  return session
     ? Object.values(session.accounts)
       .filter((info) => !info.isPersonal && info.name.includes('@'))
       .map((info) => info.name.trim().toLowerCase())
       .sort()
     : [];
-  return { email, groups };
 }
 
-/** Whether a policy answer is a full one: not the public subset, and with the organisation part. */
-function carriesOrganisation(answer: { policy: OrgPolicy; partial: boolean }): boolean {
-  return !answer.partial && !!answer.policy.organisation && typeof answer.policy.organisation === 'object';
+/**
+ * Who the policy is for, as the webmail client works it out
+ * (lib/admin/policy-subject.ts): the user name the login signed in with
+ * (JMAPClient.getUsername, else the name of its own account in the session),
+ * and its group accounts. The feature gates, locked settings and the other
+ * rules are resolved for it.
+ */
+export function policySubjectFor(account: AccountEntry): PolicySubject {
+  const session = sessionOf(account);
+  const email = (account.username || ownAccountName(session) || '').trim().toLowerCase();
+  return { email, groups: sessionGroups(session) };
+}
+
+/**
+ * Who the rule pushWithoutContent is for: the address the session names for
+ * the login's own account, else the registry's email, else the user name
+ * (the registry may hold a user name without a domain). The same chain as
+ * pushWithoutContentFor, which the push task uses.
+ */
+export function pushSubjectFor(account: AccountEntry): PolicySubject {
+  const session = sessionOf(account);
+  const own = ownAccountName(session);
+  const email = (own?.includes('@') ? own : account.email || account.username).trim().toLowerCase();
+  return { email, groups: sessionGroups(session) };
+}
+
+/**
+ * Whether a policy answer is a full one: not the public subset, and it says
+ * what the rule pushWithoutContent is. The webmail fills in the whole
+ * organisation part of a full answer (sanitizeOrganisationPolicy), so the
+ * rule is a boolean there; an answer without it says nothing about it.
+ */
+function isFullAnswer(answer: { policy: OrgPolicy; partial: boolean }): boolean {
+  if (answer.partial) return false;
+  const devices = answer.policy.organisation?.devices;
+  return !!devices && typeof devices === 'object'
+    && typeof (devices as Record<string, unknown>).pushWithoutContent === 'boolean';
 }
 
 function isSecureUrl(url: string): boolean {
@@ -289,12 +323,12 @@ export const usePolicyStore = create<PolicyState>()(
           if (!useAccountStore.getState().getAccountById(accountId)) return;
           const previous = get().byAccount[accountId];
           const legacyLinks = previous?.webmailUrl === webmailUrl ? previous.links : undefined;
-          // Only a full answer, one that carries the organisation part, says
-          // what the organisation's rules are; the public subset, or any other
-          // answer without that part, leaves the stored rule as it is.
-          const holdsPushRule = !!fetched && !carriesOrganisation(fetched) && previous?.webmailUrl === webmailUrl && (
+          // Only a full answer, one that says what the rule is, decides it;
+          // the public subset, or any other answer without it, leaves the
+          // stored rule as it is.
+          const holdsPushRule = !!fetched && !isFullAnswer(fetched) && previous?.webmailUrl === webmailUrl && (
             previous.pushWithoutContent === true
-            || (carriesOrganisation(previous) && pushWithoutContent(previous.policy, policySubjectFor(account)))
+            || (isFullAnswer(previous) && pushWithoutContent(previous.policy, pushSubjectFor(account)))
           );
           set({
             ...(fetched ? {

@@ -305,10 +305,20 @@ describe('the notification rule pushWithoutContent', () => {
       await usePolicyStore.getState().refresh(ADA);
       expect(usePolicyStore.getState().byAccount[ADA], JSON.stringify(answer)).toMatchObject({ partial: false, pushWithoutContent: true });
     }
-    // A full answer, with the organisation part, decides.
+    // A full answer, which says what the rule is, decides.
     policies[WEBMAIL] = withRule(false);
     await usePolicyStore.getState().refresh(ADA);
     expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBeUndefined();
+  });
+
+  it('holds when an answer\'s organisation part is empty or has no device settings', async () => {
+    policies[WEBMAIL] = withRule(true);
+    await usePolicyStore.getState().refresh(ADA);
+    for (const answer of [{ organisation: {} }, { ...withRule(true), organisation: { signatures: {} } }, { organisation: { devices: {} } }]) {
+      policies[WEBMAIL] = answer;
+      await usePolicyStore.getState().refresh(ADA);
+      expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent, JSON.stringify(answer)).toBe(true);
+    }
   });
 
   it('scopes by the address the session names when the registry holds only a user name', async () => {
@@ -327,6 +337,64 @@ describe('the notification rule pushWithoutContent', () => {
     await usePolicyStore.getState().refresh(ADA);
     // The full policy turned the rule on for example.com, so the public answer keeps it.
     expect(usePolicyStore.getState().byAccount[ADA].pushWithoutContent).toBe(true);
+  });
+});
+
+describe('an alias login', () => {
+  // Signed in as ada@alias.example; the session names the login's own
+  // account by its primary address, ada@example.com. The webmail client
+  // resolves the gates and settings for the user name signed in with
+  // (lib/admin/policy-subject.ts); the push rule follows the session's address.
+  const scopedTo = (domain: string) => ({
+    restrictions: {}, features: { calendarEnabled: true }, defaults: {}, themePolicy: {},
+    organisation: { devices: { pushWithoutContent: false } },
+    scopes: [{
+      id: 'd', match: { domains: [domain] },
+      policy: { features: { calendarEnabled: false }, organisation: { devices: { pushWithoutContent: true } } },
+    }],
+  });
+  const PUBLIC = { restrictions: {}, features: {}, defaults: {}, themePolicy: {} };
+
+  beforeEach(() => {
+    client.username = 'ada@alias.example';
+    useAccountStore.getState().updateAccount(ADA, { username: 'ada@alias.example', email: 'ada@alias.example' });
+    client.currentSession = {
+      primaryAccounts: { 'urn:ietf:params:jmap:mail': 'a1' },
+      accounts: { a1: { name: 'ada@example.com', isPersonal: true } },
+    };
+  });
+
+  // The rule as the store keeps it once the webmail answers with the public part only.
+  async function pushRuleKept(): Promise<boolean> {
+    publicScope = true;
+    policies[WEBMAIL] = PUBLIC;
+    await usePolicyStore.getState().refresh(ADA);
+    publicScope = false;
+    return usePolicyStore.getState().byAccount[ADA].pushWithoutContent === true;
+  }
+
+  it('a domain rule on the alias closes a feature gate', async () => {
+    policies[WEBMAIL] = scopedTo('alias.example');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().effective?.features.calendarEnabled).toBe(false);
+  });
+
+  it('a domain rule on the primary address leaves the feature gate open', async () => {
+    policies[WEBMAIL] = scopedTo('example.com');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(usePolicyStore.getState().effective?.features.calendarEnabled).toBe(true);
+  });
+
+  it('a domain rule on the primary address turns the push rule on', async () => {
+    policies[WEBMAIL] = scopedTo('example.com');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(await pushRuleKept()).toBe(true);
+  });
+
+  it('a domain rule on the alias leaves the push rule off', async () => {
+    policies[WEBMAIL] = scopedTo('alias.example');
+    await usePolicyStore.getState().refresh(ADA);
+    expect(await pushRuleKept()).toBe(false);
   });
 });
 
