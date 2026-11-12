@@ -867,7 +867,7 @@ export default function FilesScreen() {
     await loadFiles('refresh');
     if (failed.length > 0) {
       Alert.alert(
-        t('files.upload_failed', '{count, plural, one {1 file could not be uploaded} other {# files could not be uploaded}}', {
+        t('files.upload_failed', '{count, plural, one {# file could not be uploaded} other {# files could not be uploaded}}', {
           count: failed.length,
         }),
         uploadFailureDetail(failed, t),
@@ -1167,7 +1167,7 @@ export default function FilesScreen() {
             onPress={() => setSortSheetOpen(true)}
             hitSlop={6}
             style={styles.sortChip}
-            accessibilityLabel={t('files.settings_default_sort', 'Default Sort')}
+            accessibilityLabel={t('files.settings_default_sort', 'Default sort')}
           >
             <ArrowUpDown size={13} color={c.textMuted} />
             <Text style={styles.sortChipText}>{sortLabel}</Text>
@@ -2187,7 +2187,7 @@ function SortSheet({ visible, sortKey, sortDir, t, onClose, onChangeKey, onChang
         <View style={[styles.backdrop, { paddingLeft: sheetInsets.left, paddingRight: sheetInsets.right }]}>
           <TouchableWithoutFeedback accessible={false}>
             <View style={[styles.sheet, { paddingBottom: spacing.xxl + bottomInset }]}>
-              <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Sort')}</Text>
+              <Text style={styles.sheetTitle}>{t('files.settings_default_sort', 'Default sort')}</Text>
               {keys.map((k) => (
                 <Pressable key={k} style={styles.action} {...radioOptionA11y(sortKey === k)} onPress={() => { onChangeKey(k); onClose(); }}>
                   <Text style={[styles.actionLabel, sortKey === k && { color: c.primary, fontWeight: '600' }]}>

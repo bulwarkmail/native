@@ -103,7 +103,7 @@ export function DownloadsSettings() {
       </SettingsSection>
 
       <SettingsSection
-        title={t('settings.downloads.transform_title', "Filename Transform")}
+        title={t('settings.downloads.transform_title', "Filename transform")}
         description={t('settings.downloads.transform_description', "Applied to every exported filename.")}
       >
         <View style={styles.group}>

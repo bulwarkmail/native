@@ -765,7 +765,7 @@ function TodayColumn({
       <Spacer />
       {more > 0 ? (
         <Txt
-          text={f.t('widgets.calendar.more_this_week', '{count, plural, one {# more this week} other {# more this week}}', {
+          text={f.t('widgets.calendar.more_this_week', '{count, plural, other {# more this week}}', {
             count: more,
           })}
           color={p.muted}
@@ -937,7 +937,7 @@ function countdown(f: Fmt, e: EventItem, now: number, running: boolean): Countdo
   if (minutes < 60) {
     return {
       value: String(minutes),
-      unit: f.t('widgets.calendar.unit_minutes', '{count, plural, one {min} other {min}}', { count: minutes }),
+      unit: f.t('widgets.calendar.unit_minutes', '{count, plural, other {min}}', { count: minutes }),
       fraction: minutes / 60,
     };
   }

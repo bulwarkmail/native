@@ -159,7 +159,7 @@ export function FilesSettings() {
 
       <SettingsSection title={t('files.settings_display', 'Display')}>
         <SettingItem
-          label={t('files.settings_default_view', 'Default View')}
+          label={t('files.settings_default_view', 'Default view')}
           description={t('files.settings_default_view_desc', 'Choose between grid and list layout')}
         >
           <RadioGroup
@@ -173,7 +173,7 @@ export function FilesSettings() {
         </SettingItem>
 
         <SettingItem
-          label={t('files.settings_default_sort', 'Default Sort')}
+          label={t('files.settings_default_sort', 'Default sort')}
           description={t('files.settings_default_sort_desc', 'Choose the default sorting for files')}
         >
           <RadioGroup
@@ -188,7 +188,7 @@ export function FilesSettings() {
         </SettingItem>
 
         <SettingItem
-          label={t('files.settings_sort_direction', 'Sort Direction')}
+          label={t('files.settings_sort_direction', 'Sort direction')}
           description={t('files.settings_sort_direction_desc', 'Choose ascending or descending order')}
         >
           <RadioGroup
@@ -204,13 +204,13 @@ export function FilesSettings() {
 
       <SettingsSection title={t('files.settings_icons', 'Icons')}>
         <SettingItem
-          label={t('files.settings_show_icons', 'Show File Icons')}
+          label={t('files.settings_show_icons', 'Show file icons')}
           description={t('files.settings_show_icons_desc', 'Display icons next to files and folders')}
         >
           <ToggleSwitch checked={showIcons} onChange={(v) => set('filesShowIcons', v)} />
         </SettingItem>
         <SettingItem
-          label={t('files.settings_colored_icons', 'Colored Icons')}
+          label={t('files.settings_colored_icons', 'Colored icons')}
           description={t('files.settings_colored_icons_desc', 'Use colorful icons instead of monochrome')}
         >
           <ToggleSwitch
@@ -220,7 +220,7 @@ export function FilesSettings() {
           />
         </SettingItem>
         <SettingItem
-          label={t('files.settings_show_thumbnails', 'Show Thumbnails')}
+          label={t('files.settings_show_thumbnails', 'Show thumbnails')}
           description={t('files.settings_show_thumbnails_desc', 'Display image previews instead of icons for image files')}
         >
           <ToggleSwitch
@@ -232,7 +232,7 @@ export function FilesSettings() {
 
       <SettingsSection title={t('files.settings_behavior', 'Behavior')}>
         <SettingItem
-          label={t('files.settings_show_hidden', 'Show Hidden Files')}
+          label={t('files.settings_show_hidden', 'Show hidden files')}
           description={t('files.settings_show_hidden_desc', 'Display files and folders that start with a dot')}
         >
           <ToggleSwitch

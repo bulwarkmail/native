@@ -336,7 +336,7 @@ export const FavouritePeopleLayout: Layout = ({ s, p, f, now, width, height }) =
       height={headerHeight}
       iconName="addressBook"
       iconColor={p.muted}
-      title={f.t('widgets.people.favourites', 'Favourites')}
+      title={f.t('widgets.people.favourites', 'Favorites')}
       click={open(links.contacts())}
     />
   );
@@ -347,7 +347,7 @@ export const FavouritePeopleLayout: Layout = ({ s, p, f, now, width, height }) =
         <Placeholder
           p={p}
           iconName="users"
-          title={f.t('widgets.people.empty', 'No favourites yet')}
+          title={f.t('widgets.people.empty', 'No favorites yet')}
           body={f.t('widgets.people.empty_body', 'The people you hear from most show up here.')}
           click={open(links.contacts())}
         />
@@ -595,10 +595,10 @@ export const OutboxLayout: Layout = ({ s, p, f, now, width, height }) => {
   let pill: string | null = null;
   if (pending > 0) {
     const room = width - 2 - 14 - 16 - 8 - textWidth(title, 14) - (count ? 6 + textWidth(count, 12) : 0) - 8 - 12;
-    const long = f.t('widgets.mail.in_outbox', '{count, plural, one {# change waiting} other {# changes waiting}}', { count: pending });
+    const long = f.t('widgets.mail.changes_waiting', '{count, plural, one {# change waiting} other {# changes waiting}}', { count: pending });
     pill = 16 + textWidth(long, 11) <= room
       ? long
-      : f.t('widgets.mail.in_outbox_short', '{count} waiting', { count: pending });
+      : f.t('widgets.mail.changes_waiting_short', '{count} waiting', { count: pending });
   }
 
   return (
@@ -691,7 +691,7 @@ function editedLabel(f: Fmt, at: number, now: number): string {
   const minutes = Math.floor((now - at) / 60000);
   if (minutes < 1) return f.t('widgets.draft.edited_now', 'Edited just now');
   if (minutes < 60) {
-    return f.t('widgets.draft.edited_minutes', '{count, plural, one {Edited # min ago} other {Edited # min ago}}', { count: minutes });
+    return f.t('widgets.draft.edited_minutes', '{count, plural, other {Edited # min ago}}', { count: minutes });
   }
   return f.t('widgets.draft.edited_at', 'Edited {when}', { when: f.listDate(at, now) });
 }

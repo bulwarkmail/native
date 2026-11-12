@@ -53,7 +53,7 @@ export function ThemesSettings() {
       title={t('settings.themes.title', 'Themes')}
       description={t(
         'settings.themes.mobile_description',
-        'Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail.',
+        'Pick a color theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail.',
       )}
     >
       {themeLocked && (

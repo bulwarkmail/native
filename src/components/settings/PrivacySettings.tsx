@@ -44,16 +44,17 @@ export function PrivacySettings() {
       </SettingsSection>
 
       <SettingsSection title={t('settings.privacy.push_title', 'Push notifications')}>
-        {paragraph(t(
-          'settings.privacy.push',
-          'When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through {service}. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.',
-          {
-            relay: hostOf(DEFAULT_RELAY_BASE_URL),
-            service: Platform.OS === 'ios'
-              ? t('settings.privacy.service_apple', 'Apple\'s push service')
-              : t('settings.privacy.service_google', 'Google\'s push service'),
-          },
-        ))}
+        {paragraph(Platform.OS === 'ios'
+          ? t(
+            'settings.privacy.push_apple',
+            'When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through Apple\'s push service. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.',
+            { relay: hostOf(DEFAULT_RELAY_BASE_URL) },
+          )
+          : t(
+            'settings.privacy.push_google',
+            'When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through Google\'s push service. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.',
+            { relay: hostOf(DEFAULT_RELAY_BASE_URL) },
+          ))}
       </SettingsSection>
 
       <SettingsSection title={t('settings.privacy.other_title', 'Other connections')}>

@@ -65,11 +65,11 @@ export function KeywordSettings() {
   // the button in 1.8.1); keep it behind a confirm.
   const confirmReset = () => {
     Alert.alert(
-      t('settings.keywords.reset_defaults', 'Reset to Defaults'),
+      t('settings.keywords.reset_defaults', 'Reset to defaults'),
       t('settings.keywords.reset_confirm', 'Replace your tag list with the default tags? Tags already set on messages stay on the server.'),
       [
         { text: t('common.cancel', 'Cancel'), style: 'cancel' },
-        { text: t('settings.keywords.reset_defaults', 'Reset to Defaults'), style: 'destructive', onPress: resetDefaults },
+        { text: t('settings.keywords.reset_defaults', 'Reset to defaults'), style: 'destructive', onPress: resetDefaults },
       ],
     );
   };
@@ -198,7 +198,7 @@ export function KeywordSettings() {
             </Pressable>
             <Pressable style={styles.outlineBtn} onPress={confirmReset}>
               <RotateCcw size={14} color={c.mutedForeground} />
-              <Text style={styles.outlineBtnText}>{t('settings.keywords.reset_defaults', "Reset to Defaults")}</Text>
+              <Text style={styles.outlineBtnText}>{t('settings.keywords.reset_defaults', "Reset to defaults")}</Text>
             </Pressable>
             <Pressable style={styles.outlineBtn} onPress={() => { void runScan(); }} disabled={scan.phase === 'running'}>
               {scan.phase === 'running' ? (

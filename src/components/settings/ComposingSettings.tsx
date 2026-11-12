@@ -234,7 +234,7 @@ export function ComposingSettings() {
       </SettingItem>
 
       <View style={styles.subBlock}>
-        <Text style={styles.subLabel}>{t('settings.composer.autosave.label', "Auto-save Interval")}</Text>
+        <Text style={styles.subLabel}>{t('settings.composer.autosave.label', "Auto-save interval")}</Text>
         <Text style={styles.subDescription}>
           {t('settings.composer.autosave.description', "How often to save drafts automatically")}
         </Text>

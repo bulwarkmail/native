@@ -226,7 +226,7 @@ export default function ContactImportSheet({
                 <Text style={styles.successText}>
                   {t(
                     'contacts.import.updated_count',
-                    '{count, plural, one {1 contact was already there and has been updated.} other {# contacts were already there and have been updated.}}',
+                    '{count, plural, one {# contact was already there and has been updated.} other {# contacts were already there and have been updated.}}',
                     { count: result.updated },
                   )}
                 </Text>

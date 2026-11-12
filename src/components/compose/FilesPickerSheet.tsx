@@ -108,7 +108,7 @@ export function FilesPickerSheet(props: Props) {
 
   const confirmLabel = mode === 'folder'
     ? t('email_viewer.save_to_files.save_here', 'Save here')
-    : t('email_composer.files_picker.attach', '{count, plural, =0 {Attach} one {Attach 1 file} other {Attach # files}}', { count: selected.length });
+    : t('email_composer.files_picker.attach', '{count, plural, =0 {Attach} one {Attach # file} other {Attach # files}}', { count: selected.length });
 
   return (
     <SafeAreaModal

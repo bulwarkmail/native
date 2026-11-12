@@ -333,7 +333,7 @@ export function NotificationSettings() {
   };
 
   const statusDescription = !supported
-    ? t('settings.notifications.push.status_android_only', 'Background notifications are available on Android only.')
+    ? t('settings.notifications.push.status_unavailable', 'This build of the app can\'t receive push notifications.')
     : pushStatus.kind === 'enabled'
       ? t('settings.notifications.push.status_active', 'Active on this device')
       : pushStatus.kind === 'busy'
@@ -414,7 +414,7 @@ export function NotificationSettings() {
                 label={t('settings.notifications.push.up_distributor_label', 'Distributor')}
                 description={t(
                   'settings.notifications.push.up_distributor_desc',
-                  'Several UnifiedPush distributor apps are installed - pick the one that should deliver notifications.',
+                  'Several UnifiedPush distributor apps are installed. Pick the one that should deliver notifications.',
                 )}
               >
                 <View style={styles.distributorList}>

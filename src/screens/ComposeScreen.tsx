@@ -1966,7 +1966,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       [
         { text: t('email_composer.cancel', 'Cancel'), style: 'cancel' },
         { text: t('email_composer.discard', 'Discard'), style: 'destructive', onPress: () => discardAndClose(proceed) },
-        { text: t('email_composer.save_draft', 'Save Draft'), onPress: () => { void saveAndClose(proceed); } },
+        { text: t('email_composer.save_draft', 'Save draft'), onPress: () => { void saveAndClose(proceed); } },
       ],
     );
   };
@@ -3508,7 +3508,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
                 icon={<LayoutTemplate size={18} color={c.textSecondary} />} />
             )}
             <ToolbarButton active={requestReadReceipt} onPress={() => setRequestReadReceipt((v) => !v)}
-              label={t('email_composer.read_receipt_off', 'Request a read receipt')}
+              label={t('email_composer.request_read_receipt', 'Request a read receipt')}
               icon={<MailCheck size={18} color={requestReadReceipt ? c.primary : c.textSecondary} />} />
             <ToolbarButton active={activeComposerOptionCount(composerOptions) > 0} onPress={() => setOptionsSheetOpen(true)}
               label={t('email_composer.options', 'Options')}

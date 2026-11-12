@@ -568,7 +568,7 @@ export default function CalendarScreen() {
         key: '3day',
         label: multiDays === 3
           ? t('calendar.views.three_days', '3 days')
-          : t('calendar.views.n_days', '{count} days', { count: multiDays }),
+          : t('calendar.views.n_days', '{count, plural, one {# day} other {# days}}', { count: multiDays }),
         Icon: Columns3,
       },
       { key: 'week', label: t('calendar.views.week', 'Week'), Icon: Columns4 },

@@ -691,7 +691,7 @@ export const VacationLayout: Layout = ({ s, p, f, width, height }) => {
       </Surface>
     );
   }
-  const title = f.t('widgets.vacation.title', 'Vacation Responder');
+  const title = f.t('widgets.vacation.title', 'Out of office');
   const until = v.to ? f.t('widgets.vacation.until', 'Until {date}', { date: f.weekdayDayMonth(v.to) }) : '';
   const subject = v.subject ? f.t('widgets.vacation.subject', 'Subject: {subject}', { subject: v.subject }) : '';
 

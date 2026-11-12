@@ -141,7 +141,7 @@ export function ContentSendersSettings() {
   return (
     <View style={{ gap: spacing.xxxl }}>
       <SettingsSection
-        title={t('settings.tabs.content_senders', 'Content & Senders')}
+        title={t('settings.tabs.content_senders', 'Content & senders')}
         description={t('settings.email_behavior.content_senders_description_mobile', 'Control how external resources and tracking pixels are handled.')}
       >
         {showExternalContent && (

@@ -186,7 +186,7 @@
       "update_error": "Failed to update task"
     },
     "views": {
-      "n_days": "{count} days",
+      "n_days": "{count, plural, one {# day} other {# days}}",
       "schedule": "Schedule",
       "three_days": "3 days"
     }
@@ -315,12 +315,12 @@
       "replaces": "Replaces {name}",
       "unnamed": "Unnamed contact",
       "update_existing": "Update existing",
-      "updated_count": "{count, plural, one {1 contact was already there and has been updated.} other {# contacts were already there and have been updated.}}"
+      "updated_count": "{count, plural, one {# contact was already there and has been updated.} other {# contacts were already there and have been updated.}}"
     },
     "no_tags_hint": "No tags yet. Type one above.",
     "picker": {
       "add_count": "{count, plural, =0 {Add} other {Add (#)}}",
-      "title": "Add Contact"
+      "title": "Add contact"
     },
     "rename_tag_hint_mobile": "Long-press a tag to rename it",
     "tag_name_placeholder": "New tag name",
@@ -362,7 +362,7 @@
     "draft_kept_title": "Saved on this device",
     "editor_unavailable": "Could not read the message content. Copy your text, then close and reopen the composer.",
     "files_picker": {
-      "attach": "{count, plural, =0 {Attach} one {Attach 1 file} other {Attach # files}}",
+      "attach": "{count, plural, =0 {Attach} one {Attach # file} other {Attach # files}}",
       "empty_folder": "This folder is empty",
       "load_failed": "Your files could not be loaded"
     },
@@ -420,7 +420,6 @@
         "XXX"
       ]
     },
-    "read_receipt_off": "Request a read receipt",
     "recipient_add_contact": "Add to contacts",
     "recipient_copy": "Copy address",
     "recipient_move_to": "Move to {field}",
@@ -429,9 +428,10 @@
     "recipients_partly_refused_title": "Not sent to everyone",
     "recipients_refused": "Not sent: the server refused {recipients}.",
     "remove_attachment": "Remove attachment",
+    "request_read_receipt": "Request a read receipt",
     "rescued_draft_body": "A message you were writing couldn't be saved earlier. It is in Drafts now.",
     "rescued_draft_title": "Saved to Drafts",
-    "save_draft": "Save Draft",
+    "save_draft": "Save draft",
     "save_failed_no_drafts": "There is no Drafts folder to save this draft to.",
     "save_failed_no_identity": "Your sender identities could not be loaded, so this draft cannot be saved. Check your connection, or copy your text before closing.",
     "schedule_custom": "Pick date & time…",
@@ -525,7 +525,7 @@
     "offline_nothing_cached": "No connection. Showing nothing because no mail has been cached yet.",
     "open_draft_failed": "Could not open the draft.",
     "outbox_discard": "Discard",
-    "outbox_failed": "{count} changes could not be saved to the server.",
+    "outbox_failed": "{count, plural, one {# change could not be saved to the server.} other {# changes could not be saved to the server.}}",
     "recent_searches": "Recent searches",
     "remove_filter": "Remove filter {label}",
     "scope_all_folders": "All folders",
@@ -567,7 +567,7 @@
     },
     "attachment_failed": "Could not open attachment",
     "authentication": {
-      "spoof_warning": "The sender address could not be verified - this message may be spoofed."
+      "spoof_warning": "The sender address could not be verified. This message may be spoofed."
     },
     "body_truncated": "This message is too large to show in full.",
     "bundle_too_large": "The attachments are too large to bundle.",
@@ -579,7 +579,7 @@
       "pink": "Pink",
       "purple": "Purple",
       "red": "Red",
-      "title": "Color Tag",
+      "title": "Color tag",
       "yellow": "Yellow"
     },
     "delete_permanently_message": "This message will be deleted permanently and cannot be recovered.",
@@ -633,7 +633,7 @@
     "show_formatted": "Show formatted",
     "show_less": "Show less",
     "shown_as_plain_text": "This message is shown as plain text.",
-    "smime_unsupported": "Signed/encrypted with S/MIME - not supported on mobile",
+    "smime_unsupported": "Signed or encrypted with S/MIME, which the app doesn't support",
     "source_too_large": "The message is too large to display in full. Share the full source instead.",
     "spam_short": "Spam",
     "still_scheduled": "The message is still scheduled.",
@@ -679,7 +679,7 @@
       "order_status_problem": "Problem",
       "order_status_processing": "Processing",
       "order_status_returned": "Returned",
-      "party_size": "{count, plural, one {Table for #} other {Table for #}}",
+      "party_size": "{count, plural, other {Table for #}}",
       "passengers": "Passengers",
       "pickup": "Pick-up",
       "reference": "Booking reference",
@@ -785,8 +785,8 @@
     "wrong_passphrase": "That passphrase is not right."
   },
   "files": {
-    "batch_delete_confirm_message": "Are you sure you want to delete {count, plural, one {1 item} other {# items}}? This cannot be undone.",
-    "batch_delete_success": "{count, plural, one {1 item deleted} other {# items deleted}}",
+    "batch_delete_confirm_message": "Are you sure you want to delete {count, plural, one {# item} other {# items}}? This cannot be undone.",
+    "batch_delete_success": "{count, plural, one {# item deleted} other {# items deleted}}",
     "delete_cascade_hint": "Folders are deleted along with everything inside them. This can't be undone.",
     "delete_confirm_message": "Are you sure you want to delete \"{name}\"? This cannot be undone.",
     "delete_confirm_title": "Delete resource",
@@ -811,21 +811,21 @@
     "open_with": "Open with…",
     "preview_too_large": "This file is too large to preview.",
     "settings_behavior": "Behavior",
-    "settings_colored_icons": "Colored Icons",
+    "settings_colored_icons": "Colored icons",
     "settings_colored_icons_desc": "Use colorful icons instead of monochrome",
-    "settings_default_sort": "Default Sort",
+    "settings_default_sort": "Default sort",
     "settings_default_sort_desc": "Choose the default sorting for files",
-    "settings_default_view": "Default View",
+    "settings_default_view": "Default view",
     "settings_default_view_desc": "Choose between grid and list layout",
     "settings_display": "Display",
     "settings_icons": "Icons",
-    "settings_show_hidden": "Show Hidden Files",
+    "settings_show_hidden": "Show hidden files",
     "settings_show_hidden_desc": "Display files and folders that start with a dot",
-    "settings_show_icons": "Show File Icons",
+    "settings_show_icons": "Show file icons",
     "settings_show_icons_desc": "Display icons next to files and folders",
-    "settings_show_thumbnails": "Show Thumbnails",
+    "settings_show_thumbnails": "Show thumbnails",
     "settings_show_thumbnails_desc": "Display image previews instead of icons for image files",
-    "settings_sort_direction": "Sort Direction",
+    "settings_sort_direction": "Sort direction",
     "settings_sort_direction_desc": "Choose ascending or descending order",
     "share_add_people": "Add people",
     "share_empty": "Not shared with anyone yet",
@@ -845,7 +845,7 @@
     "symlink": "Symbolic link",
     "trash_unavailable_message": "{count, plural, one {This item} other {These # items}} can't be moved to the trash. Delete permanently instead? You can't undo this.",
     "upload": "Upload",
-    "upload_failed": "{count, plural, one {1 file could not be uploaded} other {# files could not be uploaded}}",
+    "upload_failed": "{count, plural, one {# file could not be uploaded} other {# files could not be uploaded}}",
     "upload_unavailable": "The file picker is not installed in this build. Rebuild the app to enable uploads.",
     "uploading_progress": "Uploading {current}/{total} · {name}"
   },
@@ -1080,8 +1080,8 @@
     "about": {
       "check_now": "Check now",
       "checked_at": "Checked {when}",
-      "licences": "Open-source licences",
-      "licences_desc": "AGPL-3.0 for the app, and the libraries it uses",
+      "licences": "Open-source licenses",
+      "licences_desc": "The app's license (AGPL-3.0) and the licenses of the libraries it uses",
       "never_checked": "Not checked yet",
       "privacy": "Privacy",
       "privacy_desc": "What stays on this device and what goes to your server",
@@ -1097,7 +1097,7 @@
     },
     "accessibility": {
       "cvd_palette": {
-        "description_mobile": "Uses tag and calendar colours that stay distinct with red-green or blue-yellow colour blindness."
+        "description_mobile": "Uses tag and calendar colors that stay distinct with red-green or blue-yellow color blindness."
       },
       "font": {
         "description_ios": "Atkinson Hyperlegible and Lexend are designed to be easy to tell apart; OpenDyslexic helps some people with dyslexia. On this device the font is used for plain-text messages."
@@ -1201,7 +1201,7 @@
         "30s": "Every 30 seconds",
         "5m": "Every 5 minutes",
         "description": "How often to save drafts automatically",
-        "label": "Auto-save Interval"
+        "label": "Auto-save interval"
       },
       "description": "Configure email composition settings",
       "title": "Composer"
@@ -1325,7 +1325,7 @@
         "description_mobile": "Convert accented letters to plain ASCII (ä → a)."
       },
       "transform_description": "Applied to every exported filename.",
-      "transform_title": "Filename Transform"
+      "transform_title": "Filename transform"
     },
     "email_behavior": {
       "archive_mode": {
@@ -1340,7 +1340,7 @@
         "below-header": "Below header",
         "beside-sender": "Next to sender",
         "description": "Where to display attachments in the email header",
-        "label": "Attachment Position"
+        "label": "Attachment position"
       },
       "auto_select_reply_identity": {
         "description_mobile": "Replies always come from the identity a message was sent to. With this on, a reply to another address on your domains (a catch-all alias) is sent from that address too."
@@ -1348,7 +1348,7 @@
       "content_senders_description_mobile": "Control how external resources and tracking pixels are handled.",
       "disable_threading": {
         "description": "Show emails as individual messages instead of grouped by conversation",
-        "label": "Disable Conversation Grouping"
+        "label": "Disable conversation grouping"
       },
       "external_content": {
         "allow_mobile": "Allow",
@@ -1389,29 +1389,29 @@
       }
     },
     "experimental": {
-      "title": "Experimental Feature"
+      "title": "Experimental feature"
     },
     "filters": {
       "remove_action": "Remove action",
       "remove_condition": "Remove condition",
       "sieve_editor": {
-        "confirm_save": "Confirm Save",
+        "confirm_save": "Confirm save",
         "line_count": "{count, plural, one {# line} other {# lines}}",
-        "save_warning": "Saving will overwrite any visual rules. This cannot be undone. Click Save again to confirm."
+        "save_warning": "Saving will overwrite any visual rules. This cannot be undone. Tap Save again to confirm."
       },
       "validation_header_name": "Enter a header name that uses only the letters A-Z, digits, hyphens and underscores, such as X-Spam-Flag."
     },
     "folders": {
       "account": "Account",
       "cannot_delete": "Cannot delete",
-      "description_mobile": "Create, rename, move and delete folders. Long-press a folder in the drawer for quick actions.",
+      "description_mobile": "Create, rename, move and delete folders. Long-press a folder in the sidebar for quick actions.",
       "edit_folder": "Edit \"{name}\"",
       "folder_name": "Folder name",
       "move_under": "Move under",
       "name_placeholder": "Receipts",
       "name_required": "Name required",
       "new_folder": "New folder",
-      "not_empty_message": "\"{name}\" contains {count} emails. Delete anyway?",
+      "not_empty_message": "{count, plural, one {\"{name}\" contains # email. Delete anyway?} other {\"{name}\" contains # emails. Delete anyway?}}",
       "not_empty_title": "Folder not empty",
       "own_account": "My folders",
       "parent_folder": "Parent folder",
@@ -1443,28 +1443,28 @@
       "primary": "primary",
       "save_failed": "Save failed",
       "text_signature": "Plain-text signature",
-      "title": "Sending Identities"
+      "title": "Sending identities"
     },
     "keywords": {
       "delete_confirm_title": "Delete tag \"{label}\"?",
       "description_mobile": "Colored tags to organize your mail.",
       "discover": {
         "add_all": "Add all",
-        "found": "{count} tags found that are not defined here.",
+        "found": "{count, plural, one {# tag found that is not defined here.} other {# tags found that are not defined here.}}",
         "none": "No unknown tags found in {scanned} messages.",
         "partial": "(The scan stopped at the newest messages only.)",
         "progress": "Scanned {scanned} of {total} messages…",
         "scan": "Find tags in mailbox"
       },
       "reset_confirm": "Replace your tag list with the default tags? Tags already set on messages stay on the server.",
-      "reset_defaults": "Reset to Defaults"
+      "reset_defaults": "Reset to defaults"
     },
     "layout": {
       "description": "Tune the email list interactions for mobile.",
       "quick_actions": {
         "description": "The three buttons shown between Prev/Next at the bottom of an open email. Defaults to Reply, Reply All and Forward.",
         "label": "Reader quick actions",
-        "mark_unread": "Mark Read/Unread",
+        "mark_unread": "Mark read/unread",
         "relocated": "{count, plural, one {{actions} is moved to the top toolbar so you can still use it.} other {{actions} are moved to the top toolbar so you can still use them.}}",
         "slot": "Slot {n}",
         "spam": "Spam",
@@ -1494,7 +1494,7 @@
       "app_desc": "The app is free software under the {licence}. You can use, study, share and change it.",
       "libraries": "Libraries",
       "libraries_desc": "Open-source code the app is built with.",
-      "read_licence": "Read the full licence text"
+      "read_licence": "Read the full license text"
     },
     "message_list_order": {
       "description": "Which messages come first in the list. Newest first is the tie-breaker within each group; the header toggle still flips oldest/newest.",
@@ -1526,16 +1526,16 @@
         "confirm_disable_message_mobile": "This device will stop receiving new-mail alerts for this account.",
         "description_mobile": "Receive system notifications for new mail when the app is closed. Delivered via the Bulwark push relay; the relay never sees mail content.",
         "err_account_changed": "The account changed while push was being set up. Try again.",
-        "err_android_only": "Push notifications are only available on Android.",
         "err_apns_empty": "iOS returned an empty push token.",
         "err_apns_token": "iOS could not issue a push token ({detail}).",
         "err_fcm_empty": "Firebase returned an empty device token.",
         "err_fcm_token": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device.",
-        "err_fcm_token_up": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.",
+        "err_fcm_token_up": "Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed: switch the delivery method to UnifiedPush instead.",
+        "err_fcm_unavailable": "Push through Firebase isn't available in this build of the app.",
         "err_forbidden": "The mail server doesn't allow background notifications for this account.",
         "err_jmap_list": "Could not read the push registrations from the mail server: {detail}",
         "err_jmap_refused": "The mail server refused the push subscription: {detail}",
-        "err_no_account": "No account loaded - cannot set up push.",
+        "err_no_account": "No account is loaded, so push can't be set up.",
         "err_over_quota": "This account has too many push registrations on the mail server (the limit is usually 15). Revoke devices you no longer use in the notification settings, then try again.",
         "err_permission": "Notification permission was not granted.",
         "err_relay_https": "The relay URL must use https://.",
@@ -1559,12 +1559,12 @@
         "relay_invalid": "Enter a valid https:// URL",
         "setup_failed": "Setup failed",
         "shared_mailboxes_no_push": "Mailboxes others share with you don't send background notifications.",
-        "status_android_only": "Background notifications are available on Android only.",
+        "status_unavailable": "This build of the app can't receive push notifications.",
         "transport_desc": "How notifications reach this device: Google’s Firebase Cloud Messaging, or a UnifiedPush distributor app (such as ntfy) for Google-free delivery.",
         "transport_fcm": "Google (FCM)",
         "transport_label": "Delivery method",
         "transport_unifiedpush": "UnifiedPush",
-        "up_distributor_desc": "Several UnifiedPush distributor apps are installed - pick the one that should deliver notifications.",
+        "up_distributor_desc": "Several UnifiedPush distributor apps are installed. Pick the one that should deliver notifications.",
         "up_distributor_label": "Distributor",
         "up_no_distributor": "No UnifiedPush distributor app is installed on this device. Install one (for example ntfy) and try again."
       }
@@ -1576,7 +1576,7 @@
       "clear_message": "Remove {count, plural, one {# cached message} other {# cached messages}} ({size})?",
       "clear_title": "Clear offline mail",
       "days_ago": "{count} d ago",
-      "description": "Download recent messages so they open instantly and remain readable without a connection. Bodies only — attachments are still fetched on demand.",
+      "description": "Download recent messages so they open instantly and remain readable without a connection. Only the message text is downloaded. Attachments still load when you open them.",
       "description_account": "Keep recent messages of {account} on this device so they open without a connection. Each account keeps its own window and size.",
       "description_short": "Keep recent messages on this device so they open without a connection.",
       "downloading": "Downloading {completed}/{total}…",
@@ -1585,8 +1585,8 @@
       "hours_ago": "{count} h ago",
       "just_now": "just now",
       "keep_24h": "24 hours",
-      "keep_days": "{count} days",
-      "keep_from": "Keep mail from the last",
+      "keep_days": "{count, plural, one {# day} other {# days}}",
+      "keep_from": "Time period",
       "last_sync": "Last sync {when}",
       "last_sync_failed": "Last sync failed: {message}",
       "max_size": "Maximum size",
@@ -1601,7 +1601,7 @@
       "synced": "Synced {when}",
       "syncing": "Syncing…",
       "title": "Offline mail",
-      "use_at_most": "Use at most",
+      "use_at_most": "Maximum size",
       "used_of": "{used} of {limit} MB",
       "window": "Window",
       "window_24h": "Last 24 hours",
@@ -1619,12 +1619,11 @@
       "phone_backup": "None of it goes into Android's cloud backup.",
       "phone_secure": "Your sign-in details are kept in the system's secure storage. Settings, the offline mail cache and changes waiting to sync are kept in the app's own storage.",
       "phone_title": "On this device",
-      "push": "When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through {service}. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.",
+      "push_apple": "When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through Apple's push service. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.",
+      "push_google": "When notifications are on, your server tells the push relay ({relay}) that something changed, and the relay wakes the app through Google's push service. The relay sees a device token and a change marker, never your mail. You can use your own relay under Notifications.",
       "push_title": "Push notifications",
       "server": "Mail, calendars, contacts and files are loaded from your server and saved back to it. Apart from the connections below, the app talks only to your server.",
       "server_title": "Your mail server",
-      "service_apple": "Apple's push service",
-      "service_google": "Google's push service",
       "updates": "The app asks GitHub for the latest release to tell you about updates.",
       "updates_android": "The app asks GitHub for the latest release to tell you about updates. Turn that off under Updates."
     },
@@ -1649,7 +1648,7 @@
         "allowed_ips": "Allowed IPs (optional)",
         "allowed_ips_hint": "Comma or space separated. Leave empty to allow any IP.",
         "clear_expiry": "Clear expiry",
-        "copy_now": "Copy this now — it is shown only once. Tap and hold to select.",
+        "copy_now": "Copy this now. It is shown only once. Tap and hold to select.",
         "create_error": "Could not create",
         "expires": "Expires (optional)",
         "expires_on": "expires {date}",
@@ -1663,14 +1662,14 @@
         "error_title": "Update failed"
       },
       "encryption": {
-        "no_keys": "Add a public key first - encryption at rest needs one.",
+        "no_keys": "Add a public key first. Encryption at rest needs one.",
         "turned_off_on_server": "Encryption at rest was on and has been turned off on the server, as the update to Stalwart 1.0.2 does. New mail is stored unencrypted until you turn it on again here."
       },
       "load_error": "Failed to load security settings.",
       "not_supported": "Account security management requires a Stalwart server. These features are not available for this account.",
       "offline": "You are offline. Account security settings need a live connection to the server.",
       "password": {
-        "change": "Change Password",
+        "change": "Change password",
         "changed": "Your account password was updated.",
         "changed_sign_in_again": "Your account password was updated. Sign in again with the new password.",
         "changed_title": "Password changed",
@@ -1689,7 +1688,7 @@
         "remove_error": "Failed to remove public key",
         "remove_message": "Encryption at rest that uses this key will stop working.",
         "remove_title": "Remove public key?",
-        "title": "Public Keys"
+        "title": "Public keys"
       },
       "restricted": "Your server lets only apps its administrator approved change the password, two-factor sign-in, app passwords and API keys. Bulwark signed in without that approval, so mail, contacts, calendars and files work, but these settings don't. Change them in your server's web interface or the Bulwark webmail.",
       "restricted_sign_in_again": "Bulwark signed in before your server let apps manage these settings. Sign in again to manage the password, two-factor sign-in, app passwords and API keys here.",
@@ -1718,7 +1717,7 @@
         "no_app_title": "No authenticator app",
         "open_app": "Add to authenticator app",
         "password_required": "Enter your current password.",
-        "section_title": "Two-Factor Authentication"
+        "section_title": "Two-factor authentication"
       }
     },
     "sidebar_apps": {
@@ -1754,7 +1753,7 @@
       "filters": "Rules for incoming mail",
       "folders": "Create, rename, roles",
       "identities": "Addresses you send from",
-      "keywords": "Tag names and colours",
+      "keywords": "Tag names and colors",
       "layout": "Quick actions, swipes, list order",
       "mail_off": "Mail off",
       "mail_on": "Mail on",
@@ -1773,18 +1772,18 @@
       "advanced": "Advanced",
       "appearance": "Appearance",
       "general": "General",
-      "privacy": "Privacy & Security"
+      "privacy": "Privacy & security"
     },
     "tabs": {
       "about": "About",
-      "content_senders": "Content & Senders",
+      "content_senders": "Content & senders",
       "downloads": "Downloads",
       "identities": "Identities",
       "keywords": "Tags",
-      "language": "Language, Region & Time",
+      "language": "Language, region & time",
       "layout": "Layout",
       "plugins": "Plugins",
-      "sidebar_apps": "Sidebar Apps",
+      "sidebar_apps": "Sidebar apps",
       "storage": "Storage & backup",
       "templates": "Templates",
       "themes": "Themes",
@@ -1806,7 +1805,7 @@
     },
     "themes": {
       "default_description": "The default light and dark palettes.",
-      "mobile_description": "Pick a colour theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail."
+      "mobile_description": "Pick a color theme. Themes follow the light/dark setting from Appearance; custom theme packages are managed in the webmail."
     },
     "troubleshooting": {
       "cache_desc": "When a list looks stale or wrong.",
@@ -1817,11 +1816,11 @@
     "vacation": {
       "date_range": {
         "description": "Optionally limit the auto-reply to a specific period",
-        "title": "Date Range"
+        "title": "Date range"
       },
       "message": {
         "description": "The message that will be sent as a reply",
-        "title": "Auto-Reply Message"
+        "title": "Auto-reply message"
       },
       "status": {
         "ended": "Ended",
@@ -1968,7 +1967,7 @@
       "all_day": "All day",
       "join": "Join",
       "join_named": "Join {name}",
-      "more_this_week": "{count, plural, one {# more this week} other {# more this week}}",
+      "more_this_week": "{count, plural, other {# more this week}}",
       "no_more_today": "No more events today",
       "nothing_planned": "Nothing on the calendar",
       "now": "Now",
@@ -1980,7 +1979,7 @@
       "tomorrow": "Tomorrow",
       "unit_days": "{count, plural, one {day} other {days}}",
       "unit_hours": "{count, plural, one {hour} other {hours}}",
-      "unit_minutes": "{count, plural, one {min} other {min}}",
+      "unit_minutes": "{count, plural, other {min}}",
       "unsupported": "Calendar isn't available on this server",
       "untitled": "(no title)",
       "video_call": "Video call"
@@ -1991,7 +1990,7 @@
     },
     "draft": {
       "edited_at": "Edited {when}",
-      "edited_minutes": "{count, plural, one {Edited # min ago} other {Edited # min ago}}",
+      "edited_minutes": "{count, plural, other {Edited # min ago}}",
       "edited_now": "Edited just now",
       "empty": "No drafts",
       "empty_body": "Messages you start and do not send wait here.",
@@ -2035,12 +2034,12 @@
       "all_accounts": "All accounts",
       "all_caught_up": "All caught up",
       "archive": "Archive",
+      "changes_waiting": "{count, plural, one {# change waiting} other {# changes waiting}}",
+      "changes_waiting_short": "{count} waiting",
       "delete": "Delete",
       "empty_all_accounts": "Your inboxes are empty",
       "empty_inbox": "Your inbox is empty",
       "folders": "Folders",
-      "in_outbox": "{count, plural, one {# change waiting} other {# changes waiting}}",
-      "in_outbox_short": "{count} waiting",
       "inbox": "Inbox",
       "more_unread": "+{count} more unread",
       "no_folders": "No folders to show",
@@ -2062,9 +2061,9 @@
       "trash": "Couldn't delete. Tap to try again."
     },
     "people": {
-      "empty": "No favourites yet",
+      "empty": "No favorites yet",
       "empty_body": "The people you hear from most show up here.",
-      "favourites": "Favourites"
+      "favourites": "Favorites"
     },
     "relative": {
       "days": "{count, plural, one {in # day} other {in # days}}",
@@ -2133,7 +2132,7 @@
       "active": "Active",
       "inactive": "Inactive",
       "subject": "Subject: {subject}",
-      "title": "Vacation Responder",
+      "title": "Out of office",
       "unsupported": "Vacation replies aren't available",
       "until": "Until {date}"
     }

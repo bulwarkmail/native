@@ -53,7 +53,7 @@ export function SettingsSection({
         <View style={styles.experimentalBanner}>
           <FlaskConical size={20} color={c.warning} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.experimentalTitle}>{t('settings.experimental.title', 'Experimental Feature')}</Text>
+            <Text style={styles.experimentalTitle}>{t('settings.experimental.title', 'Experimental feature')}</Text>
             {experimentalDescription && (
               <Text style={styles.experimentalDesc}>{experimentalDescription}</Text>
             )}

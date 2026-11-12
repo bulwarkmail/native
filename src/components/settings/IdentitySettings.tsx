@@ -262,7 +262,7 @@ export function IdentitySettings() {
 
   return (
     <SettingsSection
-      title={t('settings.identities.title', "Sending Identities")}
+      title={t('settings.identities.title', "Sending identities")}
       description={t('settings.identities.description_mobile', "Manage sender names, email addresses, and signatures. Tap a row to edit.")}
     >
       <View style={styles.headerRow}>

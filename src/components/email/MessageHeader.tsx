@@ -338,7 +338,7 @@ export function MessageHeader({ email, identities, headerInfo, onToggleStar, onA
               </View>
               {spoofed && (
                 <Text style={[styles.detailValue, { color: c.error }]}>
-                  {t('email_viewer.authentication.spoof_warning', 'The sender address could not be verified - this message may be spoofed.')}
+                  {t('email_viewer.authentication.spoof_warning', 'The sender address could not be verified. This message may be spoofed.')}
                 </Text>
               )}
               <DetailRow label={t('email_viewer.authentication.policy', 'Policy')} value={auth?.dmarc?.policy} styles={styles} />

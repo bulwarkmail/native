@@ -250,7 +250,7 @@ export function ReadingSettings() {
         </SettingItem>
       )}
 
-      <SettingItem label={t('settings.email_behavior.disable_threading.label', "Disable Conversation Grouping")} description={t('settings.email_behavior.disable_threading.description', "Show emails as individual messages instead of grouped by conversation")}>
+      <SettingItem label={t('settings.email_behavior.disable_threading.label', "Disable conversation grouping")} description={t('settings.email_behavior.disable_threading.description', "Show emails as individual messages instead of grouped by conversation")}>
         <ToggleSwitch checked={disableThreading} onChange={(v) => update('disableThreading', v)} />
       </SettingItem>
 
@@ -346,7 +346,7 @@ export function ReadingSettings() {
         />
       </SettingItem>
 
-      <SettingItem label={t('settings.email_behavior.attachment_position.label', "Attachment Position")} description={t('settings.email_behavior.attachment_position.description', "Where to display attachments in the email header")}>
+      <SettingItem label={t('settings.email_behavior.attachment_position.label', "Attachment position")} description={t('settings.email_behavior.attachment_position.description', "Where to display attachments in the email header")}>
         <Select
           value={attachmentPosition}
           onChange={(v) => update('attachmentPosition', v as AttachmentPosition)}

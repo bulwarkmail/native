@@ -871,7 +871,7 @@ async function getFcmTokenOrThrow(native: BulwarkFcmNative): Promise<string> {
       distributors.length > 0
         ? t(
           'settings.notifications.push.err_fcm_token_up',
-          'Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed - switch the delivery method to UnifiedPush instead.',
+          'Firebase could not issue a device token ({detail}). Push over FCM needs Google Play services on this device. This device has a UnifiedPush distributor installed: switch the delivery method to UnifiedPush instead.',
           { detail },
         )
         : t(
@@ -1351,7 +1351,7 @@ async function setupPushNotificationsInner(
   const transport = await getEffectivePushTransport();
   const native = getNative();
   if (transport === 'fcm' && !native) {
-    throw new PushSetupError('platform', t('settings.notifications.push.err_android_only', 'Push notifications are only available on Android.'));
+    throw new PushSetupError('platform', t('settings.notifications.push.err_fcm_unavailable', 'Push through Firebase isn\'t available in this build of the app.'));
   }
   if (transport === 'apns' && Platform.OS !== 'ios') {
     throw new PushSetupError('platform', 'APNs is only available on iOS.');
@@ -1388,7 +1388,7 @@ async function setupPushNotificationsInner(
   // need its username/serverUrl up-front so we can key per-account state.
   const accountId = servedAccountId();
   if (!accountId) {
-    throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account loaded - cannot set up push.'));
+    throw new PushSetupError('account', t('settings.notifications.push.err_no_account', 'No account is loaded, so push can\'t be set up.'));
   }
 
   await migrateLegacyPushKeys();

@@ -160,8 +160,8 @@ export function AboutSettings({ onOpen }: AboutSettingsProps) {
           </SettingItem>
         )}
         <SettingItem
-          label={t('settings.about.licences', 'Open-source licences')}
-          description={t('settings.about.licences_desc', 'AGPL-3.0 for the app, and the libraries it uses')}
+          label={t('settings.about.licences', 'Open-source licenses')}
+          description={t('settings.about.licences_desc', 'The app\'s license (AGPL-3.0) and the licenses of the libraries it uses')}
           onPress={() => onOpen?.('licences')}
         />
         <SettingItem

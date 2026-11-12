@@ -351,7 +351,7 @@ export function RestaurantCard({ booking, calendarActions }: BookingCardProps<Re
       {address ? <MetaRow icon={MapPin}>{address}</MetaRow> : null}
       {booking.partySize !== undefined && booking.partySize > 0 ? (
         <MetaRow icon={Users}>
-          {t('email_viewer.structured_mail.party_size', '{count, plural, one {Table for #} other {Table for #}}', { count: booking.partySize })}
+          {t('email_viewer.structured_mail.party_size', '{count, plural, other {Table for #}}', { count: booking.partySize })}
         </MetaRow>
       ) : null}
     </CardShell>

@@ -42,7 +42,7 @@ const STATIC: Partial<Record<SettingsTabId, [string, string]>> = {
   filters: ['settings.summary.filters', 'Rules for incoming mail'],
   templates: ['settings.summary.templates', 'Reusable messages'],
   folders: ['settings.summary.folders', 'Create, rename, roles'],
-  keywords: ['settings.summary.keywords', 'Tag names and colours'],
+  keywords: ['settings.summary.keywords', 'Tag names and colors'],
   downloads: ['settings.summary.downloads', 'File names for saved mail'],
   security: ['settings.summary.security', 'Password, two-factor, app passwords'],
   content_senders: ['settings.summary.content_senders', 'Remote images, trusted senders'],

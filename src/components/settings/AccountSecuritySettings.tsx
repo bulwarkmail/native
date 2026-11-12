@@ -271,7 +271,7 @@ function PasswordChangeSection({ otpEnabled }: { otpEnabled: boolean }) {
             onPress={() => { void submit(); }}
             icon={<Key size={14} color={c.primaryForeground} />}
           >
-            {t('settings.security.password.change', "Change Password")}
+            {t('settings.security.password.change', "Change password")}
           </Button>
         </View>
       </View>
@@ -379,7 +379,7 @@ function TotpSection({ enabled, onChanged }: { enabled: boolean; onChanged: () =
     <View style={{ gap: spacing.md }}>
       <View style={styles.headerRow}>
         <Shield size={16} color={c.mutedForeground} />
-        <Text style={styles.headerTitle}>{t('settings.security.two_factor.section_title', "Two-Factor Authentication")}</Text>
+        <Text style={styles.headerTitle}>{t('settings.security.two_factor.section_title', "Two-factor authentication")}</Text>
       </View>
 
       <SettingItem label={t('settings.security.two_factor.label', "Authenticator app")} description={t('settings.security.two_factor.description', "Require a one-time code at login.")} noBorder>
@@ -530,7 +530,7 @@ function CredentialSection({ icon: Icon, title, description, nameLabel, namePlac
 
       {createdSecret && (
         <View style={styles.panel}>
-          <Text style={styles.panelHint}>{t('settings.security.credentials.copy_now', "Copy this now — it is shown only once. Tap and hold to select.")}</Text>
+          <Text style={styles.panelHint}>{t('settings.security.credentials.copy_now', "Copy this now. It is shown only once. Tap and hold to select.")}</Text>
           <Text selectable style={styles.secretText}>{createdSecret}</Text>
           <View style={{ alignItems: 'flex-start' }}>
             <Button variant="ghost" size="sm" onPress={() => setCreatedSecret(null)}>{t('common.done', "Done")}</Button>
@@ -780,7 +780,7 @@ function PublicKeysSection({
       <View style={styles.headerRowBetween}>
         <View style={styles.headerRow}>
           <Key size={16} color={c.mutedForeground} />
-          <Text style={styles.headerTitle}>{t('settings.security.public_keys.title', 'Public Keys')}</Text>
+          <Text style={styles.headerTitle}>{t('settings.security.public_keys.title', 'Public keys')}</Text>
         </View>
         <Button variant="outline" size="sm" icon={<Plus size={14} color={c.text} />} onPress={() => setShowAdd((v) => !v)}>
           {t('common.add', 'Add')}
@@ -973,10 +973,10 @@ function EncryptionSection({
 
       {enabled && (
         <View style={styles.panel}>
-          <Text style={styles.pwLabel}>{t('settings.security.public_keys.title', 'Public Keys')}</Text>
+          <Text style={styles.pwLabel}>{t('settings.security.public_keys.title', 'Public keys')}</Text>
           {keys.length === 0 ? (
             <Text style={styles.errorText}>
-              {t('settings.security.encryption.no_keys', 'Add a public key first - encryption at rest needs one.')}
+              {t('settings.security.encryption.no_keys', 'Add a public key first. Encryption at rest needs one.')}
             </Text>
           ) : (
             <View style={{ gap: spacing.xs }}>

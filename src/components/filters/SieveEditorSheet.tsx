@@ -176,7 +176,7 @@ export function SieveEditorSheet({ visible, content, onSave, onClose, onValidate
             </Button>
             <Button onPress={handleSave} disabled={!script.trim()}>
               {showSaveWarning
-                ? t('settings.filters.sieve_editor.confirm_save', 'Confirm Save')
+                ? t('settings.filters.sieve_editor.confirm_save', 'Confirm save')
                 : t('settings.filters.sieve_editor.save', 'Save')}
             </Button>
           </View>

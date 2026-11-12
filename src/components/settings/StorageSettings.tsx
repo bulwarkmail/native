@@ -81,7 +81,7 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
     value: String(d),
     label: d === 1
       ? t('settings.offline.keep_24h', '24 hours')
-      : t('settings.offline.keep_days', '{count} days', { count: d }),
+      : t('settings.offline.keep_days', '{count, plural, one {# day} other {# days}}', { count: d }),
   }));
   const maxMbOptions = optionsUnderCap(MB_CHOICES, devices.offlineMaxTotalMb).map((mb) => ({ value: String(mb), label: `${mb} MB` }));
   const orgNote = t('settings.org_locked', 'Set by your organisation');
@@ -249,7 +249,7 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
           />
         </SettingItem>
         <SettingItem
-          label={t('settings.offline.keep_from', 'Keep mail from the last')}
+          label={t('settings.offline.keep_from', 'Time period')}
           description={capTakesChoice(DAY_CHOICES, devices.offlineMaxDays) ? orgNote : undefined}
         >
           <Select
@@ -259,7 +259,7 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
           />
         </SettingItem>
         <SettingItem
-          label={t('settings.offline.use_at_most', 'Use at most')}
+          label={t('settings.offline.use_at_most', 'Maximum size')}
           description={capTakesChoice(MB_CHOICES, devices.offlineMaxTotalMb) ? orgNote : undefined}
           noBorder
         >

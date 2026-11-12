@@ -373,7 +373,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
               <Palmtree size={16} color={c.success} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.vacationTitle}>{t('settings.filters.vacation_active', 'Vacation Responder is active')}</Text>
+              <Text style={styles.vacationTitle}>{t('settings.filters.vacation_active', 'Out of office is on')}</Text>
               <Text style={styles.vacationDesc}>{t('settings.filters.vacation_active_description', 'Auto-reply is enabled for incoming messages')}</Text>
             </View>
             {onOpenVacation && (

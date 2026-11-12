@@ -21,7 +21,7 @@ export function LicencesSettings() {
       >
         <SettingItem
           label={licences.app.license}
-          description={t('settings.licences.read_licence', 'Read the full licence text')}
+          description={t('settings.licences.read_licence', 'Read the full license text')}
           onPress={() => void Linking.openURL(`${NATIVE_REPO_URL}/blob/main/LICENSE`)}
           link="external"
           noBorder

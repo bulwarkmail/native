@@ -52,7 +52,7 @@ const quickActionLabels = (t: Translate): Record<QuickAction, string> => ({
   forward: t('email_viewer.forward', 'Forward'),
   delete: t('email_viewer.delete', 'Delete'),
   archive: t('email_viewer.archive', 'Archive'),
-  markUnread: t('settings.layout.quick_actions.mark_unread', 'Mark Read/Unread'),
+  markUnread: t('settings.layout.quick_actions.mark_unread', 'Mark read/unread'),
   star: t('settings.layout.quick_actions.star', 'Star'),
   move: t('settings.email_behavior.swipe_actions.move', 'Move to folder'),
   spam: t('settings.layout.quick_actions.spam', 'Spam'),

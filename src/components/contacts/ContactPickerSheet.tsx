@@ -120,7 +120,7 @@ export default function ContactPickerSheet({
               >
                 <X size={20} color={c.text} />
               </Pressable>
-              <Text style={styles.headerTitle}>{title ?? t('contacts.picker.title', 'Add Contact')}</Text>
+              <Text style={styles.headerTitle}>{title ?? t('contacts.picker.title', 'Add contact')}</Text>
               {multi && (
                 <Pressable
                   onPress={confirm}

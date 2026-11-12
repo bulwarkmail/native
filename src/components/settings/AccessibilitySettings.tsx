@@ -205,7 +205,7 @@ export function AccessibilitySettings() {
       <SettingsSection title={t('settings.accessibility.sections.contrast', 'Colour and contrast')}>
         <SettingItem
           label={t('settings.accessibility.cvd_palette.label', 'Colour-blind-safe colours')}
-          description={t('settings.accessibility.cvd_palette.description_mobile', 'Uses tag and calendar colours that stay distinct with red-green or blue-yellow colour blindness.')}
+          description={t('settings.accessibility.cvd_palette.description_mobile', 'Uses tag and calendar colors that stay distinct with red-green or blue-yellow color blindness.')}
           noBorder
         >
           <ToggleSwitch

@@ -102,7 +102,7 @@ const GROUP_LABELS: Record<TabGroup, string> = {
   general: 'General',
   appearance: 'Appearance',
   mail: 'Mail',
-  privacy: 'Privacy & Security',
+  privacy: 'Privacy & security',
   apps: 'Apps',
   advanced: 'Advanced',
 };
@@ -113,7 +113,7 @@ const TABS: TabDef[] = [
   // General
   { id: 'account',         label: 'Account',            icon: User,           group: 'general',    implemented: true  },
   { id: 'sharing',         label: 'Sharing',            icon: Users,          group: 'general',    implemented: true  },
-  { id: 'language',        label: 'Language',           icon: Languages,      group: 'general',    implemented: true  },
+  { id: 'language',        label: 'Language, region & time', icon: Languages,      group: 'general',    implemented: true  },
   { id: 'notifications',   label: 'Notifications',      icon: Bell,           group: 'general',    implemented: true  },
   { id: 'accessibility',   label: 'Accessibility',      icon: Accessibility,  group: 'general',    implemented: true  },
 
@@ -125,17 +125,17 @@ const TABS: TabDef[] = [
   { id: 'reading',         label: 'Reading',            icon: BookOpen,       group: 'mail',       implemented: true  },
   { id: 'composing',       label: 'Composing',          icon: PenLine,        group: 'mail',       implemented: true  },
   { id: 'identities',      label: 'Identities',         icon: UserPen,        group: 'mail',       implemented: true  },
-  { id: 'vacation',        label: 'Vacation Responder', icon: Palmtree,       group: 'mail',       implemented: true  },
-  { id: 'filters',         label: 'Filters & Rules',    icon: Filter,         group: 'mail',       implemented: true  },
+  { id: 'vacation',        label: 'Out of office',      icon: Palmtree,       group: 'mail',       implemented: true  },
+  { id: 'filters',         label: 'Filters',            icon: Filter,         group: 'mail',       implemented: true  },
   { id: 'recovery',        label: 'Recover deleted items', icon: RotateCcw,   group: 'mail',       implemented: true  },
   { id: 'templates',       label: 'Templates',          icon: FileText,       group: 'mail',       implemented: true  },
   { id: 'folders',         label: 'Folders',            icon: FolderOpen,     group: 'mail',       implemented: true  },
-  { id: 'keywords',        label: 'Keywords & Labels',  icon: Tags,           group: 'mail',       implemented: true  },
+  { id: 'keywords',        label: 'Tags',               icon: Tags,           group: 'mail',       implemented: true  },
   { id: 'downloads',       label: 'Downloads',          icon: Download,       group: 'mail',       implemented: true  },
 
   // Privacy & Security
   { id: 'security',        label: 'Security',           icon: Shield,         group: 'privacy',    implemented: true  },
-  { id: 'content_senders', label: 'Content & Senders',  icon: EyeOff,         group: 'privacy',    implemented: true  },
+  { id: 'content_senders', label: 'Content & senders',  icon: EyeOff,         group: 'privacy',    implemented: true  },
   // PGP and S/MIME keys (#58); the webmail has them in its plugins' settings.
   { id: 'encryption',      label: 'Encryption',         icon: KeyRound,       group: 'privacy',    implemented: true  },
 
@@ -143,7 +143,7 @@ const TABS: TabDef[] = [
   { id: 'calendar',        label: 'Calendar',           icon: Calendar,       group: 'apps',       implemented: true  },
   { id: 'contacts',        label: 'Contacts',           icon: BookUser,       group: 'apps',       implemented: true  },
   { id: 'files',           label: 'Files',              icon: HardDrive,      group: 'apps',       implemented: true  },
-  { id: 'sidebar_apps',    label: 'Sidebar Apps',       icon: PanelLeftClose, group: 'apps',       implemented: true  },
+  { id: 'sidebar_apps',    label: 'Sidebar apps',       icon: PanelLeftClose, group: 'apps',       implemented: true  },
 
   // Advanced. Plugins come from the webmail, so the app has no page for them.
   { id: 'themes',          label: 'Themes',             icon: Palette,        group: 'advanced',   implemented: true  },
@@ -151,7 +151,7 @@ const TABS: TabDef[] = [
   { id: 'updates',         label: 'Updates',            icon: RefreshCw,      group: 'advanced',   implemented: true  },
   { id: 'about',           label: 'About',              icon: Info,           group: 'advanced',   implemented: true  },
   { id: 'debug',           label: 'Troubleshooting',    icon: Bug,            group: 'advanced',   implemented: true, hidden: true, parent: 'about_data' },
-  { id: 'licences',        label: 'Open-source licences', icon: Scale,        group: 'advanced',   implemented: true, hidden: true, parent: 'about' },
+  { id: 'licences',        label: 'Open-source licenses', icon: Scale,        group: 'advanced',   implemented: true, hidden: true, parent: 'about' },
   { id: 'privacy',         label: 'Privacy',            icon: Shield,         group: 'advanced',   implemented: true, hidden: true, parent: 'about' },
 ];
 

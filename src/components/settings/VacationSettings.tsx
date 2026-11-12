@@ -281,7 +281,7 @@ export function VacationSettings() {
   const saveLabel = store.isSaving
     ? t('settings.vacation.saving', 'Saving...')
     : t('settings.vacation.save', 'Save Changes');
-  const title = t('settings.vacation.title', 'Vacation Responder');
+  const title = t('settings.vacation.title', 'Out of office');
   const description = t('settings.vacation.description', "Automatically reply to incoming emails while you're away");
 
   if (store.isLoading && !store.hasLoaded) {
@@ -326,7 +326,7 @@ export function VacationSettings() {
     <View style={styles.container}>
       <SettingsSection title={title} description={description}>
         <SettingItem
-          label={t('settings.vacation.status.label', 'Vacation Responder')}
+          label={t('settings.vacation.status.label', 'Reply automatically')}
           description={t('settings.vacation.status.description', 'Send an automatic reply to people who email you')}
         >
           <View style={styles.statusRow}>
@@ -382,7 +382,7 @@ export function VacationSettings() {
       )}
 
       <SettingsSection
-        title={t('settings.vacation.date_range.title', 'Date Range')}
+        title={t('settings.vacation.date_range.title', 'Date range')}
         description={t('settings.vacation.date_range.description', 'Optionally limit the auto-reply to a specific period')}
       >
         <SettingItem
@@ -440,7 +440,7 @@ export function VacationSettings() {
       />
 
       <SettingsSection
-        title={t('settings.vacation.message.title', 'Auto-Reply Message')}
+        title={t('settings.vacation.message.title', 'Auto-reply message')}
         description={t('settings.vacation.message.description', 'The message that will be sent as a reply')}
       >
         {/* Stacked like the body below: beside its label, a fixed-width field
