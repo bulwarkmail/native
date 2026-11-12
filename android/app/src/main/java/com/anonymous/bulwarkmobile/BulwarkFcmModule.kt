@@ -277,8 +277,9 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
      * Posts the group summary once the group has [minChildren] notifications,
      * cancels it when it has none. Between the two it is left alone: with a
      * summary up, cancelling it takes its last child down with it. Under the
-     * organisation's rule ([withoutContent]) the summary takes no lines from
-     * the children (NotificationSummary).
+     * organisation's rule ([withoutContent]) the summary takes no lines and no
+     * count from the children, and one that is showing is posted again even
+     * over a single child (NotificationSummary).
      */
     private fun postGroupSummary(
         ctx: Context,
@@ -298,8 +299,12 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             manager.cancel(groupKey, groupKey.hashCode())
             return
         }
-        if (children.size < minChildren) return
+        val summaryShowing = manager.activeNotifications.any {
+            it.tag == groupKey && (it.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY) != 0
+        }
+        if (!NotificationSummary.posts(children.size, minChildren, withoutContent, summaryShowing)) return
         val count = children.size
+        val countText = NotificationSummary.countText(count, withoutContent)
         val inbox = NotificationCompat.InboxStyle()
         val newestFirst = children.sortedByDescending { it.postTime }.take(NotificationSummary.MAX_LINES).map { sbn ->
             val extras = sbn.notification.extras
@@ -308,7 +313,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         }
         NotificationSummary.lines(newestFirst, withoutContent).forEach { inbox.addLine(it) }
         inbox.setBigContentTitle(groupTitle)
-        inbox.setSummaryText(if (count == 1) "1 new message" else "$count new messages")
+        inbox.setSummaryText(countText)
 
         val intent = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -324,7 +329,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         val summary = NotificationCompat.Builder(ctx, BulwarkMessagingService.channelId(ctx))
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(groupTitle)
-            .setContentText(if (count == 1) "1 new message" else "$count new messages")
+            .setContentText(countText)
             .setStyle(inbox)
             .setColor(parseColor(colorHex, fallback = Color.parseColor("#2563eb")))
             .setGroup(groupKey)
