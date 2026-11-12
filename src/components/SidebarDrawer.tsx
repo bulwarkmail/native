@@ -22,6 +22,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useKeywordsStore, keywordToken } from '../stores/keywords-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { MAX_ACCOUNTS, accountRowText, serverHostLabel } from '../lib/account-utils';
+import { accountInboxUnread } from '../lib/account-inbox-unread';
 import { toUnicodeEmail } from '../lib/idn';
 import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
@@ -339,6 +340,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const t = useLocaleStore((s) => s.t);
   const mailboxes = useEmailStore((s) => s.mailboxes);
   const accountSnapshots = useEmailStore((s) => s.accountSnapshots);
+  const shownAccountId = useEmailStore((s) => s.activeAccountId);
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
   const filters = useEmailStore((s) => s.filters);
   const selectMailbox = useEmailStore((s) => s.selectMailbox);
@@ -929,6 +931,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                 // The address leads when another account has the same name
                 // (webmail 3bb9f7df8).
                 const rowText = accountRowText(acc, accounts);
+                // The unread waiting in its Inbox (webmail 2a726c0f4).
+                const unread = accountInboxUnread(acc.id, shownAccountId, mailboxes, accountSnapshots);
                 return (
                   <Pressable
                     key={acc.id}
@@ -1003,6 +1007,14 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                         )}
                       </View>
                     </View>
+                    {unread ? (
+                      <Text
+                        style={styles.countUnread}
+                        accessibilityLabel={t('sidebar.account_unread', '{count} unread', { count: unread })}
+                      >
+                        {unread}
+                      </Text>
+                    ) : null}
                     {!isActive && (
                       <Pressable
                         onPress={() => confirmRemoveAccount(acc)}
