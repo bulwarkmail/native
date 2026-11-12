@@ -1,4 +1,5 @@
 import { jmapClient } from './jmap-client';
+import { accountListsMetadata } from './bulwark-metadata';
 import { CAPABILITIES } from './types';
 import type { Alert, Calendar, CalendarEvent, CalendarRights } from './types';
 import { JMAPSetError, assertSetResult, batched, jmapErrorType, requireMethodResult } from './jmap-result';
@@ -1185,7 +1186,7 @@ export async function updateEventInSteps(
  * Metadata, which came with 1.0, so its absence stands for 0.16.
  */
 export function misreadsAllDayOverrides(accountId?: string): boolean {
-  return !jmapClient.hasAccountCapability('urn:ietf:params:jmap:metadata', accountId);
+  return !accountListsMetadata(accountId);
 }
 
 export async function deleteEvents(

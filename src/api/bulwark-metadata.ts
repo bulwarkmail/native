@@ -20,6 +20,15 @@ import { CAPABILITIES, type JMAPMethodCall } from './types';
 
 const METADATA_CAPABILITY = 'urn:ietf:params:jmap:metadata';
 export const BULWARK_NAMESPACE = 'org.bulwarkmail';
+
+/**
+ * Whether the account lists JMAP Metadata. Stalwart added it in 1.0, so its
+ * absence also marks a 0.16 server for callers that work around 0.16
+ * behaviour. Kept here, the one module that may name the capability.
+ */
+export function accountListsMetadata(accountId?: string): boolean {
+  return jmapClient.hasAccountCapability(METADATA_CAPABILITY, accountId);
+}
 /** Largest value Stalwart's default config takes in one namespace. */
 export const MAX_METADATA_ENTRY_BYTES = 8192;
 
