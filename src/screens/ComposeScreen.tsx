@@ -51,6 +51,7 @@ import { toast } from '../stores/toast-store';
 import { useTemplatesStore, type EmailTemplate } from '../stores/templates-store';
 import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
+import { defaultSenderIdentity, sortIdentities } from '../lib/identity-order';
 import {
   sendEmail, saveDraftVersion, destroyEmails, getFullEmail, patchKeywordsForEmails, SendUnconfirmedError,
   type OutgoingAttachment, type OutgoingEmail,
@@ -859,9 +860,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
     if (identitiesFresh) return;
     let cancelled = false;
     const login = useAccountStore.getState().activeAccountId;
+    // The login's own identity first (lib/identity-order), as in the
+    // settings store: Stalwart 1.x lists a group's identity ahead of it.
+    const username = jmapClient.username || useAccountStore.getState().getActiveAccount()?.username || '';
     void (async () => {
       if (!online) {
-        const cached = await readCachedIdentities(login);
+        const cached = sortIdentities(await readCachedIdentities(login), username);
         if (!cancelled && cached.length > 0) {
           setIdentities((prev) => (prev.length > 0 ? prev : cached));
           setIdentityError(null);
@@ -870,7 +874,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
       const result = await loadComposerIdentities(login, () => getIdentities());
       if (cancelled) return;
       if (result.identities.length > 0 || result.fresh) {
-        setIdentities(result.identities);
+        setIdentities(sortIdentities(result.identities, username));
         setIdentityError(null);
       } else if (result.error) {
         setIdentityError(result.error);
@@ -1022,11 +1026,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
     // when the throwing `accountId` getter would crash the screen.
     const connectedAccountId = jmapClient.connectedAccountId;
     const preferredId = connectedAccountId ? preferredIdentityIds[connectedAccountId] : undefined;
-    const defaultIdentity =
-      identities.find((i) => i.id === preferredId)
-      ?? identities.find((i) => i.email.toLowerCase() === activeEmail?.toLowerCase())
-      ?? identities.find((i) => !i.mayDelete)
-      ?? identities[0];
+    const defaultIdentity = defaultSenderIdentity(identities, activeEmail, preferredId)!;
 
     if (draft) {
       const matched = findDraftIdentityId(identities, draft.from?.[0]);

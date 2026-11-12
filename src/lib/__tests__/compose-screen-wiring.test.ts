@@ -62,4 +62,13 @@ describe('ComposeScreen wiring', () => {
     const build = source.slice(source.indexOf('const buildOutgoing'), source.indexOf('// Save one draft version'));
     expect(build).toMatch(/textBody = htmlToPlainText\(safeHtml, \{\s+mailMarkup: true,/);
   });
+
+  // Stalwart 1.x lists a group's identity (team@) ahead of the login's own;
+  // the From list, its fallbacks and the signature fallback took the first.
+  it("orders the sender identities the login's own first, fresh and from the offline copy", () => {
+    const load = source.slice(source.indexOf('const result = await loadComposerIdentities') - 600, source.indexOf('setIdentitiesFresh(result.fresh)'));
+    expect(load).toMatch(/const cached = sortIdentities\(await readCachedIdentities\(login\), username\);/);
+    expect(load).toMatch(/setIdentities\(sortIdentities\(result\.identities, username\)\);/);
+    expect(source).toMatch(/const defaultIdentity = defaultSenderIdentity\(identities, activeEmail, preferredId\)!;/);
+  });
 });

@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
 import { jmapClient } from '../api/jmap-client';
+import { sortIdentities } from '../lib/identity-order';
 import type { SortLevel, MessageListOrderScope } from '../lib/message-list-order';
 import { EMPTY_NOTIFICATION_MUTES, normalizeNotificationMutes, type NotificationMutes } from '../lib/notification-mutes';
 import {
@@ -983,7 +984,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     promise = (async () => {
       set({ loading: true, error: null });
       try {
-        const identities = await fetchIdentities();
+        // The login's own identity first, so every "first identity" default
+        // (quick reply, read receipts, unsubscribe) is the user's own address,
+        // not the group's that Stalwart 1.x lists ahead of it.
+        const identities = sortIdentities(await fetchIdentities(), jmapClient.username ?? '');
         // Signed in to another account meanwhile: these are not its identities.
         if (identityScope() !== scope) {
           set({ loading: false });
