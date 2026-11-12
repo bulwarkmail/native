@@ -1,7 +1,8 @@
 /**
  * Helpers for the scripts the mail view injects into the page
- * (EmailBodyView, quote-collapse, mail-motion, email-dark-mode), as source
- * to paste into each script's function body.
+ * (EmailBodyView, quote-collapse, mail-motion, email-dark-mode, mail-reading)
+ * and for the compose editor's page, which holds the quoted mail
+ * (editor-html), as source to paste into each script's function body.
  *
  * A mail's elements can stand in for names on `document` and `window`: an
  * <img name="body"> is what `document.body` returns, and an element with an

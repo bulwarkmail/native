@@ -10,6 +10,9 @@ import { PAGE_DOM_SOURCE } from '../page-dom';
 import { buildQuoteCollapseScript } from '../quote-collapse';
 import { buildPauseAnimatedImagesScript } from '../mail-motion';
 import { buildEmailDarkModeScript } from '../email-dark-mode';
+import { buildMailTextSizeScript } from '../mail-reading';
+import { buildEditorHtml } from '../editor-html';
+import { LIGHT_COLORS } from '../../theme/tokens';
 
 interface PageDom {
   pagePart: (doc: object, name: string) => unknown;
@@ -95,6 +98,7 @@ const SCRIPTS: Array<[string, string]> = [
   ['height reporter', componentScript('HEIGHT_REPORTER')],
   ['swipe detector', componentScript('SWIPE_DETECTOR')],
   ['pinch zoom', componentScript('PINCH_ZOOM')],
+  ['text size', buildMailTextSizeScript(1.3)],
 ];
 
 describe('the injected scripts', () => {
@@ -106,6 +110,15 @@ describe('the injected scripts', () => {
     expect(script).not.toMatch(/\bdoc(?:ument)?\.__rn/);
     expect(script).not.toMatch(/(?:if \(|\(|&&\s*|\|\|\s*|!)window\.__rn/);
     expect(script).not.toMatch(/=\s*window\.__rn\w+\s*\|\|/);
+  });
+
+  it('the compose editor makes the quote toggle and puts it on the body with the helpers', () => {
+    // The editor page holds the quoted mail once its initial content is in.
+    const html = buildEditorHtml({ initialHtml: '<p><br></p>', placeholder: '', c: LIGHT_COLORS, collapseQuote: true });
+    const block = /if \(COLLAPSE_QUOTE && topQuote\(\)\) \{[\s\S]*?\n {2}\}\n/.exec(html)?.[0] ?? '';
+    expect(block).toMatch(/pageCall\(document, 'createElement', \['button'\]\)/);
+    expect(block).toMatch(/pagePart\(document, 'body'\)\.appendChild\(quoteToggle\)/);
+    expect(block).not.toMatch(/\bdocument\.[A-Za-z]/);
   });
 
   it('builds the wrapper rather than looking one up', () => {

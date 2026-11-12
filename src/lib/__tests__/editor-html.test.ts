@@ -323,7 +323,7 @@ describe('editor visual viewport pinning', () => {
 
 describe('collapsed reply quote (webmail #1405)', () => {
   type Listener = (e?: { preventDefault: () => void }) => void;
-  function boot(opts: { collapseQuote?: boolean; withQuote?: boolean } = {}) {
+  function boot(opts: { collapseQuote?: boolean; withQuote?: boolean; namedInQuote?: boolean } = {}) {
     const docListeners: Record<string, Listener[]> = {};
     const classes = new Set<string>();
     const appended: unknown[] = [];
@@ -362,7 +362,7 @@ describe('collapsed reply quote (webmail #1405)', () => {
       setAttribute(n: string, v: string) { this.attrs[n] = v; },
       addEventListener(n: string, fn: Listener) { (this.listeners[n] ??= []).push(fn); },
     };
-    const document = {
+    const page = {
       activeElement: editor as unknown,
       body: { appendChild: (n: unknown) => appended.push(n) },
       getElementById: () => editor,
@@ -370,6 +370,19 @@ describe('collapsed reply quote (webmail #1405)', () => {
       addEventListener: (name: string, fn: Listener) => { (docListeners[name] ??= []).push(fn); },
       queryCommandState: () => false,
     };
+    // A quoted mail with <img name="body"> and <img name="createElement">:
+    // the page's own body and createElement sit behind Document.prototype,
+    // and the document's properties of those names are the images.
+    class FakeDocument {}
+    let document: object = page;
+    if (opts.namedInQuote) {
+      Object.defineProperty(FakeDocument.prototype, 'body', { get: () => page.body });
+      (FakeDocument.prototype as unknown as Record<string, unknown>).createElement = page.createElement;
+      const img = { tagName: 'IMG', appendChild: () => { throw new Error('appended to the named element'); } };
+      const own: PropertyDescriptorMap = {};
+      for (const [name, value] of Object.entries({ ...page, body: img, createElement: img })) own[name] = { value };
+      document = Object.create(FakeDocument.prototype, own);
+    }
     const window = {
       ReactNativeWebView: { postMessage: () => undefined },
       addEventListener: () => undefined,
@@ -382,7 +395,7 @@ describe('collapsed reply quote (webmail #1405)', () => {
       collapseQuote: opts.collapseQuote ?? true,
       quoteToggleLabels: { show: 'Zitat zeigen', hide: 'Zitat verbergen' },
     }));
-    new Function('window', 'document', script)(window, document);
+    new Function('window', 'document', 'Document', script)(window, document, opts.namedInQuote ? FakeDocument : undefined);
     const click = () => (button.listeners.click ?? []).forEach((fn) => fn({ preventDefault: () => undefined }));
     const caretAt = (node: unknown) => { anchorNode = node; (docListeners.selectionchange ?? []).forEach((fn) => fn()); };
     return { classes, appended, created, button, click, caretAt, quoteChild, typed };
@@ -414,6 +427,13 @@ describe('collapsed reply quote (webmail #1405)', () => {
     expect(page.classes.has('rne-quote-collapsed')).toBe(true);
     page.caretAt(page.quoteChild);
     expect(page.classes.has('rne-quote-collapsed')).toBe(false);
+  });
+
+  it('puts the toggle on the page body when the quoted mail names elements body and createElement', () => {
+    const page = boot({ namedInQuote: true });
+    expect(page.created).toEqual(['button']);
+    expect(page.appended).toEqual([page.button]);
+    expect(page.classes.has('rne-quote-collapsed')).toBe(true);
   });
 
   it('adds nothing to a message without a quote, or when not asked', () => {
