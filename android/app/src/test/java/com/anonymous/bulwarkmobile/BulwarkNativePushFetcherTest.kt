@@ -280,4 +280,17 @@ class BulwarkNativePushFetcherTest {
         // Newer but about to expire as well: refresh, with the stored refresh token.
         assertFalse(BulwarkNativePushFetcher.storedTokensReplace(stale, oauthCreds("new", now + 45_000), now))
     }
+
+    @Test
+    fun `the push subscription is due for extension like the app decides it`() {
+        val now = 1_800_000_000_000L // 2027-01-15T08:00:00Z
+        val day = 24L * 60 * 60 * 1000
+        fun iso(ms: Long) = java.time.Instant.ofEpochMilli(ms).toString()
+        assertTrue(BulwarkNativePushFetcher.subscriptionNeedsExtension(null, now))
+        assertTrue(BulwarkNativePushFetcher.subscriptionNeedsExtension("not a date", now))
+        assertTrue(BulwarkNativePushFetcher.subscriptionNeedsExtension(iso(now - day), now))
+        assertTrue(BulwarkNativePushFetcher.subscriptionNeedsExtension(iso(now + 5 * day), now))
+        assertFalse(BulwarkNativePushFetcher.subscriptionNeedsExtension(iso(now + 7 * day), now))
+        assertFalse(BulwarkNativePushFetcher.subscriptionNeedsExtension(iso(now + 80 * day), now))
+    }
 }

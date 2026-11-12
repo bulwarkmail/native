@@ -67,6 +67,10 @@ object BulwarkNativePushFetcher {
     private const val LAST_NOTIFIED_EMAIL_ID_PREFIX = "push:lastNotifiedEmailId:v2:"
     private const val OPTED_OUT_PREFIX = "push:optedOut:v1:"
     private const val CREDENTIALS_PREFIX = "jmap_credentials__"
+    private const val SUBSCRIPTION_ID_PREFIX = "push:subscriptionId:v2:"
+    private const val SUBSCRIPTION_EXPIRES_PREFIX = "push:subscriptionExpires:v1:"
+    /** BACKGROUND_EXTEND_BELOW_MS in src/lib/push-notifications.ts. */
+    private const val EXTEND_SUBSCRIPTION_BELOW_MS = 6L * 24 * 60 * 60 * 1000
 
     private val secureStoreLock = Any()
     // Held across a token refresh, so two native refreshes (a push and a
@@ -774,6 +778,40 @@ object BulwarkNativePushFetcher {
                 Log.w(TAG, "Failed to update refreshed tokens in SecureStore for $credentialsKey: ${e.message}")
                 null
             }
+        }
+    }
+
+    /**
+     * pushSubscriptionNeedsExtension in src/lib/push-notifications.ts: the
+     * recorded expiry is less than six days away, has passed or is unknown.
+     */
+    fun subscriptionNeedsExtension(expires: String?, nowMs: Long): Boolean {
+        val at = parseIsoTimestampMs(expires.orEmpty())
+        return at == 0L || at - nowMs < EXTEND_SUBSCRIPTION_BELOW_MS
+    }
+
+    /**
+     * Whether the JS push task should still run for a push handled here:
+     * it extends the account's push subscription (extendPushSubscription in
+     * src/lib/push-background-task.ts), which servers drop about a week after
+     * its last extension. The task finds the mail already notified and shows
+     * nothing. pushSubscriptionDueForExtension in push-notifications.ts.
+     */
+    fun pushSubscriptionDueForExtension(context: Context, data: Map<String, String>): Boolean {
+        return try {
+            val jmapAccountId = data["accountId"]?.takeIf { it.isNotBlank() } ?: return false
+            val accountRaw = getPrefs(context).getString(jmapAccountId, null) ?: return false
+            val localAccountId = JSONObject(accountRaw).optString("accountId").takeIf { it.isNotBlank() }
+                ?: return false
+            if (!readAsyncStorageItem(context, optedOutKeyFor(localAccountId)).isNullOrBlank()) return false
+            if (readAsyncStorageItem(context, SUBSCRIPTION_ID_PREFIX + localAccountId).isNullOrBlank()) return false
+            subscriptionNeedsExtension(
+                readAsyncStorageItem(context, SUBSCRIPTION_EXPIRES_PREFIX + localAccountId),
+                System.currentTimeMillis(),
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not tell whether the push subscription is due: ${e.message}")
+            false
         }
     }
 

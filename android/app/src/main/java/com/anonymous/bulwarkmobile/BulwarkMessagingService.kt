@@ -73,6 +73,13 @@ class BulwarkMessagingService : FirebaseMessagingService() {
                 val runPush = {
                     if (BulwarkNativePushFetcher.processPush(appContext, data)) {
                         Log.i(TAG, "Push handled natively via Kotlin")
+                        if (BulwarkNativePushFetcher.pushSubscriptionDueForExtension(appContext, data)) {
+                            // Only the JS task extends the subscription; it finds
+                            // the mail already notified.
+                            Log.i(TAG, "Push subscription due for extension, starting the push task too")
+                            HttpConnections.dropIdle()
+                            startHeadlessTask(appContext, data)
+                        }
                     } else {
                         // The task opens its own connection rather than one left
                         // over from the foreground, which may be dead (#94).
