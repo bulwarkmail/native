@@ -33,6 +33,8 @@ interface Props {
   extracted?: ExtractedAttachment[];
   /** Server-listed parts to leave out (a decrypted PGP/MIME message's control parts). */
   hidePart?: (att: Attachment) => boolean;
+  /** The body is shown as plain text: no image is drawn there, so inline images get chips. */
+  plainView?: boolean;
 }
 
 type Item =
@@ -47,7 +49,7 @@ const MAX_BUNDLE_BYTES = 100 * 1024 * 1024;
  * save), long-press opens Preview / Open / Save / Share, and "Download all"
  * bundles every part into a zip named by the export template.
  */
-export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tnefUnpacked, extracted, hidePart }: Props) {
+export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tnefUnpacked, extracted, hidePart, plainView }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -77,7 +79,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
   const preview = useFilePreview();
 
   const items = React.useMemo<Item[]>(() => {
-    const blobs = visibleAttachments(email, { hideInlineImageAttachments, calendarBannerShown, tnefUnpacked })
+    const blobs = visibleAttachments(email, { hideInlineImageAttachments, calendarBannerShown, tnefUnpacked, plainText: plainView })
       .filter((att) => !hidePart?.(att))
       .map<Item>((att, i) => ({
         key: att.blobId || `att-${i}`,
@@ -96,7 +98,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
       size: part.size,
     }));
     return [...blobs, ...extra];
-  }, [email, hideInlineImageAttachments, calendarBannerShown, tnefUnpacked, extracted, hidePart]);
+  }, [email, hideInlineImageAttachments, calendarBannerShown, tnefUnpacked, extracted, hidePart, plainView]);
 
   if (items.length === 0) return null;
 

@@ -89,12 +89,18 @@ export function isTnefAttachment(name?: string | null, type?: string | null): bo
   );
 }
 
+type PartLike = Pick<Attachment, 'cid' | 'type' | 'disposition'> & { size?: number | null };
+
+const baseType = (type: string | null | undefined) => (type || '').split(';')[0].trim().toLowerCase();
+const bareCid = (cid: string) => cid.replace(/^<|>$/g, '');
+
 /**
  * True when a part is embedded in the rendered body and stays out of the chip
  * list while "hide inline images" is on. Port of the webmail's
  * `isEmbeddedInBody` (`lib/attachment-visibility.ts`):
  *  - declared inline images hide, referenced or not;
- *  - an explicit `attachment` disposition always keeps its chip;
+ *  - an explicit `attachment` disposition keeps its chip, unless the part
+ *    only repeats an image the body embeds (Exchange's second copy, #1614);
  *  - otherwise a part hides only when the body references its Content-ID AND
  *    it is an image or generically typed (octet-stream, no type). Some senders
  *    ship the images their HTML embeds that way, with no disposition and no
@@ -102,19 +108,59 @@ export function isTnefAttachment(name?: string | null, type?: string | null): bo
  *    with a real non-image type keeps its chip, its only download.
  *
  * `referencedCids` are the body's `cid:` references without angle brackets,
- * as {@link extractCidRefs} returns them.
+ * as {@link extractCidRefs} returns them. `parts` are all of the message's
+ * attachment parts, `att` among them.
+ *
+ * With `plainText` (an HTML message shown as plain text) the body draws no
+ * image, so every part keeps its chip, declared inline images included; only
+ * an inline image the message also attaches as a copy leaves its chip to the
+ * copy, so the file is listed once.
  */
 export function isEmbeddedInBody(
-  att: Pick<Attachment, 'cid' | 'type' | 'disposition'>,
+  att: PartLike,
   referencedCids: ReadonlySet<string>,
+  parts: readonly PartLike[] = [],
+  options: { plainText?: boolean } = {},
 ): boolean {
+  if (options.plainText) {
+    return att.disposition !== 'attachment'
+      && parts.some((part) => part.disposition === 'attachment' && isSameImage(att, part));
+  }
+  if (att.disposition === 'attachment') return isCopyOfEmbeddedImage(att, referencedCids, parts);
+  return embedsItself(att, referencedCids);
+}
+
+/** Whether the body embeds the part by its own declaration or reference. */
+function embedsItself(att: PartLike, referencedCids: ReadonlySet<string>): boolean {
   if (!att.cid) return false;
-  const base = (att.type || '').split(';')[0].trim().toLowerCase();
+  const base = baseType(att.type);
   const isImage = base.startsWith('image/');
   if (att.disposition === 'inline' && isImage) return true;
   if (att.disposition === 'attachment') return false;
   if (!isImage && base && base !== 'application/octet-stream') return false;
-  return referencedCids.has(att.cid.replace(/^<|>$/g, ''));
+  return referencedCids.has(bareCid(att.cid));
+}
+
+/**
+ * Some senders (seen from Exchange Online) attach each image of the body a
+ * second time: an `attachment` part with the Content-ID, type and size of the
+ * embedded one. Such a copy hides as well, but only when the body references
+ * that Content-ID and another part is the embedded image itself. Two
+ * attachments never make each other copies.
+ */
+function isCopyOfEmbeddedImage(att: PartLike, referencedCids: ReadonlySet<string>, parts: readonly PartLike[]): boolean {
+  if (!att.cid || !referencedCids.has(bareCid(att.cid))) return false;
+  return parts.some((part) => isSameImage(att, part) && embedsItself(part, referencedCids));
+}
+
+/** Two parts that are the same image: Content-ID, type and size alike. */
+function isSameImage(a: PartLike, b: PartLike): boolean {
+  if (a === b || !a.cid || !b.cid || typeof a.size !== 'number' || a.size <= 0) return false;
+  const type = baseType(a.type);
+  return type.startsWith('image/')
+    && bareCid(a.cid) === bareCid(b.cid)
+    && baseType(b.type) === type
+    && b.size === a.size;
 }
 
 export interface VisibleAttachmentOptions {
@@ -123,6 +169,8 @@ export interface VisibleAttachmentOptions {
   calendarBannerShown: boolean;
   /** True when a TNEF container was unpacked (its inner files are listed instead). */
   tnefUnpacked?: boolean;
+  /** An HTML message shown as plain text: its inline images are listed (#1614). */
+  plainText?: boolean;
 }
 
 /**
@@ -146,7 +194,7 @@ export function visibleAttachments(
     if (isReportPart(att.type)) return false;
     if (opts.calendarBannerShown && isCalendarMimeType(att.type)) return false;
     if (opts.tnefUnpacked && isTnefAttachment(att.name, att.type)) return false;
-    if (opts.hideInlineImageAttachments && isEmbeddedInBody(att, bodyCids)) return false;
+    if (opts.hideInlineImageAttachments && isEmbeddedInBody(att, bodyCids, all, { plainText: opts.plainText })) return false;
     return true;
   });
 }
