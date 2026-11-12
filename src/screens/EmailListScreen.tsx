@@ -85,6 +85,7 @@ import { draftContextFromEmail, isDraftEmail } from '../lib/draft-context';
 import { getFullEmail, emptyMailbox as apiEmptyMailbox } from '../api/email';
 import type { RootStackParamList } from '../navigation/types';
 import { usePendingMailSearch } from '../navigation/pending-mail-search';
+import { listSenderMatches, mergePersonSuggestions } from '../lib/search-suggestions';
 import { usePendingMailFolder } from '../navigation/pending-mail-folder';
 import { resolveFolderRef } from '../lib/folder-ref';
 import type { Attachment, Email } from '../api/types';
@@ -1169,7 +1170,8 @@ export default function EmailListScreen({
     setFilters({ ...useEmailStore.getState().filters, from });
   }, [pendingSender, setFilters]);
   // People whose name/address matches what is being typed (#845); picking
-  // one turns the search into a `from:` filter like the webmail.
+  // one turns the search into a `from:` filter like the webmail. Then the
+  // senders of the mail on screen, read as typed (webmail 4c5f3d8f2).
   const contactSuggestions = React.useMemo(() => {
     const q = searchInput.trim().toLowerCase();
     if (q.length < 2) return [];
@@ -1186,7 +1188,7 @@ export default function EmailListScreen({
       }
       if (out.length >= 4) break;
     }
-    return out;
+    return mergePersonSuggestions(out, listSenderMatches(useEmailStore.getState().emails, q));
   }, [contacts, searchInput]);
 
   const activeFilterCount =
