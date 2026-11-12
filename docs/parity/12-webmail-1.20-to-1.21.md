@@ -42,32 +42,32 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: no classification code; MessageHeader shows tags, flags and the via badge only (`src/components/email/MessageHeader.tsx:244-280`).
   - Fix hint: port `receivedLabel` and show a chip in MessageHeader when the org policy has labels.
 
-- [ ] **Your own sent messages say "via <identity>" in the reader** — `P3` — `bug`
+- [x] **Your own sent messages say "via <identity>" in the reader** — `P3` — `bug` — fixed in d624f983
   - What WEB does: the reader no longer names the identity on a message of your own, since it read like a delegation warning; only the sub-address tag stays (`components/email/email-identity-badge.tsx:113-119`). 279a1dd59 (shallow).
   - What RN does: shows "via {name}" when the From is one of your identities and the name differs (`src/components/email/MessageHeader.tsx:146-154`, `:272-276`).
   - Fix hint: drop the `direction: 'from'` case in MessageHeader; keep the `to` case and the tag.
 
-- [ ] **The unverified-sender notice names the forwarder instead of the original sender** — `P3` — `bug`
+- [x] **The unverified-sender notice names the forwarder instead of the original sender** — `P3` — `bug` — fixed in 4c8647dc
   - What WEB does: names the sender by a passing DKIM domain first, else the MAIL FROM domain with an SRS rewrite decoded back to the original domain (`lib/email-headers.ts:98`, `:140-151`). 34a37c29b (#1542).
   - What RN does: uses the raw envelope domain, so a forwarded message says "sent from <forwarder>" (`src/lib/email-headers.ts:212-217`).
   - Fix hint: port `srsOriginalDomain` and the DKIM-first order into getSenderVerification.
 
-- [ ] **Quoted history of iPhone Mail and Outlook replies isn't folded** — `P3` — `bug`
+- [x] **Quoted history of iPhone Mail and Outlook replies isn't folded** — `P3` — `bug` — fixed in d6e192d4
   - What WEB does: folds Outlook for Windows' header block marked only by its top rule, Outlook mobile's `#mail-editor-reference-message-container`, and iPhone Mail's run of cite blockquotes (`lib/quote-collapse.ts:39-46`, `:95`, `:184`). 3b4a0c4c8 (#1476).
   - What RN does: separators are `#divRplyFwdMsg`, `#appendonsend`, `div.moz-cite-prefix` only, and any content after the first quote stops the fold (`src/lib/quote-collapse.ts:42-50`, `:130-132`).
   - Fix hint: add the five selectors and the onlyQuotesAfter check to the injected script.
 
-- [ ] **A person's avatar letters and colour differ between places, and Han names show the surname** — `P3` — `bug`
+- [x] **A person's avatar letters and colour differ between places, and Han names show the surname** — `P3` — `bug` — fixed in 4059f006
   - What WEB does: one avatarInitials/avatarColor for every avatar: a name without real words falls back to the address' local part ("max.mustermann@" gives MM), the colour comes from the address so it doesn't change with the name, a signed-in account keeps its switcher colour, and an all-Han name shows the given name (王阳明 → 阳明) (`components/ui/avatar.tsx:130`, `:158`, `:183`). e2b383bd2 (#1581), dde5bbf5a.
   - What RN does: initials from the name or the address' first letter, colour hashed from the name, and account avatars use another palette keyed by address (`src/lib/avatar-utils.ts:42-50`, `:96-111`, `src/components/SenderAvatar.tsx:90-91`, `src/components/SidebarDrawer.tsx:848`). No Han rule.
   - Fix hint: port avatarInitials and avatarColor into avatar-utils; widgets and push notifications use the same helpers, so they follow.
 
-- [ ] **No BIMI logo on mail between the organisation's own domains on the same server** — `P3` — `partial`
+- [x] **No BIMI logo on mail between the organisation's own domains on the same server** — `P3` — `partial` — fixed in c8f8f29a, 0c5d0f92
   - What WEB does: a message without any Authentication-Results whose From domain is one of the organisation's internal domains gets the BIMI logo (Stalwart doesn't stamp locally submitted mail) (`lib/email-headers.ts:209`, `hooks/use-brand-domain.ts`, `components/email/external-sender-chip.tsx:77`). 531358eb3.
   - What RN does: requires a DMARC pass, so internal mail gets initials (`src/lib/avatar-bimi.ts:41-49`). RN has no internal-domain list (no External sender chip; no match for internalDomains in `src/`).
   - Fix hint: needs the internal domains (identities' domains plus org policy) first; then pass them to brandIndicatorDomain. The verified check mark next to the name (4d595f775) is still the open file 11 row.
 
-- [ ] **The address sheet has no "Find mail" from that person** — `P3` — `partial`
+- [x] **The address sheet has no "Find mail" from that person** — `P3` — `partial` — fixed in e3d1bf43
   - What WEB does: right-click on an address offers copy, write, add to contacts and find its mail, which runs a `from:` search (`components/email/address-context-menu.tsx:84-90`, `lib/mail-search-request.ts:23`). acb827bf1.
   - What RN does: AddressActionSheet has copy, new message and view/add contact (`src/components/email/AddressActionSheet.tsx:34-73`).
   - Fix hint: add a row that opens the list with a `from:` search (the pending-mail-search route already exists, `src/navigation/pending-mail-search.ts`).
@@ -89,7 +89,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: selects the loaded rows only (`src/screens/EmailListScreen.tsx:977-983`).
   - Fix hint: after select all, offer the folder total and run the batch actions by query.
 
-- [ ] **No setting to hide the attachment chips under list rows** — `P3` — `missing`
+- [x] **No setting to hide the attachment chips under list rows** — `P3` — `missing` — fixed in 3a01b64e
   - What WEB does: "Show attachments in the list" under Settings > Message list turns the chips off; the paperclip and the verification code chip stay; admins can preset or lock it (`components/email/attachment-chips.tsx`, `components/settings/message-list-settings.tsx`). c136bd816, 9c7d5ae29, efc17bda8 (#1604).
   - What RN does: chips always render when the row can open attachments (`src/screens/EmailListScreen.tsx:353-361`); no setting in `src/stores/settings-store.ts`.
   - Fix hint: a boolean in settings-store and Message list settings that skips ListAttachmentChips and its loader.
@@ -104,7 +104,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: unified role views exist (`src/api/unified-inbox.ts:36`) but UnifiedInboxScreen only deletes selected rows (`src/screens/UnifiedInboxScreen.tsx:353-371`); Empty folder is per account (`src/components/SidebarDrawer.tsx:626-645`).
   - Fix hint: an "Empty" button in the unified Trash and Junk views that calls emptyMailbox per account after one confirm.
 
-- [ ] **"Mark folder as read" is offered with nothing unread, and folder actions fail offline** — `P3` — `bug`
+- [x] **"Mark folder as read" is offered with nothing unread, and folder actions fail offline** — `P3` — `bug` — fixed in 790eb40d
   - What WEB does: greys out Mark as read when the folder tree has no unread mail, and greys out actions that need the server while offline, with an "offline" header (`components/layout/mailbox-context-menu.tsx:58`, `:327`). f92b7d942.
   - What RN does: the folder sheet always lists Mark folder as read and the other actions (`src/components/SidebarDrawer.tsx:587-597`); offline they end in an error alert (`:562-573`).
   - Fix hint: hide or disable the read rows when unreadEmails is 0 over the subtree, and disable rename, create, delete and share while the network store says offline.
@@ -114,24 +114,24 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
   - What RN does: label (one line, flex 1) and the uppercase "SEND NOW" and "UNDO" buttons share one row (`src/components/UndoSnackbar.tsx:163-187`, `:200-220`); in Russian ("ОТПРАВИТЬ СЕЙЧАС", "ОТМЕНИТЬ") the countdown text has little room left on a phone. Read from the code, not tried on a device.
   - Fix hint: `flexWrap: 'wrap'` on the bar with the buttons in their own row, or a second line when the label gets narrower than a minimum.
 
-- [ ] **A page loaded while a new search starts can land in the new results** — `P3` — `bug`
+- [x] **A page loaded while a new search starts can land in the new results** — `P3` — `bug` — fixed in 7d66267d
   - What WEB does: pagination, refresh and delta sync capture the list request and the search input, and drop their answer when either changed (`stores/email-store.ts:1741`, `:4360`). fa7c58ca0, c1d4edb80.
   - What RN does: loadMoreEmails checks account and folder only before appending (`src/stores/email-store.ts:1395-1396`); the spanning path also checks the query (`:1369-1372`).
   - Fix hint: compare searchQuery and filters after queryEmailPage as the spanning path does, and clear `loading` on every early return.
 
 ### Search
 
-- [ ] **No "Search in" setting for where a new search looks** — `P3` — `missing`
+- [x] **No "Search in" setting for where a new search looks** — `P3` — `missing` — fixed in 2edfcfd6
   - What WEB does: Settings > Message list > Search in: all folders or only the open folder; admins can preset or lock it (`stores/settings-store.ts:737`, `lib/search-default-scope.ts`). e4338ac47, c4d9a918b (#1485).
   - What RN does: a typed search always runs over all folders except in Trash and Junk (`src/stores/email-store.ts:289-299`); the scope can be changed per search only.
   - Fix hint: a setting read in effectiveFolderScope, with the policy lock.
 
-- [ ] **Search suggestions don't include senders of the mail on screen** — `P3` — `partial`
+- [x] **Search suggestions don't include senders of the mail on screen** — `P3` — `partial` — fixed in 25e0b977
   - What WEB does: while typing, suggests contacts and the senders of the listed mail (`components/search/search-box.tsx:70-73`, `lib/search-suggestions.ts`). 4c5f3d8f2.
   - What RN does: suggests contacts only (`src/screens/EmailListScreen.tsx:1138-1154`).
   - Fix hint: add matches from `emails[].from` after the contact matches, deduplicated by address.
 
-- [ ] **No search with no connection** — `P3` — `missing`
+- [ ] **No search with no connection** — `P3` — `missing` — not done: needs the offline database, decision 14
   - What WEB does: searches the mail kept on the device offline (word starts, phrases, German compounds, umlauts) and mixes kept matches into online results (1.21.0 Offline).
   - What RN does: the offline cache keeps bodies in AsyncStorage for reading only (`src/stores/offline-cache-store.ts:1-10`); search goes to the server. May belong to the offline inventory instead.
   - Fix hint: a local filter over cached bodies when offline; full parity needs the webmail's local database.
@@ -170,12 +170,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Attachments
 
-- [ ] **Exchange's second copy of an inline image shows as an attachment chip** — `P3` — `bug`
+- [x] **Exchange's second copy of an inline image shows as an attachment chip** — `P3` — `bug` — fixed in 15338268
   - What WEB does: hides an `attachment`-disposition image whose Content-ID the body references when another part with the same Content-ID, type and size is already hidden as embedded (`lib/attachment-visibility.ts:106`, `:134-149`). c8900fe06 (#1614).
   - What RN does: an explicit `attachment` disposition always keeps its chip (`src/lib/attachment-display.ts:107-117`).
   - Fix hint: port the twin check and pass the message's attachment list into isEmbeddedInBody.
 
-- [ ] **Shown as plain text, a message's inline images are nowhere** — `P3` — `bug`
+- [x] **Shown as plain text, a message's inline images are nowhere** — `P3` — `bug` — fixed in 15338268
   - What WEB does: when an HTML message is read as plain text, inline images are listed as attachments, since the body no longer shows them (`lib/attachment-visibility.ts:101-112`, `components/email/email-viewer.tsx:3030`). e49de8a04, 51327019e (#1614).
   - What RN does: AttachmentChips still hides parts the HTML references, and isn't told about the plain view (`src/components/email/AttachmentChips.tsx:80`, `src/components/email/MessageContent.tsx:94-102`, `:157`).
   - Fix hint: pass `plainView` (and the plain-text setting) to AttachmentChips and skip the embedded filter then.
@@ -187,12 +187,12 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Import and export
 
-- [ ] **An .eml imported into Drafts isn't an editable draft** — `P3` — `bug`
+- [x] **An .eml imported into Drafts isn't an editable draft** — `P3` — `bug` — fixed in 85df1bb2
   - What WEB does: imports into Drafts with `$draft` and `$seen`, so the message opens in the composer (`lib/file-drop/import-keywords.ts`). 34ac66abf (#1535).
   - What RN does: imports with `$seen` only (`src/api/email.ts:1082-1093`, `src/stores/email-store.ts:1448`).
   - Fix hint: pass `{ $seen: true, $draft: true }` when the target folder's role is drafts.
 
-- [ ] **No mbox or PST import, and no folder or account export** — `P3` — `missing`
+- [ ] **No mbox or PST import, and no folder or account export** — `P3` — `missing` — not done: large feature, decision 14
   - What WEB does: imports mbox, Outlook PST/OST, EML and ZIP with folders, dates and read/flag state, pausing and resuming; exports a folder or the account as mbox or an EML ZIP, also the mail kept offline (`lib/mail-import/engine.ts`, `lib/mail-import/mbox.ts`, `lib/mail-export/engine.ts`). d714957f9, a06281f23, 15f0bd198, 3cda05a1f.
   - What RN does: imports .eml and .zip of .eml into the open folder (`src/lib/eml-import.ts:1-40`, `src/screens/EmailListScreen.tsx:705-753`); exports one message (`src/lib/email-export.ts`).
   - Fix hint: mbox import and folder export as mbox through the share sheet are the parts that fit a phone; PST can stay webmail-only.
@@ -483,7 +483,7 @@ Classification: `bug` = fixed in the webmail, still live in the app; `missing`; 
 
 ### Settings
 
-- [ ] **Tag settings show the stored `$label:` keyword under each tag** — `P3` — `bug`
+- [x] **Tag settings show the stored `$label:` keyword under each tag** — `P3` — `bug` — fixed in 9c9b4106
   - What WEB does: hides the stored keyword; with advanced settings on it is a tooltip only (`components/settings/keyword-settings.tsx`). 3609b5c99.
   - What RN does: prints `$label:{id}` on every tag card (`src/components/settings/KeywordSettings.tsx:170`).
   - Fix hint: drop the line, or show it only with advanced settings on.
