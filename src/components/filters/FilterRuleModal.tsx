@@ -31,6 +31,7 @@ import {
 } from '../../lib/sieve/rule-actions';
 import { isValidSieveHeaderName } from '../../lib/sieve/generator';
 import { hasPeriod } from '../../lib/sieve/period';
+import { regexInvalid, usesRegex } from '../../lib/sieve/regex';
 import { periodError, periodFromInput, periodToInput } from '../../lib/sieve/rule-period';
 import type { Mailbox } from '../../api/types';
 import type {
@@ -76,6 +77,8 @@ interface FilterRuleModalProps {
   mailboxes: Mailbox[];
   /** The server can confine a rule to a period (Sieve "date" and "relational"). */
   periodsSupported?: boolean;
+  /** The server lists the Sieve "regex" extension. */
+  regexSupported?: boolean;
   /**
    * The server's cap on forwards per message, and the forwards a message can
    * have collected when it reaches this rule / still collect below it (see
@@ -88,7 +91,8 @@ interface FilterRuleModalProps {
 }
 
 export function FilterRuleModal({
-  visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, forwardContext, onSave, onClose,
+  visible, rule: editedRule, initialRule, mailboxes, periodsSupported = false, regexSupported = false,
+  forwardContext, onSave, onClose,
 }: FilterRuleModalProps) {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -167,12 +171,12 @@ export function FilterRuleModal({
   );
 
   const comparatorOptions = useCallback(
-    (field: FilterConditionField) =>
-      comparatorsFor(field).map((cmp) => ({
+    (condition: FilterCondition) =>
+      comparatorsFor(condition.field, regexSupported || condition.comparator === 'regex').map((cmp) => ({
         value: cmp,
-        label: t(`settings.filters.comparators.${cmp}`, cmp),
+        label: t(`settings.filters.comparators.${cmp}`, cmp === 'regex' ? 'matches regex' : cmp),
       })),
-    [t],
+    [t, regexSupported],
   );
 
   const updateCondition = (index: number, updates: Partial<FilterCondition>) => {
@@ -183,8 +187,9 @@ export function FilterRuleModal({
         // Reconcile the comparator when the field family changes so a size
         // rule never keeps "contains" and an attachment rule never keeps
         // "greater than".
-        if (updates.field && !comparatorsFor(updates.field).includes(updated.comparator)) {
-          updated.comparator = comparatorsFor(updates.field)[0];
+        const allowed = updates.field ? comparatorsFor(updates.field, regexSupported) : null;
+        if (allowed && !allowed.includes(updated.comparator)) {
+          updated.comparator = allowed[0];
         }
         if (updates.field && updates.field !== 'header') {
           delete updated.headerName;
@@ -249,6 +254,8 @@ export function FilterRuleModal({
       .map((cond) => {
         if (isHasAny(cond)) return { ...cond, value: '' };
         if (cond.field === 'size') return cond; // numeric, single-value only
+        // One expression: a comma in it is part of the pattern.
+        if (usesRegex(cond)) return { ...cond, value: valueToInputString(cond.value).trim() };
         // A keyboard's trailing space is never part of a header name.
         const named = cond.field === 'header' ? { ...cond, headerName: cond.headerName?.trim() } : cond;
         if (typeof named.value !== 'string') return named; // already structured
@@ -265,6 +272,12 @@ export function FilterRuleModal({
         'settings.filters.validation_header_name',
         'Enter a header name that uses only the letters A-Z, digits, hyphens and underscores, such as X-Spam-Flag.',
       ));
+      return;
+    }
+    // The server compiles every expression on save and refuses the whole
+    // script for one that does not compile.
+    if (validConditions.some(regexInvalid)) {
+      Alert.alert(t('settings.filters.validation_regex', 'This regular expression is not valid'));
       return;
     }
     const validActions = actions
@@ -403,7 +416,7 @@ export function FilterRuleModal({
                       <Select
                         value={condition.comparator}
                         onChange={(v) => updateCondition(index, { comparator: v as FilterComparator })}
-                        options={comparatorOptions(condition.field)}
+                        options={comparatorOptions(condition)}
                         style={{ alignSelf: 'flex-start' }}
                       />
                     )}
@@ -418,7 +431,9 @@ export function FilterRuleModal({
                             ? t('settings.filters.size_placeholder', 'e.g., 1000000')
                             : condition.field === 'attachment'
                               ? t('settings.filters.attachment_type_placeholder', 'e.g. pdf, doc, jpg')
-                              : t('settings.filters.value_placeholder_multi', 'Value (multiple separated by commas)')
+                              : usesRegex(condition)
+                                ? t('settings.filters.regex_placeholder', 'Regular expression, e.g. ^Cron|mailman')
+                                : t('settings.filters.value_placeholder_multi', 'Value (multiple separated by commas)')
                         }
                         keyboardType={condition.field === 'size' ? 'numeric' : 'default'}
                         autoCapitalize="none"

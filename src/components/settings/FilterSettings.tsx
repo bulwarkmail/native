@@ -22,6 +22,7 @@ import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
 import { periodStatus, supportsPeriods } from '../../lib/sieve/period';
+import { supportsRegex } from '../../lib/sieve/regex';
 import { rulesForwardLimit } from '../../lib/sieve/forward-limit';
 import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import Badge from '../Badge';
@@ -164,6 +165,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     setOpaqueScript, resetToVisualBuilder, validateScript,
   } = useFilterStore();
   const periodsSupported = useFilterStore((s) => supportsPeriods(s.sieveCapabilities?.sieveExtensions));
+  const regexSupported = useFilterStore((s) => supportsRegex(s.sieveCapabilities?.sieveExtensions));
 
   const [editingRule, setEditingRule] = useState<FilterRule | undefined>();
   const [showRuleModal, setShowRuleModal] = useState(false);
@@ -515,6 +517,7 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         rule={editingRule}
         mailboxes={mailboxes}
         periodsSupported={periodsSupported}
+        regexSupported={regexSupported}
         onSave={handleSaveRule}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />

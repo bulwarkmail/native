@@ -61,7 +61,7 @@ import { applyQuickRule, buildPresetRule, toRuleMailbox } from '../../lib/sieve/
 import { readWebmailFixture, WEBMAIL_FIXTURES } from '../../lib/sieve/__tests__/fixtures/webmail';
 import { getMailboxes } from '../email';
 import type { ContactCard } from '../types';
-import type { SieveScript } from '../../lib/sieve/types';
+import type { FilterRule, SieveScript } from '../../lib/sieve/types';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'usera@example.org';
@@ -413,6 +413,46 @@ live('live Stalwart: contacts and filters (0.16 and 1.0)', () => {
       await expect.poll(async () => serverContent(), { timeout: 15_000 }).toContain(`gone-${RUN}@example.com`);
       expect(useFilterStore.getState().rules.map((r) => r.name)).toEqual([`Keep ${RUN}`, `Gone ${RUN}`]);
       expect(useToastStore.getState().toasts.some((x) => x.type === 'error')).toBe(false);
+    }, 60_000);
+
+    // Webmail #885: a regex rule made the next save throw (header) or turned
+    // into `body :contains` (body).
+    it('saves the filters with a webmail regex rule and keeps it a regex rule', async () => {
+      expect(getSieveCapabilities()?.sieveExtensions).toContain('regex');
+      const regexRule: FilterRule = {
+        id: `regex-${RUN}`, name: `Regex ${RUN}`, enabled: true, matchType: 'any',
+        conditions: [
+          { field: 'subject', comparator: 'regex', value: `^Cron-${RUN}.*|mailman` },
+          { field: 'header', headerName: 'List-Id', comparator: 'regex', value: 'dev-[0-9]+\\.example\\.org' },
+          { field: 'body', comparator: 'regex', value: 'inv[0-9]{4,6}' },
+        ],
+        actions: [{ type: 'mark_read', value: '' }],
+        stopProcessing: false,
+      };
+      const content = generateScript([regexRule]);
+      expect(await validateSieveScript(content)).toEqual({ isValid: true });
+      if (created) await updateSieveScript(created, content, true);
+      else created = (await createSieveScript(`live-filters-${RUN}`, content, true)).id;
+
+      await useFilterStore.getState().selectAccount(null);
+      expect(useFilterStore.getState().rules[0]?.conditions).toEqual(regexRule.conditions);
+      useFilterStore.getState().addRule({
+        id: `plain-${RUN}`, name: `Plain ${RUN}`, enabled: true, matchType: 'all',
+        conditions: [{ field: 'from', comparator: 'contains', value: `plain-${RUN}@example.com` }],
+        actions: [{ type: 'star', value: '' }],
+        stopProcessing: false,
+      });
+      await useFilterStore.getState().saveFilters();
+      expect(useFilterStore.getState().error).toBeNull();
+
+      const saved = await getSieveScriptContent((await getSieveScripts()).find((x) => x.id === created)!.blobId);
+      expect(saved).toMatch(/^require \[[^\]]*"regex"/m);
+      expect(saved).toContain(`header :regex "Subject" "^Cron-${RUN}.*|mailman"`);
+      expect(saved).toContain('body :regex "inv[0-9]{4,6}"');
+      expect(saved).not.toContain('body :contains');
+      const back = parseScript(saved);
+      expect(back.rules.find((r) => r.id === regexRule.id)?.conditions).toEqual(regexRule.conditions);
+      expect(back.rules.some((r) => r.id === `plain-${RUN}`)).toBe(true);
     }, 60_000);
   });
 });

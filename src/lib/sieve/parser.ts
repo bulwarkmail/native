@@ -532,11 +532,13 @@ function parseAtom(raw: string): FilterCondition | null {
     return { field, comparator: part === ':domain' ? 'domain_is' : 'address_is', value };
   }
 
-  m = /^header\s+:(contains|is|matches)\s+"((?:[^"\\]|\\.)*)"\s+([\s\S]+)$/.exec(s);
+  m = /^header\s+:(contains|is|matches|regex)\s+"((?:[^"\\]|\\.)*)"\s+([\s\S]+)$/.exec(s);
   if (m) {
     const [, tag, headerName, rawTail] = m;
     const value = parseValueTail(rawTail);
     if (value === null) return null;
+    // The builder has no "does not match regex".
+    if (tag === 'regex' && negated) return null;
     const { field, headerName: customHeaderName } = normalizeHeaderName(unescapeSieveString(headerName));
 
     let comparator: FilterComparator;
@@ -546,6 +548,9 @@ function parseAtom(raw: string): FilterCondition | null {
       finalValue = value;
     } else if (tag === 'is') {
       comparator = negated ? 'not_is' : 'is';
+      finalValue = value;
+    } else if (tag === 'regex') {
+      comparator = 'regex';
       finalValue = value;
     } else {
       const classified = classifyMatches(value);
@@ -558,11 +563,12 @@ function parseAtom(raw: string): FilterCondition | null {
     return cond;
   }
 
-  m = /^body\s+:(contains|is)\s+([\s\S]+)$/.exec(s);
+  m = /^body\s+:(contains|is|regex)\s+([\s\S]+)$/.exec(s);
   if (m) {
     const value = parseValueTail(m[2]);
     if (value === null) return null;
-    return { field: 'body', comparator: m[1] === 'is' ? 'is' : 'contains', value };
+    const comparator = m[1] === 'is' ? 'is' : m[1] === 'regex' ? 'regex' : 'contains';
+    return { field: 'body', comparator, value };
   }
 
   m = /^size\s+:(over|under)\s+(\d+)$/.exec(s);
