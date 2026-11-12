@@ -18,7 +18,8 @@ tags:
 # cards are one element each, named by the theme: check the page's text.
 # "Storage" also finds Account and Files, which puts Storage & backup third,
 # under the keyboard in landscape (a tap there types on the keys): search
-# "Offline", which only that page has.
+# "Offline", which only that page has. "Sidebar" also finds Folders (its
+# text mentions the sidebar): search the page's full name.
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: folders, ROW: "Folders, .*", Q: "New folder", PROOF: ".*Inbox.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: tags, ROW: "Tags, .*", Q: "Tags", PROOF: "Email Tags"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: downloads, ROW: "Downloads, .*", Q: "Downloads", PROOF: "Email .*eml.* filename"}}
@@ -27,7 +28,7 @@ tags:
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: calendar, ROW: "Calendar, .*", Q: "Week start", PROOF: "Calendar opens in"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: contacts, ROW: "Contacts, .*", Q: "Group by", PROOF: "Sort by last name"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: files, ROW: "Files, .*", Q: "Files", PROOF: "Default View"}}
-- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: sidebar-apps, ROW: "Sidebar Apps, .*", Q: "Sidebar", PROOF: "Keep Apps Loaded"}}
+- runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: sidebar-apps, ROW: "Sidebar Apps, .*", Q: "Sidebar apps", PROOF: "Keep Apps Loaded"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: themes, ROW: "Themes, .*", Q: "Themes", PROOF: "Pick a colou?r theme.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: storage, ROW: "Storage & backup, .*", Q: "Offline", PROOF: "Offline mail.*"}}
 - runFlow: {file: ../subflows/settings-page.yaml, env: {NAME: about, ROW: "About, .*", Q: "About", PROOF: "This device"}}
