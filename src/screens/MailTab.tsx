@@ -4,7 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import EmailListScreen from './EmailListScreen';
 import MessagePane from '../components/MessagePane';
-import SidebarDrawer, { DOCKED_WIDTH } from '../components/SidebarDrawer';
+import SidebarDrawer from '../components/SidebarDrawer';
 import type { RootStackParamList } from '../navigation/types';
 import type { Email } from '../api/types';
 import { useEmailStore, viewerParamsForRow } from '../stores/email-store';
@@ -12,7 +12,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { mailboxAccountId } from '../lib/mailbox-tree';
 import { prefetchMessage } from '../lib/email-detail-cache';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
-import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
+import { DOCKED_WIDTH, listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
 import { rowAfterRemoval, useMessagePane, type ThreadParams } from '../lib/use-message-pane';
 import { useColors } from '../theme/colors';
 import type { ThemePalette } from '../theme/tokens';
@@ -40,17 +40,21 @@ function visibleRows(): Email[] {
 
 /**
  * The Mail tab. On a phone it is the list, and a message opens on the stack.
- * On a wide window (`useLayout().isSplit`) the message opens in a pane next
- * to the list, and on the widest the folder list is a permanent sidebar; the
+ * Where the tab has room (`mailLayoutFor`) the message opens in a pane next
+ * to the list, and with more room the folder list is a permanent sidebar; the
  * same viewer screen runs in the pane with a navigation that keeps it there.
  */
 export default function MailTab({ navigation }: { navigation: RootNav }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  const windowLayout = useLayout();
-  const layout = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
-  const { width } = useWindowDimensions();
-  const pane = useMessagePane(navigation, layout.isSplit, windowLayout.isSplit);
+  const readingPane = useSettingsStore((s) => s.readingPane);
+  // The tab's own width: the window less the tab rail, whose width follows
+  // its labels (language, font size). The window stands in until measured.
+  const { width: windowWidth } = useWindowDimensions();
+  const [tabWidth, setTabWidth] = React.useState(0);
+  const width = tabWidth || windowWidth;
+  const layout = mailLayoutFor(useLayout(), readingPane, width);
+  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
   const { show, close, openRef, setActiveKey } = pane;
 
   const openEmail = React.useCallback((email: Email) => {
@@ -92,25 +96,28 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
       onComposePress={() => navigation.navigate('Compose')}
       onEmailPress={openEmail}
       activeRowKey={layout.isSplit ? pane.activeKey : null}
+      split={layout.isSplit}
       sidebarDocked={layout.hasSidebar}
     />
   );
-  if (!layout.isSplit) return list;
-
   const listWidth = listPaneWidth(width - (layout.hasSidebar ? DOCKED_WIDTH : 0));
+  // One tree for both layouts, so the list keeps its place (scroll, search)
+  // when the split comes or goes.
   return (
-    <View style={styles.row}>
+    <View style={styles.row} onLayout={(e) => setTabWidth(Math.round(e.nativeEvent.layout.width))}>
       {layout.hasSidebar && <SidebarDrawer docked visible onClose={noop} />}
-      <View style={[styles.listPane, { width: listWidth }]}>{list}</View>
-      <View style={styles.detailPane}>
-        <MessagePane
-          message={pane.open}
-          navigation={navigation}
-          onRemoved={showNextAfterRemoval}
-          onReplace={pane.replace}
-          onActiveChange={onActiveChange}
-        />
-      </View>
+      <View style={layout.isSplit ? [styles.listPane, { width: listWidth }] : styles.fill}>{list}</View>
+      {layout.isSplit && (
+        <View style={styles.fill}>
+          <MessagePane
+            message={pane.open}
+            navigation={navigation}
+            onRemoved={showNextAfterRemoval}
+            onReplace={pane.replace}
+            onActiveChange={onActiveChange}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -121,6 +128,6 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
-    detailPane: { flex: 1 },
+    fill: { flex: 1 },
   });
 }

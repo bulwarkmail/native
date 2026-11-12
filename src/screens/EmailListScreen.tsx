@@ -50,7 +50,7 @@ import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
-import { mailLayoutFor, useLayout } from '../lib/use-layout';
+import { useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
@@ -466,6 +466,8 @@ interface EmailListScreenProps {
   onComposePress?: () => void;
   /** Row key (`rowKeyOf`) of the message open in a split view's detail pane. */
   activeRowKey?: string | null;
+  /** A message opens in a pane beside the list (MailTab decides, by the room it has). */
+  split?: boolean;
   /** The folder list is a permanent sidebar: no menu button, no drawer. */
   sidebarDocked?: boolean;
 }
@@ -474,6 +476,7 @@ export default function EmailListScreen({
   onEmailPress,
   onComposePress,
   activeRowKey = null,
+  split: isSplit = false,
   sidebarDocked = false,
 }: EmailListScreenProps) {
   const c = useColors();
@@ -487,10 +490,11 @@ export default function EmailListScreen({
   // The undo bar floats over the list's bottom right on a phone (on a split
   // layout it sits over the reading pane instead).
   const windowLayout = useLayout();
-  const { isSplit, shortHeight, widthClass } = mailLayoutFor(windowLayout, useSettingsStore((s) => s.readingPane));
+  const { shortHeight, widthClass } = windowLayout;
   // In a split view the push prompt floats in this column, not over the
   // reader's quick reply (lib/push-prompt-frame). The prompt goes by the
-  // window, so the column is reported with the reading pane off too (#93).
+  // window, so the column is reported on a single pane in a wide window too
+  // (reading pane off, #93, or no room for it, #104).
   const isFocused = useIsFocused();
   const rootRef = React.useRef<View>(null);
   const reportListColumn = React.useCallback(() => {

@@ -33,13 +33,29 @@ export function layoutFor(width: number, height: number): Layout {
   return { widthClass, shortHeight, isSplit, hasSidebar: isSplit && widthClass === 'expanded' };
 }
 
+/** Width of the permanent folder sidebar (the webmail's default sidebar is 256 px). */
+export const DOCKED_WIDTH = 272;
+
+/** Narrowest reading pane beside the list: a 360 dp phone, the narrowest screen the reader is laid out for. */
+export const READING_PANE_MIN = 360;
+
 /**
- * The layout of the mail list and reader: with the reading pane off (#93)
- * they keep the phone's single pane, and the folder list its drawer, at any
- * width. The rest of the app (tab rail, contacts, files) follows the window.
+ * The layout of the mail list and reader, `width` dp wide (the window less
+ * the tab rail). With the reading pane off (#93) they keep the phone's single
+ * pane, and the folder list its drawer, at any width. Otherwise the folder
+ * list docks, and the list splits, only while the reader keeps
+ * READING_PANE_MIN beside them (#104): by the window alone, an 852 dp
+ * foldable got the docked sidebar and left the message 174 dp. The rest of
+ * the app (tab rail, contacts, files) follows the window.
  */
-export function mailLayoutFor(layout: Layout, readingPane: ReadingPane): Layout {
-  return readingPane === 'off' ? { ...layout, isSplit: false, hasSidebar: false } : layout;
+export function mailLayoutFor(layout: Layout, readingPane: ReadingPane, width: number): Layout {
+  if (readingPane === 'off' || !layout.isSplit) return { ...layout, isSplit: false, hasSidebar: false };
+  const roomBesideList = (w: number) => w - listPaneWidth(w) >= READING_PANE_MIN;
+  return {
+    ...layout,
+    isSplit: roomBesideList(width),
+    hasSidebar: layout.hasSidebar && roomBesideList(width - DOCKED_WIDTH),
+  };
 }
 
 export function useLayout(): Layout {

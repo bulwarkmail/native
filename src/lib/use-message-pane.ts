@@ -33,17 +33,17 @@ export function rowAfterRemoval<T>(
 }
 
 /**
- * The message shown next to a list on a wide window (`useLayout().isSplit`),
+ * The message shown next to a list where there is room (`mailLayoutFor`),
  * for the Mail tab and the unified views; `MessagePane` draws it. When the
- * window gets narrow (split-screen, a fold) with a message open, the message
- * moves to the stack so it stays on screen. `windowIsSplit` is the window's
- * own layout: when only the reading pane setting turned the split off (#93),
- * the screen is not on show, and the message is let go instead.
+ * room gets too narrow (split-screen, a fold, a rotation) with a message
+ * open, the message moves to the stack so it stays on screen. `turnedOff`: the reading pane
+ * setting turned the split off (#93), from Settings, so the screen is not on
+ * show, and the message is let go instead.
  */
 export function useMessagePane(
   navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate'>,
   isSplit: boolean,
-  windowIsSplit: boolean,
+  turnedOff: boolean,
 ) {
   const [open, setOpen] = React.useState<PaneMessage | null>(null);
   // The pager in the pane can move to another message; the list follows it.
@@ -66,9 +66,9 @@ export function useMessagePane(
 
   React.useEffect(() => {
     if (isSplit || !openRef.current) return;
-    if (!windowIsSplit) navigation.navigate('EmailThread', openRef.current.params);
+    if (!turnedOff) navigation.navigate('EmailThread', openRef.current.params);
     close();
-  }, [isSplit, windowIsSplit, navigation, close]);
+  }, [isSplit, turnedOff, navigation, close]);
 
   return { open, openRef, activeKey, setActiveKey, show, close, replace };
 }
