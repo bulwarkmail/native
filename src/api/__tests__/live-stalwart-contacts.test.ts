@@ -60,7 +60,8 @@ import { parseScript } from '../../lib/sieve/parser';
 import { applyQuickRule, buildPresetRule, toRuleMailbox } from '../../lib/sieve/quick-rules';
 import { readWebmailFixture, WEBMAIL_FIXTURES } from '../../lib/sieve/__tests__/fixtures/webmail';
 import { getMailboxes } from '../email';
-import type { ContactCard } from '../types';
+import type { AddressBook, ContactCard } from '../types';
+import { isContactReadOnly } from '../../lib/contact-read-only';
 import type { FilterRule, SieveScript } from '../../lib/sieve/types';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
@@ -507,6 +508,28 @@ liveTwo('live Stalwart: address book sharing (0.16 and 1.0)', () => {
     expect((await getAddressBooks()).find((b) => b.id === bookId)?.shareWith?.[principal]).toMatchObject({ mayWrite: true });
     await setAddressBookShare(bookId, principal, null);
     expect((await getAddressBooks()).find((b) => b.id === bookId)?.shareWith?.[principal]).toBeUndefined();
+  }, 60_000);
+
+  // 8dfaa3960: the contact screen offered Edit, Move and Delete, which the
+  // server then refused.
+  it('reads a book shared read-only as read-only for its contacts, and one shared to write as editable', async () => {
+    const principal = other.accountId;
+    const owner = getContactsAccountId();
+    const read = { mayRead: true, mayWrite: false, mayShare: false, mayDelete: false };
+    const booksSeenByOther = async () => {
+      await other.connect(SERVER!, USER2!, PASS2);
+      const [[, got]] = (await other.request([['AddressBook/get', { accountId: owner, ids: null, properties: ['id', 'myRights'] }, '0']],
+        ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'])).methodResponses as [string, { list?: AddressBook[] }, string][];
+      return got.list ?? [];
+    };
+    try {
+      await setAddressBookShare(bookId, principal, read);
+      expect(isContactReadOnly({ addressBookIds: { [bookId]: true } }, await booksSeenByOther())).toBe(true);
+      await setAddressBookShare(bookId, principal, { ...read, mayWrite: true });
+      expect(isContactReadOnly({ addressBookIds: { [bookId]: true } }, await booksSeenByOther())).toBe(false);
+    } finally {
+      await setAddressBookShare(bookId, principal, null).catch(() => undefined);
+    }
   }, 60_000);
 
   it('lists a shared account for contacts only as far as its capabilities go', async () => {

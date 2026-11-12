@@ -27,6 +27,7 @@ import {
 } from '../lib/contact-utils';
 import { inlineContactMedia, inlineContactMediaForExport } from '../lib/contact-media';
 import { contactToVCard } from '../lib/vcard';
+import { isContactReadOnly } from '../lib/contact-read-only';
 import SenderAvatar from '../components/SenderAvatar';
 import ContactPhoto from '../components/contacts/ContactPhoto';
 import Dialog from '../components/Dialog';
@@ -340,6 +341,8 @@ export default function ContactDetailScreen() {
     }
   };
 
+  // In an address book shared read-only: no Edit, Move or Delete.
+  const readOnly = isContactReadOnly(contact, addressBooks);
   const moreItems = [
     !isGroup(contact) && {
       icon: <Copy size={16} color={c.text} />,
@@ -351,7 +354,7 @@ export default function ContactDetailScreen() {
       label: t('contacts.context_menu.add_to_group', 'Add to group'),
       onPress: () => setGroupPickerOpen(true),
     },
-    addressBooks.length > 0 && {
+    !readOnly && addressBooks.length > 0 && {
       icon: <FolderInput size={16} color={c.text} />,
       label: t('contacts.bulk.move_to_address_book', 'Move to address book'),
       onPress: () => setMoveOpen(true),
@@ -361,8 +364,8 @@ export default function ContactDetailScreen() {
       label: t('contacts.context_menu.export_vcard', 'Export as vCard'),
       onPress: () => { void doShare(); },
     },
-    { separator: true },
-    {
+    !readOnly && { separator: true },
+    !readOnly && {
       icon: <Trash2 size={16} color={c.error} />,
       label: t('contacts.context_menu.delete', 'Delete'),
       onPress: () => setConfirmDelete(true),
@@ -389,15 +392,17 @@ export default function ContactDetailScreen() {
           {isGroup(contact) ? t('contacts.group', 'Group') : t('contacts.contact', 'Contact')}
         </Text>
         <View style={styles.headerActions}>
-          <Pressable
-            onPress={() => navigation.navigate('ContactForm', { contactId: contact.id })}
-            style={styles.headerBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('contacts.context_menu.edit', 'Edit')}
-          >
-            <Pencil size={18} color={c.text} />
-          </Pressable>
+          {!readOnly && (
+            <Pressable
+              onPress={() => navigation.navigate('ContactForm', { contactId: contact.id })}
+              style={styles.headerBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('contacts.context_menu.edit', 'Edit')}
+            >
+              <Pencil size={18} color={c.text} />
+            </Pressable>
+          )}
           <Pressable
             onPress={() => setMoreOpen(true)}
             style={styles.headerBtn}
