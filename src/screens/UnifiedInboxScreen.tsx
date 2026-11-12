@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState,
+  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDensity, useTypography } from '../theme/dynamic';
@@ -12,6 +12,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import SenderAvatar from '../components/SenderAvatar';
+import MessagePane from '../components/MessagePane';
 import { SwipeableRow } from '../components/SwipeableRow';
 import {
   fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash,
@@ -37,6 +38,8 @@ import { onStateChangeType } from '../lib/state-change-bus';
 import { describeSenderVerification, senderWarningOf } from '../lib/email-headers';
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
+import { listPaneWidth, useLayout } from '../lib/use-layout';
+import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -88,8 +91,15 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const swipeMode = useSettingsStore((s) => s.swipeMode);
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const locale = useLocaleStore((s) => s.locale);
+  const layout = useLayout();
+  const { width } = useWindowDimensions();
+  // On a wide window a message opens next to the list, as in the Mail tab (#97).
+  const pane = useMessagePane(navigation, layout.isSplit);
+  const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);
+  const emailsRef = React.useRef(emails);
+  emailsRef.current = emails;
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(true);
   const [loadingMore, setLoadingMore] = React.useState(false);
@@ -108,10 +118,17 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   );
   // Account-bounded by default (the active account + its shared/group
   // folders); every signed-in account only with the cross-account opt-in.
+  // Keyed on the ids alone: opening a message of another account switches to
+  // it, which refreshes the account objects (and, across accounts, changes
+  // nothing the list depends on), and the list must not reload under the
+  // message open next to it.
+  const allAccountIds = accounts.map((a) => a.id).join('\n');
+  const scopeAccountId = crossAccount ? null : activeAccountId;
   const accountIds = React.useMemo(() => {
-    if (crossAccount || !activeAccountId) return accounts.map((a) => a.id);
-    return accounts.some((a) => a.id === activeAccountId) ? [activeAccountId] : accounts.map((a) => a.id);
-  }, [accounts, activeAccountId, crossAccount]);
+    const ids = allAccountIds ? allAccountIds.split('\n') : [];
+    if (!scopeAccountId) return ids;
+    return ids.includes(scopeAccountId) ? [scopeAccountId] : ids;
+  }, [allAccountIds, scopeAccountId]);
 
   const fetchOpts = React.useMemo(
     () => ({ includeGroup, query, role, view }),
@@ -127,11 +144,12 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     });
   }, []);
 
-  const load = React.useCallback(async () => {
+  // `quiet`: refresh the rows in place, without the pull-to-refresh spinner.
+  const load = React.useCallback(async (opts?: { quiet?: boolean }) => {
     const seq = ++loadSeq.current;
     const active = useAuthStore.getState().activeAccountId;
     reloadTracker.loaded([accountIds, fetchOpts], active, accountIds.some((id) => id !== active));
-    setLoading(true);
+    if (!opts?.quiet) setLoading(true);
     try {
       const result = await fetchUnifiedInbox(accountIds, PAGE_SIZE, { ...fetchOpts, positions: {} });
       if (seq !== loadSeq.current) return;
@@ -183,6 +201,9 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   React.useEffect(() => {
     const offEmail = onStateChangeType('Email', () => {
       if (reloadTracker.changeArrived()) void load();
+      // With a message open in the pane the list never loses focus, so there is
+      // no coming back to reload on: show a read, move or delete at once.
+      else if (paneRef.current) void load({ quiet: true });
     });
     // The event stream is closed in the background: changes made meanwhile
     // are never reported.
@@ -193,7 +214,13 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
       offEmail();
       appState.remove();
     };
-  }, [load, reloadTracker]);
+  }, [load, reloadTracker, paneRef]);
+
+  // Another view (unified folder, cross view, account scope): its rows have
+  // nothing to do with the message on show.
+  React.useEffect(() => {
+    closePane();
+  }, [role, view, crossAccount, closePane]);
 
   // Search on submit / after a pause (2+ chars), like the folder list.
   React.useEffect(() => {
@@ -204,8 +231,9 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     return () => clearTimeout(id);
   }, [searchInput, query]);
 
-  const onOpen = React.useCallback(
-    (email: UnifiedEmail) => {
+  // `rows` is the list the message is in, for the viewer's pager.
+  const openRow = React.useCallback(
+    (email: UnifiedEmail, rows: UnifiedEmail[]) => {
       if (opening) return;
       setOpening(true);
       // The thread screen marks it read: show that when coming back.
@@ -214,12 +242,15 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         try {
           const auth = useAuthStore.getState();
           if (auth.activeAccountId !== email.sourceAccountId) {
+            // The viewer in the pane reads the active account: never let it
+            // show the open message against the next one's account.
+            closePane();
             await switchAccount(email.sourceAccountId);
             if (useAuthStore.getState().activeAccountId !== email.sourceAccountId) return;
           }
           // Page over the rows of the same account the user is looking at
           // (ids are only unique per JMAP account, so never mix accounts).
-          const pages = emails
+          const pages = rows
             .filter((e) => e.sourceAccountId === email.sourceAccountId && e.jmapAccountId === email.jmapAccountId);
           // Group/shared messages live under another JMAP account in the
           // same session; pass it so the thread opens against the right one.
@@ -227,20 +258,48 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           // The viewer paints these rows' headers, and starts on the body now.
           rememberRows(pages, jmapAccountId);
           prefetchMessage(email, jmapAccountId);
-          navigation.navigate('EmailThread', {
+          const params = {
             emailId: email.id,
             threadId: email.threadId,
             subject: email.subject,
             jmapAccountId,
             emailIds: pages.map((e) => e.id),
-          });
+          };
+          if (layout.isSplit) {
+            showInPane({ params, rowKey: rowKey(email), index: Math.max(0, rows.indexOf(email)) });
+          } else {
+            navigation.navigate('EmailThread', params);
+          }
         } finally {
           setOpening(false);
         }
       })();
     },
-    [opening, switchAccount, navigation, emails, reloadTracker],
+    [opening, switchAccount, navigation, reloadTracker, layout.isSplit, showInPane, closePane],
   );
+  const onOpen = (email: UnifiedEmail) => openRow(email, emails);
+
+  // The message in the pane left the list (deleted, archived, moved, marked
+  // spam): drop its row and show the one that took its place.
+  const showNextAfterRemoval = React.useCallback(() => {
+    const current = paneRef.current;
+    if (!current) return;
+    // A message the viewer opened itself is known only by its id, in the
+    // active account.
+    const active = useAuthStore.getState().activeAccountId;
+    const rows = emailsRef.current.filter((e) => rowKey(e) !== current.rowKey
+      && !(e.id === current.params.emailId && e.sourceAccountId === active));
+    setEmails(rows);
+    const next = rowAfterRemoval(rows, current, rowKey);
+    if (next) openRow(next, rows);
+    else closePane();
+  }, [paneRef, openRow, closePane]);
+
+  const onPaneActiveChange = React.useCallback((id: string) => {
+    const active = useAuthStore.getState().activeAccountId;
+    const row = emailsRef.current.find((e) => e.id === id && e.sourceAccountId === active);
+    setPaneActiveKey(row ? rowKey(row) : null);
+  }, [setPaneActiveKey]);
 
   // ── Actions (routed to each message's own account) ────────────────────
   const removeRows = (targets: UnifiedEmail[]) => {
@@ -351,6 +410,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     const unread = !item.keywords?.$seen;
     const starred = !!item.keywords?.$flagged;
     const isSelected = selected.has(rowKey(item));
+    const isActive = layout.isSplit && pane.activeKey === rowKey(item);
     // Sent and Drafts rows show the recipient: the check says nothing about them.
     const verification = showRecipient ? null : senderWarningOf(item);
     return (
@@ -369,6 +429,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
             styles.row,
             { paddingVertical: density.rowPaddingVertical },
             pressed && styles.rowPressed,
+            isActive && styles.rowActive,
             isSelected && styles.rowSelected,
           ]}
         >
@@ -439,8 +500,8 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
     );
   };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+  const listColumn = (
+    <>
       {selectionMode ? (
         <View style={styles.header}>
           <Pressable
@@ -591,13 +652,41 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         />
       )}
-    </SafeAreaView>
+    </>
+  );
+
+  if (!layout.isSplit) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        {listColumn}
+      </SafeAreaView>
+    );
+  }
+  // The viewer keeps clear of the top and right edges itself.
+  return (
+    <View style={[styles.container, styles.split]}>
+      <SafeAreaView style={[styles.listPane, { width: listPaneWidth(width) }]} edges={['top', 'left']}>
+        {listColumn}
+      </SafeAreaView>
+      <View style={styles.detailPane}>
+        <MessagePane
+          message={pane.open}
+          navigation={navigation}
+          onRemoved={showNextAfterRemoval}
+          onReplace={pane.replace}
+          onActiveChange={onPaneActiveChange}
+        />
+      </View>
+    </View>
   );
 }
 
 function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
+    split: { flexDirection: 'row' },
+    listPane: { borderRightWidth: 1, borderRightColor: c.border },
+    detailPane: { flex: 1 },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -646,6 +735,13 @@ function makeStyles(c: ThemePalette) {
     },
     rowPressed: { backgroundColor: c.surfaceHover },
     rowSelected: { backgroundColor: c.selection },
+    // The message open in the pane, as in the folder list.
+    rowActive: {
+      backgroundColor: c.selection,
+      borderLeftWidth: 2,
+      borderLeftColor: c.primary,
+      paddingLeft: spacing.lg - 2,
+    },
     checkbox: { width: 16, height: componentSizes.avatarMd, alignItems: 'center', justifyContent: 'center' },
     // Same unread indicator as the mailbox list (and the webmail): an 8px
     // filled circle in the start gutter (#27). Anchored on the row's *first*
