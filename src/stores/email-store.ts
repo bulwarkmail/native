@@ -290,18 +290,21 @@ export const SCOPE_EXCEPT_TRASH_JUNK = 'all-except-trash-junk';
 /**
  * The folder scope a query runs in, resolving the unset default. A search
  * from inside Spam or Trash looks there; anywhere else it spans every
- * folder (and leaves Spam and Trash out, see `searchSkipsTrashAndJunk`).
- * Webmail 763732fdc, 3904af2cb.
+ * folder (and leaves Spam and Trash out, see `searchSkipsTrashAndJunk`),
+ * unless "Search in" is set to the open folder (#1485).
+ * Webmail 763732fdc, 3904af2cb, e4338ac47.
  */
 export function effectiveFolderScope(
   searchQuery: string,
   filters: EmailFilters,
   openRole?: string | null,
+  defaultScope: 'all' | 'folder' = useSettingsStore.getState().searchDefaultScope,
 ): SearchFolderScope {
   if (filters.keyword) return 'all';
   if (filters.folder === SCOPE_EXCEPT_TRASH_JUNK) return 'all';
   if (filters.folder) return filters.folder;
   if (!searchQuery.trim()) return 'current';
+  if (defaultScope === 'folder') return 'current';
   return isTrashOrJunkRole(openRole) ? 'current' : 'all';
 }
 

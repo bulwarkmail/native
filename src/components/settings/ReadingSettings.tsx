@@ -39,6 +39,7 @@ export function ReadingSettings() {
   const showVerificationCodes = useSettingsStore((s) => s.showVerificationCodes);
   const showAttachmentChips = useSettingsStore((s) => s.showAttachmentChips);
   const clearSearchOnFolderChange = useSettingsStore((s) => s.clearSearchOnFolderChange);
+  const searchDefaultScope = useSettingsStore((s) => s.searchDefaultScope);
   const disableThreading = useSettingsStore((s) => s.disableThreading);
   const includeGroupInUnified = useSettingsStore((s) => s.includeGroupInUnified);
   const autoSelectReplyIdentity = useSettingsStore((s) => s.autoSelectReplyIdentity);
@@ -218,6 +219,18 @@ export function ReadingSettings() {
       <SettingItem label={t('settings.email_behavior.clear_search_on_folder_change.label', "Clear search when switching folders")} description={t('settings.email_behavior.clear_search_on_folder_change.description', "Clicking a folder (Inbox, Sent, …) clears the active search and browses that folder. When off, the search stays applied and re-runs in the folder you switch to.")}>
         <ToggleSwitch checked={clearSearchOnFolderChange} onChange={(v) => update('clearSearchOnFolderChange', v)} />
       </SettingItem>
+
+      <View style={styles.group}>
+        <SettingItem label={t('settings.email_behavior.search_default_scope.label', 'Search in')} description={t('settings.email_behavior.search_default_scope.description', 'Where a new search looks. You can still pick another folder in the search filters.')} noBorder />
+        <Select
+          value={searchDefaultScope}
+          onChange={(v) => update('searchDefaultScope', v === 'folder' ? 'folder' : 'all')}
+          options={[
+            { value: 'all', label: t('settings.email_behavior.search_default_scope.all', 'All folders except Spam and Trash') },
+            { value: 'folder', label: t('settings.email_behavior.search_default_scope.folder', 'The open folder') },
+          ]}
+        />
+      </View>
 
       {!showPreviewHidden && (
         <SettingItem label={t('settings.email_behavior.show_preview.label', "Show Preview Text")} description={t('settings.email_behavior.show_preview.description', "Display email preview in the list")} locked={showPreviewLocked}>

@@ -248,6 +248,9 @@ export interface PersistedSettings {
   // Opening a folder drops an active search and filters and browses it,
   // instead of re-running the search there (#553, the default).
   clearSearchOnFolderChange: boolean;
+  // "Search in": where a new search looks, all folders (but Spam and Trash)
+  // or only the open one (webmail searchDefaultScope, #1485).
+  searchDefaultScope: 'all' | 'folder';
   // Unified views span every logged-in account instead of just the active
   // one (own + its shared/group folders). Off by default like the webmail.
   unifiedCrossAccount: boolean;
@@ -471,6 +474,7 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   showAvatarsInJunk: false,
   showFolderTotalCount: true,
   clearSearchOnFolderChange: false,
+  searchDefaultScope: 'all',
   unifiedCrossAccount: false,
   enableCrossUnreadView: false,
   enableCrossStarredView: false,

@@ -637,7 +637,9 @@ export default function EmailListScreen({
   const inJunk = currentRole === 'junk' || currentRole === 'spam';
   // A search started in Sent runs over every folder: each row names its
   // recipient only when it is in Sent or Drafts itself.
-  const rowScope = effectiveFolderScope(storeSearchQuery, filters, currentRole);
+  // "Search in" (#1485), subscribed so the rows and chips follow a change.
+  const searchDefaultScope = useSettingsStore((s) => s.searchDefaultScope);
+  const rowScope = effectiveFolderScope(storeSearchQuery, filters, currentRole, searchDefaultScope);
   const showRecipientFor = React.useCallback(
     (item: Email) => rowShowsRecipient(
       item.mailboxIds,
@@ -1225,7 +1227,7 @@ export default function EmailListScreen({
   }, [backStep, clearSelection, clearSearchAndFilters]);
   useBackWhileFocused(backStep !== 'leave', handleBack);
   const openRole = currentMailbox?.role;
-  const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole);
+  const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole, searchDefaultScope);
   // The default search scope leaves Spam and Trash out; "All folders" doesn't.
   const skipsTrashAndJunk = searchSkipsTrashAndJunk(storeSearchQuery, filters, openRole);
   // Accounts an "All folders" list could not reach (#1082).
