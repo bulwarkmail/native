@@ -56,7 +56,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useLocaleStore, type TranslateFn } from '../stores/locale-store';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
-import { useCollectionNames } from '../lib/default-collection-name';
+import { useCollectionNames } from '../lib/use-collection-names';
 import { OrgAnnouncementBanner } from '../components/OrgAnnouncementBanner';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;

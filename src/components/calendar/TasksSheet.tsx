@@ -47,7 +47,7 @@ import { useSheetDrag } from '../../lib/use-sheet-drag';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 type TaskFilter = 'all' | 'pending' | 'completed' | 'overdue';
 

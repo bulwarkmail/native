@@ -5,10 +5,9 @@
  * and "Contacts" in the user's language, the way the drawer shows "Sent"
  * instead of the server's folder name. A name the user chose stays as it is.
  * Ported from the webmail's lib/default-collection-name.ts and
- * hooks/use-collection-names.ts.
+ * hooks/use-collection-names.ts. Pure, since device sync names collections
+ * with it; the screens' hook is in use-collection-names.ts.
  */
-import React from 'react';
-import { useLocaleStore } from '../stores/locale-store';
 
 const SERVER_DEFAULT_NAMES = {
   calendar: /^Stalwart Calendar(?: \([^()]*\))?$/,
@@ -36,25 +35,4 @@ export function collectionLabel(
   if (!collection.isShared) return plainName;
   const owner = /\(([^()]*)\)\s*$/.exec(name.trim())?.[1];
   return owner ? `${plainName} (${owner})` : plainName;
-}
-
-interface NamedCollection {
-  name: string;
-  isShared?: boolean;
-}
-
-/** Calendar and address book names as the screens show them, in the user's language. */
-export function useCollectionNames(): {
-  calendar: (calendar: NamedCollection) => string;
-  addressBook: (book: NamedCollection) => string;
-} {
-  const t = useLocaleStore((s) => s.t);
-  return React.useMemo(() => {
-    const calendarName = t('uxs_wording.default_calendar', 'Calendar');
-    const bookName = t('uxs_wording.default_address_book', 'Contacts');
-    return {
-      calendar: (calendar: NamedCollection) => collectionLabel(calendar, 'calendar', calendarName),
-      addressBook: (book: NamedCollection) => collectionLabel(book, 'addressBook', bookName),
-    };
-  }, [t]);
 }

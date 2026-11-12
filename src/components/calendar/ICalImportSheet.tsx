@@ -20,7 +20,7 @@ import type { Locale } from 'date-fns';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 // expo-document-picker is loaded lazily on first use; its native module is not
 // linked into every build (matches the FilesScreen / ContactImportSheet flow).

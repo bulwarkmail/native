@@ -21,7 +21,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 

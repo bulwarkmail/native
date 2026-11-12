@@ -24,7 +24,7 @@ import { isWritableCalendar } from '../../lib/calendar-editability';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 /** A calendar view listed at the top of the drawer. */
 export interface DrawerViewOption {

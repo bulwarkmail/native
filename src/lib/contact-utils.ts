@@ -9,7 +9,7 @@ import type {
 } from '../api/types';
 import { format, parseISO } from 'date-fns';
 import { getEmailInitials } from './avatar-utils';
-import { timePattern, type TimeFormat } from './calendar-utils';
+import { timePattern, type TimeFormat } from './time-pattern';
 
 export function getContactDisplayName(contact: ContactCard): string {
   if (contact.name) {

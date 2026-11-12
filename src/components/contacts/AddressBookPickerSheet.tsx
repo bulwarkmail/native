@@ -11,7 +11,7 @@ import { useContactsStore } from '../../stores/contacts-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 interface Props {
   visible: boolean;

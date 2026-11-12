@@ -87,7 +87,7 @@ import { saveOfferingWithoutInvitations } from '../../lib/calendar-scheduling-de
 import { recipientsToConfirm } from '../../lib/outgoing/external-recipients';
 import { confirmExternalRecipientsAlert } from '../../lib/outgoing/confirm-external-alert';
 import { descriptionAsText, descriptionFieldsToSave } from '../../lib/calendar-description';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 type RecurrenceOption = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 

@@ -65,7 +65,7 @@ import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { useSheetInsets } from '../../lib/use-layout';
 import { SafeAreaModal } from '../SafeAreaModal';
 import { descriptionAsText } from '../../lib/calendar-description';
-import { useCollectionNames } from '../../lib/default-collection-name';
+import { useCollectionNames } from '../../lib/use-collection-names';
 
 type RsvpStatus = 'accepted' | 'declined' | 'tentative';
 

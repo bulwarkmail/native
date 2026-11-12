@@ -140,11 +140,7 @@ export function getEventDisplayEndDate(event: CalendarEvent): Date {
 // (event-card.tsx: `timeFormat === "12h" ? "h:mm a" : "HH:mm"`). Components
 // thread the `calendarTimeFormat` setting through so the calendar renders
 // times in the same format the webmail does.
-export type TimeFormat = '12h' | '24h';
-
-export function timePattern(timeFormat: TimeFormat | undefined): string {
-  return timeFormat === '12h' ? 'h:mm a' : 'HH:mm';
-}
+export { timePattern, type TimeFormat } from './time-pattern';
 
 export interface EventTimeRange {
   start: Date;
