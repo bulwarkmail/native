@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing,
+  View, Text, StyleSheet, ScrollView, Pressable, Modal, Animated, Easing, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -17,6 +17,10 @@ import { mailboxIconKind, type MailboxIconKind } from '../lib/mailbox-icon';
 import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
+import {
+  filterTree, loadRecentMoveTargets, MOVE_FILTER_THRESHOLD, MOVE_RECENT_SHOWN, noteMoveTarget, readRecentMoveTargets,
+} from '../lib/move-recent';
+import { useAuthStore } from '../stores/auth-store';
 
 // By role only, like the sidebar (mailboxIconKind, #1235): a user folder
 // named "web/sentry" is not the Sent folder.
@@ -69,8 +73,47 @@ export function MoveSheet({
     }
   }, [visible, slideY, overlayOpacity]);
 
+  // A filter field on a long list and the recent folders first (webmail
+  // move-target-list.tsx, 56e833fe6). Recents are kept per signed-in account.
+  const accountKey = useAuthStore((s) => s.activeAccountId);
+  const [query, setQuery] = React.useState('');
+  const [recentIds, setRecentIds] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    if (!visible) {
+      setQuery('');
+      return;
+    }
+    let live = true;
+    setRecentIds(readRecentMoveTargets(accountKey));
+    void loadRecentMoveTargets().then(() => { if (live) setRecentIds(readRecentMoveTargets(accountKey)); });
+    return () => { live = false; };
+  }, [visible, accountKey]);
+  const showFilter = mailboxes.length > MOVE_FILTER_THRESHOLD;
+  const filtering = query.trim().length > 0;
+  const canTarget = (node: Pick<MailboxNode, 'id' | 'isAccountNode' | 'myRights' | 'role'>) =>
+    // A shared account's header is a grouping row, not a folder, and Drafts
+    // is never a move target (the webmail excludes it too).
+    !node.isAccountNode && node.myRights?.mayAddItems !== false && node.id !== currentMailboxId
+    && node.role !== 'drafts';
+  const recent = React.useMemo(
+    () => recentIds
+      .map((id) => mailboxes.find((m) => m.id === id))
+      .filter((m): m is Mailbox => !!m && canTarget(m))
+      .slice(0, MOVE_RECENT_SHOWN),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recentIds, mailboxes, currentMailboxId],
+  );
+  const pick = (id: string) => {
+    noteMoveTarget(accountKey, id);
+    onPick(id);
+  };
+
   const visibleNodes = React.useMemo(() => {
-    const tree = buildMailboxTree(mailboxes);
+    const tree = filterTree(
+      buildMailboxTree(mailboxes),
+      query,
+      (n) => (n.isAccountNode ? n.name : localizeMailboxName(n.role, n.name, t)),
+    );
     const expanded = new Set<string>();
     const collect = (nodes: MailboxNode[]) => {
       for (const n of nodes) {
@@ -82,7 +125,7 @@ export function MoveSheet({
     };
     collect(tree);
     return flattenVisible(tree, expanded);
-  }, [mailboxes]);
+  }, [mailboxes, query, t]);
 
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
@@ -109,29 +152,61 @@ export function MoveSheet({
             </Pressable>
           </View>
         </View>
-        <ScrollView>
+        {showFilter && (
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('menuMove.filter_placeholder', 'Find a folder')}
+            placeholderTextColor={c.textMuted}
+            accessibilityLabel={t('menuMove.filter_placeholder', 'Find a folder')}
+            autoCorrect={false}
+            autoCapitalize="none"
+            style={styles.filterInput}
+            testID="move-filter"
+          />
+        )}
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {!filtering && recent.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>{t('menuMove.recent', 'Recent')}</Text>
+              {recent.map((m) => {
+                const Icon = moveTargetIcon(m.role);
+                return (
+                  <Pressable
+                    key={`recent-${m.id}`}
+                    onPress={() => pick(m.id)}
+                    style={({ pressed }) => [styles.moveRow, pressed && styles.moveRowPressed, { paddingLeft: spacing.lg }]}
+                    testID={`move-recent:${m.id}`}
+                  >
+                    <Icon size={16} color={c.textSecondary} />
+                    <Text style={styles.moveRowLabel} numberOfLines={1}>{localizeMailboxName(m.role, m.name, t)}</Text>
+                  </Pressable>
+                );
+              })}
+              <View style={styles.sectionDivider} />
+            </>
+          )}
+          {filtering && visibleNodes.length === 0 && (
+            <Text style={styles.sectionLabel}>{t('menuMove.no_match', 'No folder matches')}</Text>
+          )}
           {visibleNodes.map((node) => {
             const Icon = moveTargetIcon(node.role);
             const isCurrent = node.id === currentMailboxId;
-            // A shared account's header is a grouping row, not a folder, and
-            // Drafts is never a move target (the webmail excludes it too).
-            const canTarget =
-              !node.isAccountNode && node.myRights?.mayAddItems !== false && !isCurrent
-              && node.role !== 'drafts';
+            const targetable = canTarget(node);
             return (
               <Pressable
                 key={node.id}
-                onPress={canTarget ? () => onPick(node.id) : undefined}
-                disabled={!canTarget}
+                onPress={targetable ? () => pick(node.id) : undefined}
+                disabled={!targetable}
                 style={({ pressed }) => [
                   styles.moveRow,
-                  pressed && canTarget && styles.moveRowPressed,
+                  pressed && targetable && styles.moveRowPressed,
                   { paddingLeft: spacing.lg + node.depth * 16 },
                 ]}
               >
-                <Icon size={16} color={canTarget ? c.textSecondary : c.textMuted} />
+                <Icon size={16} color={targetable ? c.textSecondary : c.textMuted} />
                 <Text
-                  style={[styles.moveRowLabel, !canTarget && styles.moveRowLabelDisabled]}
+                  style={[styles.moveRowLabel, !targetable && styles.moveRowLabelDisabled]}
                   numberOfLines={1}
                 >
                   {node.isAccountNode ? node.name : localizeMailboxName(node.role, node.name, t)}
@@ -189,6 +264,29 @@ function makeStyles(c: ThemePalette) {
     sheetTitle: {
       ...typography.bodySemibold,
       color: c.text,
+    },
+    filterInput: {
+      ...typography.body,
+      color: c.text,
+      marginHorizontal: spacing.lg,
+      marginVertical: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.sm,
+    },
+    sectionLabel: {
+      ...typography.caption,
+      color: c.textMuted,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
+    },
+    sectionDivider: {
+      height: 1,
+      backgroundColor: c.border,
+      marginVertical: spacing.xs,
     },
     sheetClose: {
       width: 28,
