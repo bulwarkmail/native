@@ -15,14 +15,20 @@ export interface PaneMessage {
 /**
  * The row to show once the open message has left the list (deleted, archived,
  * moved, marked spam): the one that took its place, or the new last row, as
- * Apple Mail does. Null when the list is empty or the message is still there.
+ * Apple Mail does. With `eligible`, the nearest such row that passes it, first
+ * towards the end of the list. Null when there is none or the message is
+ * still there.
  */
 export function rowAfterRemoval<T>(
   rows: readonly T[],
   open: Pick<PaneMessage, 'rowKey' | 'index'>,
   keyOf: (row: T) => string,
+  eligible: (row: T) => boolean = () => true,
 ): T | null {
-  const next = rows[Math.min(open.index, rows.length - 1)];
+  const start = Math.min(open.index, rows.length - 1);
+  let next: T | undefined;
+  for (let i = start; i < rows.length && next === undefined; i++) if (eligible(rows[i])) next = rows[i];
+  for (let i = start - 1; i >= 0 && next === undefined; i--) if (eligible(rows[i])) next = rows[i];
   return next !== undefined && keyOf(next) !== open.rowKey ? next : null;
 }
 
