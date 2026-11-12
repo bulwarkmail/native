@@ -116,7 +116,7 @@ import {
   plainTextBodyHasSignature, plainTextBodyWithoutSignature, SIGNATURE_RANGE_MARKER, wantsSignatureSeparator,
 } from '../lib/signature-utils';
 import {
-  getAutoFilledPlaceholders, getPlaceholdersFromTemplate, substitutePlaceholders, templateBodyToHtml,
+  getAutoFilledPlaceholders, getPlaceholdersFromTemplate, placeholderPromptValues, substitutePlaceholders, templateBodyToHtml,
 } from '../lib/template-utils';
 import {
   generateSubAddress, extractDomain, suggestTagsForDomain, getTagValidationError, MAX_TAG_LENGTH,
@@ -2366,7 +2366,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const applyTemplate = (template: EmailTemplate, values: Record<string, string>) => {
     const hasValues = Object.keys(values).length > 0;
     const filledSubject = hasValues ? substitutePlaceholders(template.subject, values) : template.subject;
-    const filledBody = hasValues ? substitutePlaceholders(template.body, values) : template.body;
+    const filledBody = hasValues ? substitutePlaceholders(template.body, values, { html: !!template.isHTML }) : template.body;
     // An empty template subject must not wipe one the user typed (#540).
     if (filledSubject && !subject.trim()) setSubject(filledSubject);
     if (plainTextMode) {
@@ -2402,16 +2402,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
       recipientName: finalTo[0]?.name || undefined,
       locale,
     });
-    const missing = placeholders.filter((p) => auto[p] === undefined);
-    if (missing.length === 0) {
+    const values = placeholderPromptValues(template, auto);
+    if (Object.keys(values).length === 0) {
       applyTemplate(template, placeholders.length ? auto : {});
       return;
     }
-    setPlaceholderPrompt({
-      template,
-      auto,
-      values: Object.fromEntries(missing.map((m) => [m, ''])),
-    });
+    setPlaceholderPrompt({ template, auto, values });
   };
 
   // ── From options (sub-address tag / override) ────────────────────────

@@ -5,6 +5,8 @@
 import type { EmailTemplate } from '../stores/templates-store';
 import { generateUUID } from './uuid';
 import { intlLocale } from './intl-locale';
+import { escapeHtml } from './email-html';
+import { decodeEntities } from './verification-code';
 
 export const BUILT_IN_PLACEHOLDERS = [
   'recipient_name',
@@ -16,35 +18,45 @@ export const BUILT_IN_PLACEHOLDERS = [
 
 export type BuiltInPlaceholder = (typeof BUILT_IN_PLACEHOLDERS)[number];
 
-const PLACEHOLDER_REGEX = /\{\{(\w+)\}\}/g;
+// {{name}} or {{name:default}}. In a subject or a plain body the default is
+// text and may hold "<" and ">" ({{contact:Jane <jane@x.com>}}). In an HTML
+// body those are markup, so a default stops at a tag; a "<" typed in the
+// editor is stored as &lt; there.
+const TEXT_PLACEHOLDER_REGEX = /\{\{(\w+)(?::([^{}\n]*))?\}\}/g;
+const HTML_PLACEHOLDER_REGEX = /\{\{(\w+)(?::([^{}<>\n]*))?\}\}/g;
 const MAX_TEMPLATE_NAME_LENGTH = 200;
+
+const placeholderRegex = (html?: boolean) => (html ? HTML_PLACEHOLDER_REGEX : TEXT_PLACEHOLDER_REGEX);
 
 function stripTags(value: string): string {
   return value.replace(/<[^>]*>/g, '');
 }
 
-export function extractPlaceholders(text: string): string[] {
+export function extractPlaceholders(text: string, options: { html?: boolean } = {}): string[] {
   const matches = new Set<string>();
-  let match: RegExpExecArray | null;
-  const regex = new RegExp(PLACEHOLDER_REGEX.source, 'g');
-  while ((match = regex.exec(text)) !== null) {
+  for (const match of text.matchAll(placeholderRegex(options.html))) {
     matches.add(match[1]);
   }
   return Array.from(matches);
 }
 
+/**
+ * Fill in {{placeholders}}. Values are text: escaped for an HTML template,
+ * kept as typed for a plain one, so "Smith <j@x.com>" survives either way.
+ */
 export function substitutePlaceholders(
   text: string,
   values: Record<string, string>,
+  options: { html?: boolean } = {},
 ): string {
-  return text.replace(PLACEHOLDER_REGEX, (full, name: string) => {
+  return text.replace(placeholderRegex(options.html), (full, name: string) => {
     if (values[name] === undefined) return full;
-    return stripTags(values[name]);
+    return options.html ? escapeHtml(values[name]) : values[name];
   });
 }
 
-export function hasUnresolvedPlaceholders(text: string): boolean {
-  return new RegExp(PLACEHOLDER_REGEX.source).test(text);
+export function hasUnresolvedPlaceholders(text: string, options: { html?: boolean } = {}): boolean {
+  return new RegExp(placeholderRegex(options.html).source).test(text);
 }
 
 export function validateTemplateName(name: string): 'empty' | 'too_long' | null {
@@ -85,9 +97,41 @@ export function getAutoFilledPlaceholders(
   return values;
 }
 
-export function getPlaceholdersFromTemplate(template: Pick<EmailTemplate, 'subject' | 'body'>): string[] {
-  const combined = `${template.subject} ${template.body}`;
-  return extractPlaceholders(combined);
+export function getPlaceholdersFromTemplate(template: Pick<EmailTemplate, 'subject' | 'body' | 'isHTML'>): string[] {
+  return Array.from(new Set([
+    ...extractPlaceholders(template.subject),
+    ...extractPlaceholders(template.body, { html: !!template.isHTML }),
+  ]));
+}
+
+/** The default each placeholder carries ({{name:default}}), first one wins. */
+export function getPlaceholderDefaults(template: Pick<EmailTemplate, 'subject' | 'body' | 'isHTML'>): Map<string, string> {
+  const defaults = new Map<string, string>();
+  const collect = (text: string, html: boolean) => {
+    for (const [, name, value] of text.matchAll(placeholderRegex(html))) {
+      if (value === undefined || defaults.has(name)) continue;
+      defaults.set(name, html ? decodeEntities(value) : value);
+    }
+  };
+  collect(template.subject, false);
+  collect(template.body, !!template.isHTML);
+  return defaults;
+}
+
+/**
+ * The fields the fill sheet asks for: every placeholder the app can't fill
+ * itself, each started with its default (webmail placeholder-fill-modal).
+ */
+export function placeholderPromptValues(
+  template: Pick<EmailTemplate, 'subject' | 'body' | 'isHTML'>,
+  autoFilled: Record<string, string>,
+): Record<string, string> {
+  const defaults = getPlaceholderDefaults(template);
+  return Object.fromEntries(
+    getPlaceholdersFromTemplate(template)
+      .filter((p) => autoFilled[p] === undefined)
+      .map((p) => [p, defaults.get(p) ?? '']),
+  );
 }
 
 export function isBuiltInPlaceholder(name: string): boolean {
