@@ -70,3 +70,36 @@ describe('sign-out.yaml survives a keyboard over "Sign out"', () => {
     expect(before.lastIndexOf('hideKeyboard')).toBeGreaterThan(before.indexOf('scrollUntilVisible'));
   });
 });
+
+describe('stalwart-login-page.yaml on Stalwart 0.16 and 1.1.0', () => {
+  const flow = read('.maestro/subflows/stalwart-login-page.yaml');
+  // The visible texts of each login page in document order (from /login of
+  // stw-v016 and stw-rel). 1.1.0 adds the passkey button under "Sign in".
+  const pages = {
+    '0.16': ['Sign in', 'Enter your credentials to continue', 'Username', 'you@example.com', 'Password', '••••••••', 'Sign in'],
+    '1.1.0': ['Sign in', 'Enter your credentials to continue', 'Username', 'you@example.com', 'Password', '••••••••', 'Sign in', 'Sign in with a passkey'],
+  };
+  // Maestro matches a text selector against the whole text.
+  const matches = (selector: string, text: string) => new RegExp(`^(?:${selector})$`).test(text);
+
+  it('taps the one "Sign in" under the Password label on both', () => {
+    const tap = /- tapOn:\n {4}text: "([^"]+)"\n {4}below: "([^"]+)"\n/.exec(flow);
+    expect(tap).not.toBeNull();
+    const [, text, anchor] = tap!;
+    for (const texts of Object.values(pages)) {
+      const at = texts.findIndex((t) => matches(anchor, t));
+      expect(at).toBeGreaterThan(0);
+      expect(texts.slice(at + 1).filter((t) => matches(text, t))).toEqual(['Sign in']);
+    }
+    expect(flow).not.toMatch(/index: 1/);
+  });
+
+  it('finds the username and password fields by texts the passkey button doesn\'t have', () => {
+    for (const texts of Object.values(pages)) {
+      expect(texts.filter((t) => matches('you@example.com', t))).toHaveLength(1);
+      expect(texts.filter((t) => matches('••••••••', t))).toHaveLength(1);
+    }
+    expect(flow).toContain('HINT: "you@example.com"');
+    expect(flow).toContain('- tapOn: "••••••••"');
+  });
+});

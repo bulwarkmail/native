@@ -1,5 +1,12 @@
 # Stalwart's own sign-in page inside the auth session. env LOGIN, TOTP (any
 # non-empty value: the account needs a one-time code).
+#
+# 0.16 and 1.1.0 have the same fields (labels Username, Password, One-time
+# code). 1.1.0 adds a "Sign in with a passkey" button under "Sign in" (shown
+# where the browser offers WebAuthn, so on HTTPS) and `username webauthn`
+# autocomplete on the username field. Taps go by whole texts, which the
+# passkey button never matches, and "Sign in" is the one under the Password
+# label, not the page title.
 appId: org.bulwarkmail.mobile
 ---
 - extendedWaitUntil:
@@ -25,7 +32,7 @@ appId: org.bulwarkmail.mobile
       - inputText: ${output.helper.code}
 - tapOn:
     text: "Sign in"
-    index: 1
+    below: "Password"
 # Stalwart 1.0.1 asks for consent after Sign in, once per client grant;
 # 0.16 and repeat sign-ins go straight back to the app.
 - waitForAnimationToEnd:
