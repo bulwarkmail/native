@@ -57,14 +57,17 @@ tags:
 - waitForAnimationToEnd:
     timeout: 5000
 # The picker can also close without a photo (seen on the iPad): pick again
-# from the attach sheet. The photo must be on the message before it goes out.
+# from the attach sheet, only when no icon.png chip is there at all. The
+# chip is one element, "icon.png, 37.7 KB, Remove attachment", and shows
+# the error instead of the size when the upload failed: the photo must be
+# uploaded before the message goes out.
 - runFlow:
     when:
       true: ${output.pickPhoto}
     commands:
       - runFlow:
           when:
-            notVisible: "icon.png"
+            notVisible: 'icon\.png.*'
           commands:
             - tapOn: "Attach"
             - extendedWaitUntil:
@@ -77,7 +80,9 @@ tags:
                 timeout: 20000
             - waitForAnimationToEnd:
                 timeout: 5000
-      - assertVisible: "icon.png"
+      - extendedWaitUntil:
+          visible: 'icon\.png, [0-9.]+ [KM]B.*'
+          timeout: 30000
 - takeScreenshot: compose-04-with-photo
 
 - tapOn: "Send"
