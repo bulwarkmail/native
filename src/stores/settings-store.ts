@@ -719,6 +719,10 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   // mentions:
   mentionAddsRecipientTo: oneOf(['to', 'cc', 'off']),
   explicitSettings: stringArray,
+  // The two settings whose default is null: nothing but these says what a
+  // chosen value looks like.
+  activeThemeId: (v) => typeof v === 'string' && v.length > 0,
+  trustedSendersAddressBook: (v) => typeof v === 'boolean',
   sidebarApps: (v) => Array.isArray(v) && v.every((a) =>
     a && typeof a === 'object'
     && typeof (a as SidebarApp).id === 'string'
@@ -740,6 +744,9 @@ export function mergeWithDefaults(parsed: Partial<PersistedSettings>): Persisted
       out[k] = normalizeBottomQuickActions(v);
     } else if (k === 'notificationMutes') {
       out[k] = normalizeNotificationMutes(v);
+    } else if (def === null) {
+      // No default to compare the shape with: the validator has decided.
+      if (validator) out[k] = v;
     } else if (Array.isArray(def)) {
       if (Array.isArray(v)) out[k] = v;
     } else if (typeof def === 'object') {
