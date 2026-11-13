@@ -1576,6 +1576,23 @@
       "version": "Versjon {version}",
       "week_starts": "veka byrjar {day}"
     },
+    "sync": {
+      "account": "Ha dei i",
+      "account_desc": "Éi kontoen held innstillingane for heile appen.",
+      "description": "Ha innstillingane dine i e-postkontoen din, så dei andre eininga dine får dei same.",
+      "enabled": "Synkroniser innstillingar",
+      "enabled_desc": "Val som berre passar for éi eining, som lesevindauget og e-post utan nett, blir på ho.",
+      "keep_mine": "Bruk denne eininga sine",
+      "replaced": "{count, plural, one {# innstilling på denne eininga følgjer no kontoen din.} other {# innstillingar på denne eininga følgjer no kontoen din.}}",
+      "reset_everywhere": "Synkronisering av innstillingar er på, så dei blir tilbakestilte òg på dei andre eininga dine.",
+      "status_full": "Kontoen har ikkje meir plass til innstillingar.",
+      "status_signed_out": "Kontoen som heldt innstillingane dine, er logga ut. Vel kontoen dei skal liggje i.",
+      "status_syncing": "Synkroniserer…",
+      "status_unreachable": "Fekk ikkje kontakt med kontoen. Det blir prøvd igjen.",
+      "status_unsupported": "E-postserveren til denne kontoen kan ikkje lagre innstillingar.",
+      "title": "Synkronisering av innstillingar",
+      "too_large": "{count, plural, one {# lang liste blir på denne eininga: kontoen har ikkje plass til fleire.} other {# lange lister blir på denne eininga: kontoen har ikkje plass til fleire.}}"
+    },
     "tab_groups": {
       "advanced": "Avansert",
       "appearance": "Utsjånad",

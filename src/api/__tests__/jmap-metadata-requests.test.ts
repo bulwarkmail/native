@@ -14,7 +14,8 @@ import path from 'path';
  *
  * Stalwart 1.0.0 (the release) serves Mailbox metadata, and templates are
  * kept there (src/api/bulwark-metadata.ts, in requests of their own, only
- * for accounts that advertise it). Everything else still never asks for it.
+ * for accounts that advertise it), and settings are in its private
+ * metadata (#117). Everything else still never asks for it.
  */
 
 const METADATA_CAPABILITY = 'urn:ietf:params:jmap:metadata';
@@ -261,8 +262,10 @@ describe('JMAP Metadata in the request-building sources', () => {
     expect(hits).toEqual([]);
   });
 
-  it('keeps privateMetadata and ignoreMetadataOnlyChanges out of the metadata module too', () => {
+  // The module reads and writes privateMetadata since settings sync (#117),
+  // for accounts that advertise supportsPrivate (seen working on 1.1.0).
+  it('keeps ignoreMetadataOnlyChanges out of the metadata module too', () => {
     const code = withoutComments(readFileSync(path.join(root, METADATA_MODULE), 'utf8'));
-    expect(code).not.toMatch(/privateMetadata|ignoreMetadataOnlyChanges/);
+    expect(code).not.toMatch(/ignoreMetadataOnlyChanges/);
   });
 });
