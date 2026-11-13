@@ -1122,6 +1122,18 @@ export default function EmailListScreen({
     const id = setTimeout(() => setSearchQuery(searchInput), 600);
     return () => clearTimeout(id);
   }, [searchInput, storeSearchQuery, setSearchQuery]);
+  // The X in the field clears the text and keeps the keyboard up; on an empty
+  // field, which has an X too while it has focus, it closes the search and
+  // the panel under it (#127). iOS has no back button to leave the field.
+  const clearOrCloseSearch = React.useCallback(() => {
+    if (searchInput.length > 0) {
+      setSearchInput('');
+      setSearchQuery('');
+      return;
+    }
+    setSearchFocused(false);
+    searchInputRef.current?.blur();
+  }, [searchInput, setSearchQuery]);
   const submitSearch = React.useCallback((value: string) => {
     setSearchInput(value);
     setSearchQuery(value);
@@ -1471,9 +1483,9 @@ export default function EmailListScreen({
           autoCorrect={false}
           returnKeyType="search"
         />
-        {searchInput.length > 0 && (
+        {(searchInput.length > 0 || searchFocused) && (
           <Pressable
-            onPress={() => { setSearchInput(''); setSearchQuery(''); }}
+            onPress={clearOrCloseSearch}
             hitSlop={8}
             style={styles.searchClearButton}
             accessibilityRole="button"
