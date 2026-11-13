@@ -1818,12 +1818,23 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
   await AsyncStorage.multiRemove([
     subscriptionIdKey(accountId),
     deviceClientIdKey(accountId),
-    lastNotifiedKey(accountId),
-    notifiedIdsKey(accountId),
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
   ]);
+  await forgetNotifiedIds(accountId);
   await writePushJmapAccountId(accountId, null);
+}
+
+/**
+ * Forget the account's notified message ids. The native side removes them
+ * under the lock it posts notifications with (BulwarkFcmModule), so a push
+ * being handled at that moment cannot write the old ids back after them.
+ */
+async function forgetNotifiedIds(accountId: string): Promise<void> {
+  const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
+    forgetNotifiedIds?: (id: string) => Promise<void>;
+  } | undefined;
+  await native?.forgetNotifiedIds?.(accountId);
 }
 
 /**
@@ -1836,11 +1847,10 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
  */
 export async function forgetPushServerState(accountId: string): Promise<void> {
   await AsyncStorage.multiRemove([
-    lastNotifiedKey(accountId),
-    notifiedIdsKey(accountId),
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
   ]);
+  await forgetNotifiedIds(accountId);
 }
 
 /**

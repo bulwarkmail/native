@@ -7,8 +7,10 @@ vi.mock('../../api/jmap-client', () => ({
 }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NativeModules } from 'react-native';
 import type { Email, JMAPSession } from '../../api/types';
 import { reconcileServerFingerprint } from '../../lib/server-change';
+import { forgetNotifiedIds } from '../../lib/__tests__/native-notified-ids';
 import {
   readServerFingerprint,
   readServerPrimaryAccountId,
@@ -149,8 +151,13 @@ const subscription = (id: string) => useCalendarSubscriptionsStore.getState().su
 
 const storedKeys = async () => (await AsyncStorage.getAllKeys()) as string[];
 
+const forget = vi.fn(forgetNotifiedIds);
+
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  forget.mockClear();
+  // The ring of notified ids is the native side's to remove.
+  (NativeModules as Record<string, unknown>).BulwarkFcm = { forgetNotifiedIds: forget };
 });
 
 describe('reconcileServerFingerprint', () => {
@@ -185,6 +192,7 @@ describe('reconcileServerFingerprint', () => {
     for (const key of ['push:notifiedIds:v1:', 'push:lastNotifiedEmailId:v2:', 'push:emailPushRefused:v1:']) {
       expect(keys).not.toContain(key + ACCOUNT);
     }
+    expect(forget).toHaveBeenCalledWith(ACCOUNT);
     // The registration stays for the resync to check against the server.
     expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${ACCOUNT}`)).toBe('a');
 

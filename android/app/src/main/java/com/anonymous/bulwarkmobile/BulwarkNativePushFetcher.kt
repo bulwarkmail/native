@@ -870,19 +870,56 @@ object BulwarkNativePushFetcher {
         return parseNotifiedIds(rawRing, legacySingle)
     }
 
-    private fun rememberNotifiedIds(context: Context, localAccountId: String, newIds: List<String>) {
-        if (newIds.isEmpty()) return
-        val current = readNotifiedIds(context, localAccountId)
-        val next = mergeNotifiedIds(current, newIds, NOTIFIED_IDS_LIMIT)
-        val json = JSONArray().apply { next.forEach { put(it) } }.toString()
-        writeAsyncStorageItems(
-            context,
-            listOf(
-                notifiedIdsKeyFor(localAccountId) to json,
-                lastNotifiedKeyFor(localAccountId) to newIds.first(),
-            ),
-        )
+    private fun removeAsyncStorageItems(context: Context, keys: List<String>) {
+        try {
+            val supplier = ReactDatabaseSupplier.getInstance(context)
+            synchronized(supplier) {
+                val db = supplier.get()
+                db.beginTransaction()
+                try {
+                    for (key in keys) db.delete("catalystLocalStorage", "key = ?", arrayOf(key))
+                    db.setTransactionSuccessful()
+                } finally {
+                    db.endTransaction()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to remove AsyncStorage keys: ${e.message}")
+        }
     }
+
+    private fun notifiedIdsStore(context: Context) = object : NotifiedIdsStore {
+        override fun read(accountId: String) = readNotifiedIds(context, accountId)
+
+        override fun write(accountId: String, ring: List<String>) {
+            if (ring.isEmpty()) return
+            val json = JSONArray().apply { ring.forEach { put(it) } }.toString()
+            writeAsyncStorageItems(
+                context,
+                listOf(
+                    notifiedIdsKeyFor(accountId) to json,
+                    lastNotifiedKeyFor(accountId) to ring.first(),
+                ),
+            )
+        }
+
+        override fun remove(accountId: String) =
+            removeAsyncStorageItems(context, listOf(notifiedIdsKeyFor(accountId), lastNotifiedKeyFor(accountId)))
+    }
+
+    private val notifiedOnce = NotifiedOnce()
+
+    /**
+     * Posts through [post] unless every one of [ids] was notified for the
+     * account before, and records them once posted (see [NotifiedOnce]).
+     * Every message notification goes through here, from either runtime.
+     */
+    fun postOnce(context: Context, localAccountId: String, ids: List<String>, post: () -> Unit): Boolean =
+        notifiedOnce.post(notifiedIdsStore(context), localAccountId, ids, post)
+
+    /** Forgets the account's notified ids, under the same lock as [postOnce]. */
+    fun forgetNotifiedIds(context: Context, localAccountId: String) =
+        notifiedOnce.forget(notifiedIdsStore(context), localAccountId)
 
     // ─── Auth Header, Token Refresh & Authenticated JMAP Request ────────────
 
@@ -1113,7 +1150,8 @@ object BulwarkNativePushFetcher {
                 return false
             }
 
-            // Shared deduplication check against AsyncStorage `push:notifiedIds:v1:<accountId>`
+            // Skips the lookup for ids notified before (`push:notifiedIds:v1:<accountId>`);
+            // the guard against posting one twice is in postNotificationNatively.
             val alreadyNotified = readNotifiedIds(context, localAccountId).toSet()
             val freshEmailIds = rawEmailIds.filter { !alreadyNotified.contains(it) }
             if (freshEmailIds.isEmpty()) {
@@ -1154,6 +1192,7 @@ object BulwarkNativePushFetcher {
                     val groupKey = "bulwark-mail:$localAccountId"
                     val groupTitle = label ?: localAccountId.substringBefore('@').ifBlank { localAccountId }
 
+                    var posted = 0
                     for (email in emails) {
                         val title = email.senderName.ifBlank {
                             email.senderEmail.ifBlank { strings.newEmail }
@@ -1168,7 +1207,7 @@ object BulwarkNativePushFetcher {
                             null
                         }
 
-                        BulwarkFcmModule.postNotificationNatively(
+                        val shown = BulwarkFcmModule.postNotificationNatively(
                             context = context,
                             notificationId = "mail:${email.id}",
                             title = title,
@@ -1189,11 +1228,12 @@ object BulwarkNativePushFetcher {
                             replyLabel = strings.reply,
                             deleteNeedsUnlock = !result.hasTrash,
                         )
+                        if (shown) posted++
                     }
 
-                    // Record newest-first in the shared ring (matching push-background-task.ts line 675)
-                    rememberNotifiedIds(context, localAccountId, emails.map { it.id }.reversed())
-                    Log.i(TAG, "Native push: successfully posted ${emails.size} notification(s)")
+                    // Each notification posted recorded its id in the shared ring
+                    // (postNotificationNatively); one already posted by another push was skipped.
+                    Log.i(TAG, "Native push: successfully posted $posted notification(s)")
                     return true
                 }
             }
