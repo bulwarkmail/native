@@ -300,7 +300,8 @@ function WeekViewInner({
                           continuesAfter={continuesAfter}
                           accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
                           onPress={() => onSelectEvent?.(event)}
-                          style={{ top, height, left: `${leftPct}%`, width: `${widthPct}%` }}
+                          height={height}
+                          style={{ top, left: `${leftPct}%`, width: `${widthPct}%` }}
                         />
                       );
                     },
