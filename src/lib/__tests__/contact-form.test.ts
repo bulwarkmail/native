@@ -312,18 +312,23 @@ describe('contact form save keeps what the form does not show', () => {
     });
   });
 
-  it('sends the calendar and free/busy links together, or neither', () => {
+  it('keeps the other calendar link when one is edited, and sends neither untouched', () => {
     const card: ContactCard = { ...rich, calendarUri: 'https://example.org/cal', freeBusyUri: 'https://example.org/fb' };
     const save = (change: (form: ReturnType<typeof contactToForm>) => void) => {
       const form = contactToForm(card, []);
       change(form);
       return formToPatch(form, card, false, [card]);
     };
+    const cal = { '@type': 'Calendar', kind: 'calendar', uri: 'https://example.org/cal' };
+    const fb = { '@type': 'Calendar', kind: 'freeBusy', uri: 'https://example.org/fb' };
     expect(save(() => {})).toEqual({});
-    expect(save((form) => { form.freeBusyUri = 'https://example.org/fb2'; }))
-      .toEqual({ calendarUri: 'https://example.org/cal', freeBusyUri: 'https://example.org/fb2' });
+    expect(save((form) => { form.freeBusyUri = 'https://example.org/fb2'; })).toEqual({
+      calendars: { cal, fb: { ...fb, uri: 'https://example.org/fb2' } },
+      calendarUri: 'https://example.org/cal',
+      freeBusyUri: 'https://example.org/fb2',
+    });
     expect(save((form) => { form.calendarUri = ''; }))
-      .toEqual({ calendarUri: null, freeBusyUri: 'https://example.org/fb' });
+      .toEqual({ calendars: { fb }, calendarUri: null, freeBusyUri: 'https://example.org/fb' });
   });
 
   it('compares rows with the form as it was filled, not with a card refreshed since', () => {
