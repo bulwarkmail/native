@@ -36,7 +36,8 @@ function makeStyles(c: ThemePalette) {
       paddingVertical: 1,
       alignSelf: 'flex-start',
     },
-    text: { fontSize: 12, lineHeight: 16 },
+    // An explicit weight keeps the label whole under Android's "Bold text" setting.
+    text: { fontSize: 12, fontWeight: '400', lineHeight: 16 },
 
     bg_default:     { borderColor: c.border },
     bg_outline:     { borderColor: c.border },

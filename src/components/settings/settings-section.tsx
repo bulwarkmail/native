@@ -511,8 +511,11 @@ function makeStyles(c: ThemePalette) {
   rowDisabled: { opacity: 0.55 },
   rowText: { flex: 1, gap: 2 },
   rowTitleLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  rowTitle: { fontSize: 15, lineHeight: 20, color: c.text, flexShrink: 1 },
-  rowValue: { fontSize: 13, lineHeight: 18, color: c.mutedForeground },
+  // An explicit weight, as on the theme's text styles: Android's "Bold text" setting
+  // draws text that names no weight bolder than it was measured, which cut the title
+  // short ("Shari…").
+  rowTitle: { fontSize: 15, fontWeight: '400', lineHeight: 20, color: c.text, flexShrink: 1 },
+  rowValue: { fontSize: 13, fontWeight: '400', lineHeight: 18, color: c.mutedForeground },
   groupLabel: {
     fontSize: 13,
     fontWeight: '500',
