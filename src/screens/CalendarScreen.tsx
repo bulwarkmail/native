@@ -13,8 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { monthButtonAccessibilityLabel } from '../lib/calendar-a11y';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { TASK_CHIP_ID_PREFIX, multiDayCount } from '../lib/calendar-time-grid';
 import {
+  ArrowLeft,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -518,9 +520,14 @@ export default function CalendarScreen() {
     jumpTo(displayNow());
   }, [jumpTo]);
 
+  // Set when a day is opened from the month grid: the header then offers the
+  // way back to the month in the menu's place, as the webmail does on a phone.
+  const [returnToMonth, setReturnToMonth] = React.useState(false);
+
   // Switching views keeps the period on screen in view.
   const changeViewMode = React.useCallback(
     (mode: ViewMode) => {
+      setReturnToMonth(false);
       if (mode === viewMode) return;
       const date = visibleDate ?? focus.date;
       setViewMode(mode);
@@ -549,6 +556,7 @@ export default function CalendarScreen() {
         return;
       }
       setSelectedDate(date);
+      setReturnToMonth(false);
       setVisibleDate(null);
       setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
       setWindowState((prev) =>
@@ -618,12 +626,18 @@ export default function CalendarScreen() {
   // A day in the month grid or a day header in the week grids opens that
   // day, as in Google Calendar.
   const openDay = React.useCallback((date: Date) => {
+    setReturnToMonth(viewMode === 'month');
     setSelectedDate(date);
     setViewMode('day');
     setVisibleDate(null);
     setFocus((prev) => ({ date, nonce: prev.nonce + 1 }));
     setWindowState(freshScrollWindowState('day', date));
-  }, []);
+  }, [viewMode]);
+
+  // Back to the month of the day on screen; Android's back does the same.
+  const showBackToMonth = returnToMonth && viewMode === 'day';
+  const backToMonth = React.useCallback(() => changeViewMode('month'), [changeViewMode]);
+  useBackWhileFocused(showBackToMonth, backToMonth);
 
   const openCreate = React.useCallback((date?: Date) => {
     setModalEvent(null);
@@ -1023,15 +1037,27 @@ export default function CalendarScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <Pressable
-          onPress={() => setSidebarVisible(true)}
-          hitSlop={8}
-          style={styles.headerBtn}
-          accessibilityRole="button"
-          accessibilityLabel={t('calendar.nav_open_menu', 'Open menu')}
-        >
-          <Menu size={20} color={c.text} />
-        </Pressable>
+        {showBackToMonth ? (
+          <Pressable
+            onPress={backToMonth}
+            hitSlop={8}
+            style={styles.headerBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.back_to_month', 'Back to month')}
+          >
+            <ArrowLeft size={22} color={c.text} />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => setSidebarVisible(true)}
+            hitSlop={8}
+            style={styles.headerBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('calendar.nav_open_menu', 'Open menu')}
+          >
+            <Menu size={20} color={c.text} />
+          </Pressable>
+        )}
         <Pressable
           onPress={toggleMonthPanel}
           style={styles.titleBtn}
