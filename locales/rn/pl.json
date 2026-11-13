@@ -1378,6 +1378,23 @@
       "mobile_description": "Podpisuj i szyfruj pocztę za pomocą certyfikatów S/MIME.",
       "mobile_explainer": "S/MIME nie jest jeszcze dostępne w aplikacji mobilnej. Zarządzaj kluczami i certyfikatami w webmailu; podpisane wiadomości są tu wyświetlane bez weryfikacji."
     },
+    "sync": {
+      "account": "Przechowuj w koncie",
+      "account_desc": "Ustawienia całej aplikacji przechowuje jedno konto.",
+      "description": "Przechowuj ustawienia na koncie pocztowym, aby inne urządzenia miały takie same.",
+      "enabled": "Synchronizuj ustawienia",
+      "enabled_desc": "Opcje, które pasują tylko do jednego urządzenia, takie jak panel czytania i poczta offline, zostają na nim.",
+      "keep_mine": "Użyj ustawień tego urządzenia",
+      "replaced": "{count, plural, one {# ustawienie na tym urządzeniu jest teraz zgodne z kontem.} few {# ustawienia na tym urządzeniu są teraz zgodne z kontem.} many {# ustawień na tym urządzeniu jest teraz zgodnych z kontem.} other {# ustawienia na tym urządzeniu jest teraz zgodne z kontem.}}",
+      "reset_everywhere": "Synchronizacja ustawień jest włączona, więc zostaną też zresetowane na innych Twoich urządzeniach.",
+      "status_full": "Na koncie nie ma już miejsca na ustawienia.",
+      "status_signed_out": "Wylogowano z konta, które przechowywało Twoje ustawienia. Wybierz konto, na którym mają być przechowywane.",
+      "status_syncing": "Synchronizowanie…",
+      "status_unreachable": "Nie udało się połączyć z kontem. Zostanie podjęta ponowna próba.",
+      "status_unsupported": "Serwer poczty tego konta nie może przechowywać ustawień.",
+      "title": "Synchronizacja ustawień",
+      "too_large": "{count, plural, one {# długa lista zostaje na tym urządzeniu: na koncie nie ma miejsca na więcej.} few {# długie listy zostają na tym urządzeniu: na koncie nie ma miejsca na więcej.} many {# długich list zostaje na tym urządzeniu: na koncie nie ma miejsca na więcej.} other {# długiej listy zostaje na tym urządzeniu: na koncie nie ma miejsca na więcej.}}"
+    },
     "tabs": {
       "plugins": "Wtyczki",
       "updates": "Aktualizacje",

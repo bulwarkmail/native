@@ -563,6 +563,23 @@
         "up_no_distributor": "Selles seadmes pole ühtegi UnifiedPushi jaoturrakendust. Paigalda üks (näiteks ntfy) ja proovi uuesti."
       }
     },
+    "sync": {
+      "account": "Hoia neid kontol",
+      "account_desc": "Kogu rakenduse seaded hoiab üks konto.",
+      "description": "Hoia oma seadeid oma e-posti kontol, et ka sinu teistes seadmetes oleksid samad seaded.",
+      "enabled": "Sünkrooni seaded",
+      "enabled_desc": "Valikud, mis sobivad vaid ühele seadmele, näiteks lugemispaan ja võrguühenduseta post, jäävad sellesse seadmesse.",
+      "keep_mine": "Kasuta selle seadme omi",
+      "replaced": "{count, plural, one {# seade selles seadmes järgib nüüd sinu kontot.} other {# seadet selles seadmes järgivad nüüd sinu kontot.}}",
+      "reset_everywhere": "Seadete sünkroonimine on sees, seega lähtestatakse need ka sinu teistes seadmetes.",
+      "status_full": "Kontol ei ole seadete jaoks enam ruumi.",
+      "status_signed_out": "Konto, mis seadeid hoidis, on välja logitud. Vali konto, kus neid hoida.",
+      "status_syncing": "Sünkroonimine…",
+      "status_unreachable": "Kontoga ei õnnestunud ühendust saada. Proovime uuesti.",
+      "status_unsupported": "Selle konto e-posti server ei saa seadeid hoida.",
+      "title": "Seadete sünkroonimine",
+      "too_large": "{count, plural, one {# pikk loend jääb sellesse seadmesse: kontol pole rohkemate jaoks ruumi.} other {# pikka loendit jäävad sellesse seadmesse: kontol pole rohkemate jaoks ruumi.}}"
+    },
     "tab_groups": {
       "advanced": "Täpsemalt",
       "appearance": "Välimus",

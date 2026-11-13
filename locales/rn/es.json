@@ -1384,6 +1384,23 @@
       "mobile_description": "Firma y cifra el correo con certificados S/MIME.",
       "mobile_explainer": "S/MIME aún no está disponible en la app móvil. Gestiona las claves y los certificados en el webmail; aquí los mensajes firmados se muestran sin verificar."
     },
+    "sync": {
+      "account": "Guardarla en",
+      "account_desc": "Una sola cuenta guarda la configuración de toda la aplicación.",
+      "description": "Guarde su configuración en su cuenta de correo para que sus otros dispositivos tengan la misma.",
+      "enabled": "Sincronizar configuración",
+      "enabled_desc": "Las opciones que solo tienen sentido en un dispositivo, como el panel de lectura y el correo sin conexión, se quedan en él.",
+      "keep_mine": "Usar la de este dispositivo",
+      "replaced": "{count, plural, one {# ajuste de este dispositivo ahora sigue a su cuenta.} other {# ajustes de este dispositivo ahora siguen a su cuenta.}}",
+      "reset_everywhere": "La sincronización de la configuración está activada, así que también se restablece en sus otros dispositivos.",
+      "status_full": "La cuenta no tiene más espacio para la configuración.",
+      "status_signed_out": "Se cerró la sesión de la cuenta que guardaba su configuración. Elija la cuenta donde guardarla.",
+      "status_syncing": "Sincronizando…",
+      "status_unreachable": "No se pudo conectar con la cuenta. Se volverá a intentar.",
+      "status_unsupported": "El servidor de correo de esta cuenta no puede guardar la configuración.",
+      "title": "Sincronización de la configuración",
+      "too_large": "{count, plural, one {# lista larga se queda en este dispositivo: la cuenta no tiene espacio para más.} other {# listas largas se quedan en este dispositivo: la cuenta no tiene espacio para más.}}"
+    },
     "tabs": {
       "plugins": "Plugins",
       "updates": "Actualizaciones",

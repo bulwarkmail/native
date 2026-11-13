@@ -1377,6 +1377,23 @@
       "mobile_description": "使用 S/MIME 憑證簽署及加密郵件。",
       "mobile_explainer": "行動應用程式尚不支援 S/MIME。請在網頁郵件中管理金鑰與憑證；已簽署的郵件在此顯示時不會進行驗證。"
     },
+    "sync": {
+      "account": "儲存在",
+      "account_desc": "由一個帳號儲存整個應用程式的設定。",
+      "description": "將設定儲存在您的郵件帳號中，這樣您的其他裝置也會使用相同的設定。",
+      "enabled": "同步設定",
+      "enabled_desc": "只適合單一裝置的選項，例如閱讀窗格和離線郵件，會保留在該裝置上。",
+      "keep_mine": "使用此裝置的設定",
+      "replaced": "{count, plural, other {此裝置上有 # 項設定已改為跟隨您的帳號。}}",
+      "reset_everywhere": "設定同步已開啟，因此您其他裝置上的設定也會被重設。",
+      "status_full": "帳號中已沒有空間儲存設定。",
+      "status_signed_out": "儲存您設定的帳號已登出。請選擇用來儲存設定的帳號。",
+      "status_syncing": "正在同步…",
+      "status_unreachable": "無法連線到帳號，稍後會重試。",
+      "status_unsupported": "此帳號的郵件伺服器無法儲存設定。",
+      "title": "設定同步",
+      "too_large": "{count, plural, other {帳號中沒有更多空間，# 個長清單會保留在此裝置上。}}"
+    },
     "tabs": {
       "plugins": "外掛程式",
       "updates": "更新",

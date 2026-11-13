@@ -1377,6 +1377,23 @@
       "mobile_description": "Parakstiet un šifrējiet pastu ar S/MIME sertifikātiem.",
       "mobile_explainer": "S/MIME mobilajā lietotnē vēl nav pieejams. Pārvaldiet atslēgas un sertifikātus tīmekļa pastā; parakstītie ziņojumi šeit tiek rādīti bez pārbaudes."
     },
+    "sync": {
+      "account": "Glabāt kontā",
+      "account_desc": "Visas lietotnes iestatījumus glabā viens konts.",
+      "description": "Glabājiet iestatījumus savā e-pasta kontā, lai citās ierīcēs būtu tie paši.",
+      "enabled": "Sinhronizēt iestatījumus",
+      "enabled_desc": "Izvēles, kas der tikai vienai ierīcei, piemēram, lasīšanas rūts un bezsaistes pasts, paliek šajā ierīcē.",
+      "keep_mine": "Izmantot šīs ierīces",
+      "replaced": "{count, plural, zero {# iestatījumu šajā ierīcē tagad seko jūsu kontam.} one {# iestatījums šajā ierīcē tagad seko jūsu kontam.} other {# iestatījumi šajā ierīcē tagad seko jūsu kontam.}}",
+      "reset_everywhere": "Iestatījumu sinhronizēšana ir ieslēgta, tāpēc tie tiek atiestatīti arī jūsu citās ierīcēs.",
+      "status_full": "Kontā iestatījumiem vairs nav vietas.",
+      "status_signed_out": "Konts, kurā glabājās jūsu iestatījumi, ir atteikts. Izvēlieties kontu, kurā tos glabāt.",
+      "status_syncing": "Sinhronizē…",
+      "status_unreachable": "Nevarēja sazināties ar kontu. Mēģinās vēlreiz.",
+      "status_unsupported": "Šī konta pasta serveris nevar glabāt iestatījumus.",
+      "title": "Iestatījumu sinhronizēšana",
+      "too_large": "{count, plural, zero {# garu sarakstu paliek šajā ierīcē: kontā nav vietas vairāk.} one {# garš saraksts paliek šajā ierīcē: kontā nav vietas vairāk.} other {# gari saraksti paliek šajā ierīcē: kontā nav vietas vairāk.}}"
+    },
     "tabs": {
       "plugins": "Spraudņi",
       "updates": "Atjauninājumi",

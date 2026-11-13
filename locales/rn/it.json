@@ -1380,6 +1380,23 @@
       "mobile_description": "Firma e cifra la posta con certificati S/MIME.",
       "mobile_explainer": "S/MIME non è ancora disponibile nell'app mobile. Gestisci chiavi e certificati nella webmail; qui i messaggi firmati vengono mostrati senza verifica."
     },
+    "sync": {
+      "account": "Conservale in",
+      "account_desc": "Un solo account conserva le impostazioni di tutta l'app.",
+      "description": "Conserva le impostazioni nel tuo account di posta, così gli altri dispositivi hanno le stesse.",
+      "enabled": "Sincronizza impostazioni",
+      "enabled_desc": "Le scelte adatte a un solo dispositivo, come il pannello di lettura e la posta offline, restano su di esso.",
+      "keep_mine": "Usa quelle di questo dispositivo",
+      "replaced": "{count, plural, one {# impostazione di questo dispositivo ora segue il tuo account.} other {# impostazioni di questo dispositivo ora seguono il tuo account.}}",
+      "reset_everywhere": "La sincronizzazione delle impostazioni è attiva, quindi vengono ripristinate anche sugli altri tuoi dispositivi.",
+      "status_full": "L'account non ha più spazio per le impostazioni.",
+      "status_signed_out": "L'account che conservava le tue impostazioni è disconnesso. Scegli l'account in cui conservarle.",
+      "status_syncing": "Sincronizzazione…",
+      "status_unreachable": "Impossibile raggiungere l'account. Si riproverà.",
+      "status_unsupported": "Il server di posta di questo account non può conservare le impostazioni.",
+      "title": "Sincronizzazione impostazioni",
+      "too_large": "{count, plural, one {# elenco lungo resta su questo dispositivo: l'account non ha spazio per altri.} other {# elenchi lunghi restano su questo dispositivo: l'account non ha spazio per altri.}}"
+    },
     "tabs": {
       "plugins": "Plugin",
       "updates": "Aggiornamenti",

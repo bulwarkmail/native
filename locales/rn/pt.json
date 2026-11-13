@@ -1381,6 +1381,23 @@
       "mobile_description": "Assine e criptografe e-mails com certificados S/MIME.",
       "mobile_explainer": "O S/MIME ainda não está disponível no app móvel. Gerencie chaves e certificados no webmail; aqui, as mensagens assinadas são exibidas sem verificação."
     },
+    "sync": {
+      "account": "Guardá-las em",
+      "account_desc": "Uma única conta guarda as configurações de todo o app.",
+      "description": "Guarde suas configurações na sua conta de e-mail para que seus outros dispositivos tenham as mesmas.",
+      "enabled": "Sincronizar configurações",
+      "enabled_desc": "Opções que só fazem sentido em um dispositivo, como o painel de leitura e o e-mail offline, ficam nele.",
+      "keep_mine": "Usar as deste dispositivo",
+      "replaced": "{count, plural, one {# configuração deste dispositivo agora segue a sua conta.} other {# configurações deste dispositivo agora seguem a sua conta.}}",
+      "reset_everywhere": "A sincronização de configurações está ativada, então elas também são redefinidas nos seus outros dispositivos.",
+      "status_full": "A conta não tem mais espaço para configurações.",
+      "status_signed_out": "A conta que guardava suas configurações foi desconectada. Escolha a conta onde guardá-las.",
+      "status_syncing": "Sincronizando…",
+      "status_unreachable": "Não foi possível acessar a conta. Vamos tentar de novo.",
+      "status_unsupported": "O servidor de e-mail desta conta não consegue guardar configurações.",
+      "title": "Sincronização de configurações",
+      "too_large": "{count, plural, one {# lista longa fica neste dispositivo: a conta não tem espaço para mais.} other {# listas longas ficam neste dispositivo: a conta não tem espaço para mais.}}"
+    },
     "tabs": {
       "plugins": "Plugins",
       "updates": "Atualizações",

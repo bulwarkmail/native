@@ -1388,6 +1388,23 @@
       "mobile_description": "E-Mails mit S/MIME-Zertifikaten signieren und verschlüsseln.",
       "mobile_explainer": "S/MIME ist in der mobilen App noch nicht verfügbar. Verwalten Sie Schlüssel und Zertifikate im Webmail; signierte Nachrichten werden hier ohne Überprüfung angezeigt."
     },
+    "sync": {
+      "account": "Speichern in",
+      "account_desc": "Ein Konto speichert die Einstellungen der gesamten App.",
+      "description": "Speichern Sie Ihre Einstellungen in Ihrem E-Mail-Konto, damit Ihre anderen Geräte dieselben haben.",
+      "enabled": "Einstellungen synchronisieren",
+      "enabled_desc": "Optionen, die nur für ein Gerät sinnvoll sind, etwa die Lesespalte und Offline-E-Mails, bleiben auf diesem Gerät.",
+      "keep_mine": "Die dieses Geräts verwenden",
+      "replaced": "{count, plural, one {# Einstellung auf diesem Gerät folgt jetzt Ihrem Konto.} other {# Einstellungen auf diesem Gerät folgen jetzt Ihrem Konto.}}",
+      "reset_everywhere": "Die Einstellungssynchronisierung ist aktiv, daher werden sie auch auf Ihren anderen Geräten zurückgesetzt.",
+      "status_full": "Das Konto hat keinen Platz mehr für Einstellungen.",
+      "status_signed_out": "Das Konto, das Ihre Einstellungen gespeichert hat, ist abgemeldet. Wählen Sie das Konto, in dem sie gespeichert werden sollen.",
+      "status_syncing": "Wird synchronisiert…",
+      "status_unreachable": "Das Konto war nicht erreichbar. Es wird erneut versucht.",
+      "status_unsupported": "Der E-Mail-Server dieses Kontos kann keine Einstellungen speichern.",
+      "title": "Einstellungssynchronisierung",
+      "too_large": "{count, plural, one {# lange Liste bleibt auf diesem Gerät: Im Konto ist kein Platz für weitere.} other {# lange Listen bleiben auf diesem Gerät: Im Konto ist kein Platz für weitere.}}"
+    },
     "tabs": {
       "plugins": "Plugins",
       "updates": "Updates",

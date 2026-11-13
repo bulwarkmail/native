@@ -36,6 +36,16 @@ describe('settings-store', () => {
   });
 
   describe('mergeWithDefaults', () => {
+    it('keeps a chosen theme and the trusted senders book choice across a restart', () => {
+      // Both default to null, so there is no default shape to compare with.
+      const out = mergeWithDefaults({ activeThemeId: 'builtin-nord', trustedSendersAddressBook: false } as never);
+      expect(out.activeThemeId).toBe('builtin-nord');
+      expect(out.trustedSendersAddressBook).toBe(false);
+      const bad = mergeWithDefaults({ activeThemeId: 7, trustedSendersAddressBook: 'yes' } as never);
+      expect(bad.activeThemeId).toBeNull();
+      expect(bad.trustedSendersAddressBook).toBeNull();
+    });
+
     it('rejects values outside the allowed set', () => {
       const out = mergeWithDefaults({
         density: 'x' as never,
@@ -85,6 +95,20 @@ describe('settings-store', () => {
   });
 
   describe('export / import', () => {
+    it('keeps the theme and the trusted senders book choice when a file is imported', () => {
+      // The import runs the whole state through mergeWithDefaults, also for keys the file doesn't have.
+      const store = useSettingsStore.getState();
+      store.updateSetting('activeThemeId', 'builtin-nord');
+      store.updateSetting('trustedSendersAddressBook', true);
+      expect(store.importSettings(JSON.stringify({ showPreview: false }))).toBe(true);
+      expect(useSettingsStore.getState()).toMatchObject({
+        showPreview: false, activeThemeId: 'builtin-nord', trustedSendersAddressBook: true,
+      });
+      // And a file that carries them brings them in.
+      expect(store.importSettings(JSON.stringify({ activeThemeId: 'builtin-solarized', trustedSendersAddressBook: false }))).toBe(true);
+      expect(useSettingsStore.getState()).toMatchObject({ activeThemeId: 'builtin-solarized', trustedSendersAddressBook: false });
+    });
+
     it('renames keys to the webmail names and drops device-local keys', () => {
       const shape = toExportShape({
         ...useSettingsStore.getState(),

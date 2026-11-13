@@ -1378,6 +1378,23 @@
       "mobile_description": "Podepisujte a šifrujte poštu pomocí certifikátů S/MIME.",
       "mobile_explainer": "S/MIME zatím v mobilní aplikaci není k dispozici. Klíče a certifikáty spravujte ve webmailu; podepsané zprávy se zde zobrazují bez ověření."
     },
+    "sync": {
+      "account": "Uložit do účtu",
+      "account_desc": "Nastavení celé aplikace uchovává jeden účet.",
+      "description": "Uložte nastavení do svého e-mailového účtu, aby ho měla i vaše další zařízení.",
+      "enabled": "Synchronizovat nastavení",
+      "enabled_desc": "Volby, které dávají smysl jen na jednom zařízení, například panel čtení a pošta offline, na něm zůstanou.",
+      "keep_mine": "Použít nastavení tohoto zařízení",
+      "replaced": "{count, plural, one {# nastavení v tomto zařízení se nyní řídí vaším účtem.} few {# nastavení v tomto zařízení se nyní řídí vaším účtem.} many {# nastavení v tomto zařízení se nyní řídí vaším účtem.} other {# nastavení v tomto zařízení se nyní řídí vaším účtem.}}",
+      "reset_everywhere": "Synchronizace nastavení je zapnutá, takže se obnoví i na vašich dalších zařízeních.",
+      "status_full": "V účtu už není místo pro nastavení.",
+      "status_signed_out": "Účet, který uchovával vaše nastavení, je odhlášený. Vyberte účet, do kterého se má ukládat.",
+      "status_syncing": "Synchronizace…",
+      "status_unreachable": "Účet není dostupný. Zkusí se to znovu.",
+      "status_unsupported": "Poštovní server tohoto účtu neumí nastavení uchovávat.",
+      "title": "Synchronizace nastavení",
+      "too_large": "{count, plural, one {# dlouhý seznam zůstává v tomto zařízení: v účtu není místo pro další.} few {# dlouhé seznamy zůstávají v tomto zařízení: v účtu není místo pro další.} many {# dlouhého seznamu zůstává v tomto zařízení: v účtu není místo pro další.} other {# dlouhých seznamů zůstává v tomto zařízení: v účtu není místo pro další.}}"
+    },
     "tabs": {
       "plugins": "Pluginy",
       "updates": "Aktualizace",

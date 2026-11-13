@@ -75,6 +75,7 @@ import { UndoSnackbar } from './src/components/UndoSnackbar';
 import { AppIconBadge } from './src/components/AppIconBadge';
 import { getEmails } from './src/api/email';
 import { signOutWidgets, startWidgetSync } from './src/widgets/sync';
+import { startSettingsSync } from './src/stores/settings-sync-store';
 import { draftContextFromEmail } from './src/lib/draft-context';
 import {
   acceptSignInLink,
@@ -452,6 +453,13 @@ export default function App() {
     if (hasRestoredSession) void signOutWidgets();
     return undefined;
   }, [isAuthenticated, hasRestoredSession]);
+
+  // Settings sync (#117): the settings live in an account's mailbox, so
+  // there is something to sync with only while one is signed in.
+  React.useEffect(() => {
+    if (isAuthenticated) return startSettingsSync();
+    return undefined;
+  }, [isAuthenticated]);
 
   // When the network flips back on while we're authenticated-but-offline
   // (no live JMAP session), retry the session so the user lands back on

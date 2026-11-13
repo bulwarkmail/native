@@ -1375,6 +1375,23 @@
       "mobile_description": "Signer og krypter e-post med S/MIME-sertifikater.",
       "mobile_explainer": "S/MIME er ikke tilgjengelig i mobilappen ennå. Administrer nøkler og sertifikater i nettposten; signerte meldinger vises her uten bekreftelse."
     },
+    "sync": {
+      "account": "Ha dem i",
+      "account_desc": "Én konto holder innstillingene for hele appen.",
+      "description": "Ha innstillingene dine i e-postkontoen din, så de andre enhetene dine får de samme.",
+      "enabled": "Synkroniser innstillinger",
+      "enabled_desc": "Valg som bare passer for én enhet, som lesevinduet og e-post uten nett, blir på den.",
+      "keep_mine": "Bruk denne enhetens",
+      "replaced": "{count, plural, one {# innstilling på denne enheten følger nå kontoen din.} other {# innstillinger på denne enheten følger nå kontoen din.}}",
+      "reset_everywhere": "Synkronisering av innstillinger er på, så de tilbakestilles også på de andre enhetene dine.",
+      "status_full": "Kontoen har ikke mer plass til innstillinger.",
+      "status_signed_out": "Kontoen som holdt innstillingene dine, er logget ut. Velg kontoen de skal ligge i.",
+      "status_syncing": "Synkroniserer…",
+      "status_unreachable": "Fikk ikke kontakt med kontoen. Det prøves igjen.",
+      "status_unsupported": "E-postserveren til denne kontoen kan ikke lagre innstillinger.",
+      "title": "Synkronisering av innstillinger",
+      "too_large": "{count, plural, one {# lang liste blir på denne enheten: kontoen har ikke plass til flere.} other {# lange lister blir på denne enheten: kontoen har ikke plass til flere.}}"
+    },
     "tabs": {
       "plugins": "Programtillegg",
       "updates": "Oppdateringer",

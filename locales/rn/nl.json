@@ -1378,6 +1378,23 @@
       "mobile_description": "E-mail ondertekenen en versleutelen met S/MIME-certificaten.",
       "mobile_explainer": "S/MIME is nog niet beschikbaar in de mobiele app. Beheer sleutels en certificaten in de webmail; ondertekende berichten worden hier zonder verificatie getoond."
     },
+    "sync": {
+      "account": "Bewaar ze in",
+      "account_desc": "Eén account bewaart de instellingen van de hele app.",
+      "description": "Bewaar je instellingen in je e-mailaccount, zodat je andere apparaten dezelfde hebben.",
+      "enabled": "Instellingen synchroniseren",
+      "enabled_desc": "Keuzes die bij één apparaat passen, zoals het leesvenster en offline mail, blijven op dat apparaat.",
+      "keep_mine": "Die van dit apparaat gebruiken",
+      "replaced": "{count, plural, one {# instelling op dit apparaat volgt nu je account.} other {# instellingen op dit apparaat volgen nu je account.}}",
+      "reset_everywhere": "Het synchroniseren van instellingen staat aan, dus ze worden ook op je andere apparaten gereset.",
+      "status_full": "Het account heeft geen ruimte meer voor instellingen.",
+      "status_signed_out": "Het account dat je instellingen bewaarde, is afgemeld. Kies het account waarin ze bewaard worden.",
+      "status_syncing": "Synchroniseren…",
+      "status_unreachable": "Het account was niet bereikbaar. Er wordt opnieuw geprobeerd.",
+      "status_unsupported": "De mailserver van dit account kan geen instellingen bewaren.",
+      "title": "Instellingen synchroniseren",
+      "too_large": "{count, plural, one {# lange lijst blijft op dit apparaat: het account heeft geen ruimte voor meer.} other {# lange lijsten blijven op dit apparaat: het account heeft geen ruimte voor meer.}}"
+    },
     "tabs": {
       "plugins": "Plug-ins",
       "updates": "Updates",

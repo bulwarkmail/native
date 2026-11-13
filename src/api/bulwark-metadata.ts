@@ -12,10 +12,18 @@
 // connection on such a request, so the calls go in requests of their own
 // and any failure pauses that account for ten minutes.
 //
+// An object has two sets of namespaces: `metadata`, which everyone the
+// object is shared with reads, and `privateMetadata`, which only the signed-in
+// user reads and writes (seen live on 1.1.0, 2026-11-13: a delegate gets the
+// first and an empty second). Templates and tags are in the shared set, as
+// the webmail keeps them; the user's settings are in the private one
+// (lib/settings-sync). The private set has limits of its own: 8 KB per
+// namespace again, 16 KB in all where the shared set has 64 KB.
+//
 // This is the only module that names the Metadata capability or property
 // (src/api/__tests__/jmap-metadata-requests.test.ts).
 
-import { jmapClient } from './jmap-client';
+import { jmapClient, type JMAPClient } from './jmap-client';
 import { CAPABILITIES, type JMAPMethodCall } from './types';
 
 const METADATA_CAPABILITY = 'urn:ietf:params:jmap:metadata';
@@ -75,8 +83,25 @@ export function bulwarkEntries(metadata: unknown): Record<string, unknown> {
   return out;
 }
 
+/**
+ * The client a request goes through. The app's own by default; settings sync
+ * hands in one of its own for an account that isn't the active one
+ * (stores/settings-sync-store).
+ */
+export type MetadataClient = Pick<JMAPClient, 'request' | 'currentSession' | 'serverUrl' | 'username'>;
+
+/** Which set of namespaces: the one shared with the object, or the user's own. */
+export type MetadataScope = 'shared' | 'private';
+
+const propertyOf = (scope: MetadataScope) => (scope === 'private' ? 'privateMetadata' : 'metadata');
+
 // Account ids repeat across servers and logins.
-const keyOf = (accountId: string) => `${jmapClient.serverUrl ?? ''}\u0000${jmapClient.username ?? ''}\u0000${accountId}`;
+const keyOf = (accountId: string, client: MetadataClient) =>
+  `${client.serverUrl ?? ''}\u0000${client.username ?? ''}\u0000${accountId}`;
+// A pause is for one set of namespaces: a failed read of the settings must
+// not stop the templates of the same account, nor the other way round.
+const pauseKey = (accountId: string, client: MetadataClient, scope: MetadataScope) =>
+  `${keyOf(accountId, client)}\u0000${scope}`;
 const failedAt = new Map<string, number>();
 const inboxIds = new Map<string, string>();
 
@@ -87,45 +112,68 @@ export function resetBulwarkMetadata(): void {
 }
 
 /** Whether the account advertises vendor metadata on mailboxes, whatever its last request did. */
-export function advertisesBulwarkMetadata(accountId: string): boolean {
-  const caps = jmapClient.currentSession?.accounts?.[accountId]?.accountCapabilities as Record<string, unknown> | undefined;
+export function advertisesBulwarkMetadata(
+  accountId: string,
+  client: MetadataClient = jmapClient,
+  scope: MetadataScope = 'shared',
+): boolean {
+  const caps = client.currentSession?.accounts?.[accountId]?.accountCapabilities as Record<string, unknown> | undefined;
   const cap = caps?.[METADATA_CAPABILITY] as
-    | { dataTypes?: Record<string, { supportsVendorNamespaces?: boolean }> }
+    | { dataTypes?: Record<string, { supportsVendorNamespaces?: boolean; supportsPrivate?: boolean }> }
     | undefined;
-  return cap?.dataTypes?.Mailbox?.supportsVendorNamespaces === true;
+  const mailbox = cap?.dataTypes?.Mailbox;
+  return mailbox?.supportsVendorNamespaces === true && (scope === 'shared' || mailbox.supportsPrivate === true);
 }
 
 /** Whether Bulwark may keep data in this account's Inbox metadata now. */
-export function supportsBulwarkMetadata(accountId: string): boolean {
-  const at = failedAt.get(keyOf(accountId));
+export function supportsBulwarkMetadata(
+  accountId: string,
+  client: MetadataClient = jmapClient,
+  scope: MetadataScope = 'shared',
+): boolean {
+  const at = failedAt.get(pauseKey(accountId, client, scope));
   if (at !== undefined && Date.now() - at < PAUSE_MS) return false;
-  return advertisesBulwarkMetadata(accountId);
+  return advertisesBulwarkMetadata(accountId, client, scope);
+}
+
+/** End a pause early: the user asked for another try, or the network is back. */
+export function resumeBulwarkMetadata(
+  accountId: string,
+  client: MetadataClient = jmapClient,
+  scope: MetadataScope = 'shared',
+): void {
+  failedAt.delete(pauseKey(accountId, client, scope));
 }
 
 /**
  * Bulwark's metadata entries of the account's Inbox, by key. Null when the
  * account has no usable metadata; a failure pauses the account.
  */
-export async function getBulwarkMetadata(accountId: string): Promise<Record<string, unknown> | null> {
-  if (!supportsBulwarkMetadata(accountId)) return null;
+export async function getBulwarkMetadata(
+  accountId: string,
+  client: MetadataClient = jmapClient,
+  scope: MetadataScope = 'shared',
+): Promise<Record<string, unknown> | null> {
+  if (!supportsBulwarkMetadata(accountId, client, scope)) return null;
+  const property = propertyOf(scope);
   try {
-    const res = await jmapClient.request([
+    const res = await client.request([
       ['Mailbox/query', { accountId, filter: { role: 'inbox' } }, 'q'],
       ['Mailbox/get', {
-        accountId, '#ids': { resultOf: 'q', name: 'Mailbox/query', path: '/ids' }, properties: ['id', 'metadata'],
+        accountId, '#ids': { resultOf: 'q', name: 'Mailbox/query', path: '/ids' }, properties: ['id', property],
       }, 'g'],
     ] as JMAPMethodCall[], USING);
     const get = res.methodResponses.find(([name]) => name === 'Mailbox/get');
     const inbox = (get?.[1] as { list?: Array<Record<string, unknown>> } | undefined)?.list?.[0];
     // An answer without the property is a server that doesn't keep it,
     // never "every entry was removed".
-    if (!inbox || !('metadata' in inbox)) throw new MetadataUnsupportedError('No Inbox metadata in the answer');
-    inboxIds.set(keyOf(accountId), inbox.id as string);
-    failedAt.delete(keyOf(accountId));
-    return bulwarkEntries(inbox.metadata);
+    if (!inbox || !(property in inbox)) throw new MetadataUnsupportedError('No Inbox metadata in the answer');
+    inboxIds.set(keyOf(accountId, client), inbox.id as string);
+    failedAt.delete(pauseKey(accountId, client, scope));
+    return bulwarkEntries(inbox[property]);
   } catch (err) {
     console.warn(`[metadata] unavailable for account ${accountId}:`, err);
-    failedAt.set(keyOf(accountId), Date.now());
+    failedAt.set(pauseKey(accountId, client, scope), Date.now());
     return null;
   }
 }
@@ -136,19 +184,58 @@ export async function getBulwarkMetadata(accountId: string): Promise<Record<stri
  * value is over the size the server takes, MetadataRefusedError for another
  * refusal, MetadataUnsupportedError when the account has none.
  */
-export async function setBulwarkMetadata(accountId: string, key: string, value: unknown): Promise<void> {
-  if (!supportsBulwarkMetadata(accountId)) throw new MetadataUnsupportedError();
+export async function setBulwarkMetadata(
+  accountId: string,
+  key: string,
+  value: unknown,
+  client: MetadataClient = jmapClient,
+): Promise<void> {
+  if (!supportsBulwarkMetadata(accountId, client)) throw new MetadataUnsupportedError();
   if (value !== null && metadataValueBytes(value) > MAX_METADATA_ENTRY_BYTES) {
     throw new MetadataTooLargeError(`The entry is larger than ${MAX_METADATA_ENTRY_BYTES} bytes`);
   }
-  let inboxId = inboxIds.get(keyOf(accountId));
+  await patchBulwarkMetadata(accountId, [{ key, value }], client);
+}
+
+/** One change of a patch: a whole entry, or one member of an entry that exists. */
+export interface MetadataChange {
+  key: string;
+  /** A member of the entry's object. The server refuses it for an entry that doesn't exist yet. */
+  member?: string;
+  /** Null removes the entry or the member. */
+  value: unknown;
+}
+
+// JSON Pointer (RFC 6901): what a member name must have escaped.
+const pointerToken = (name: string) => name.replace(/~/g, '~0').replace(/\//g, '~1');
+
+/**
+ * Apply several changes to the account's Inbox metadata in one update: all
+ * of them or none. Other entries, and the other members of a patched entry,
+ * stay as they are, so two devices writing different members of one entry
+ * don't undo each other. Throws like setBulwarkMetadata.
+ */
+export async function patchBulwarkMetadata(
+  accountId: string,
+  changes: MetadataChange[],
+  client: MetadataClient = jmapClient,
+  scope: MetadataScope = 'shared',
+): Promise<void> {
+  if (!supportsBulwarkMetadata(accountId, client, scope)) throw new MetadataUnsupportedError();
+  if (changes.length === 0) return;
+  let inboxId = inboxIds.get(keyOf(accountId, client));
   if (!inboxId) {
-    await getBulwarkMetadata(accountId);
-    inboxId = inboxIds.get(keyOf(accountId));
+    await getBulwarkMetadata(accountId, client, scope);
+    inboxId = inboxIds.get(keyOf(accountId, client));
     if (!inboxId) throw new MetadataUnsupportedError();
   }
-  const res = await jmapClient.request(
-    [['Mailbox/set', { accountId, update: { [inboxId]: { [`metadata/${namespaceFor(key)}`]: value } } }, '0']],
+  const patch: Record<string, unknown> = {};
+  for (const change of changes) {
+    const entry = `${propertyOf(scope)}/${namespaceFor(change.key)}`;
+    patch[change.member === undefined ? entry : `${entry}/${pointerToken(change.member)}`] = change.value;
+  }
+  const res = await client.request(
+    [['Mailbox/set', { accountId, update: { [inboxId]: patch } }, '0']],
     USING,
   );
   const [name, body] = res.methodResponses[0] ?? [];

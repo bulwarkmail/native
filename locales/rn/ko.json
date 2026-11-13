@@ -1376,6 +1376,23 @@
       "mobile_description": "S/MIME 인증서로 메일에 서명하고 암호화해요.",
       "mobile_explainer": "S/MIME는 아직 모바일 앱에서 사용할 수 없어요. 키와 인증서는 웹메일에서 관리해 주세요. 서명된 메시지는 여기에서 검증 없이 표시돼요."
     },
+    "sync": {
+      "account": "저장할 계정",
+      "account_desc": "계정 하나가 앱 전체의 설정을 보관해요.",
+      "description": "설정을 메일 계정에 보관해서 다른 기기에서도 같은 설정을 쓸 수 있어요.",
+      "enabled": "설정 동기화",
+      "enabled_desc": "읽기 창이나 오프라인 메일처럼 한 기기에만 맞는 항목은 그 기기에 남아요.",
+      "keep_mine": "이 기기의 설정 사용",
+      "replaced": "{count, plural, other {이 기기의 설정 #개를 이제 계정의 설정에 맞춰요.}}",
+      "reset_everywhere": "설정 동기화가 켜져 있어서 다른 기기에서도 초기화돼요.",
+      "status_full": "계정에 설정을 저장할 공간이 남아 있지 않아요.",
+      "status_signed_out": "설정을 보관하던 계정에서 로그아웃되었어요. 설정을 보관할 계정을 선택하세요.",
+      "status_syncing": "동기화 중…",
+      "status_unreachable": "계정에 연결하지 못했어요. 다시 시도할게요.",
+      "status_unsupported": "이 계정의 메일 서버는 설정을 보관할 수 없어요.",
+      "title": "설정 동기화",
+      "too_large": "{count, plural, other {계정에 공간이 부족해서 긴 목록 #개는 이 기기에 남아요.}}"
+    },
     "tabs": {
       "plugins": "플러그인",
       "updates": "업데이트",

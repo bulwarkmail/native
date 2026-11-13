@@ -1751,6 +1751,23 @@
       "version": "Version {version}",
       "week_starts": "week starts {day}"
     },
+    "sync": {
+      "account": "Keep them in",
+      "account_desc": "One account holds the settings of the whole app.",
+      "description": "Keep your settings in your mail account, so your other devices have the same ones.",
+      "enabled": "Sync settings",
+      "enabled_desc": "Choices that fit one device, such as the reading pane and offline mail, stay on it.",
+      "keep_mine": "Use this device's",
+      "replaced": "{count, plural, one {# setting on this device now follows} other {# settings on this device now follow}} your account.",
+      "reset_everywhere": "Settings sync is on, so they are reset on your other devices too.",
+      "status_full": "The account has no room left for settings.",
+      "status_signed_out": "The account that kept your settings is signed out. Pick the account to keep them in.",
+      "status_syncing": "Syncing…",
+      "status_unreachable": "Couldn't reach the account. It will be tried again.",
+      "status_unsupported": "This account's mail server can't keep settings.",
+      "title": "Settings sync",
+      "too_large": "{count, plural, one {# long list stays} other {# long lists stay}} on this device: the account has no room for more."
+    },
     "tab_groups": {
       "advanced": "Advanced",
       "appearance": "Appearance",
