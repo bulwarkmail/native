@@ -18,6 +18,7 @@ import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions'
 import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import {
   fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash,
+  unifiedCanArchive,
   unifiedSnippetStamp, type UnifiedEmail, type UnifiedRole, type CrossView, type UnifiedInboxResult,
 } from '../api/unified-inbox';
 import { withSearchSnippets } from '../lib/search-snippet';
@@ -394,8 +395,11 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
 
   const selectionMode = selected.size > 0;
   const rowHoverListProps = useRowHoverList(emails);
-  // No quick actions while rows are being picked: a click picks the row.
-  const hoverActions: RowHoverAction[] = selectionMode ? [] : rowHoverActions(archiveEnabled && role !== 'archive');
+  // No quick actions while rows are being picked: a click picks the row. No
+  // Archive on a row whose account has no Archive folder.
+  const hoverActionsFor = (email: UnifiedEmail): RowHoverAction[] => (selectionMode
+    ? []
+    : rowHoverActions(archiveEnabled && role !== 'archive' && unifiedCanArchive(email)));
   const selectedEmails = React.useMemo(
     () => emails.filter((e) => selected.has(rowKey(e))),
     [emails, selected],
@@ -438,7 +442,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         onAction={(action) => handleSwipe(item, action)}
       >
         <RowHoverActions
-          actions={hoverActions}
+          actions={hoverActionsFor(item)}
           unread={unread}
           starred={starred}
           onAction={(action) => handleSwipe(item, action)}

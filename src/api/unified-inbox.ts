@@ -299,6 +299,16 @@ export function cachedUnifiedMailboxes(accountId: string): Array<{ jmapAccountId
   return [...entry.mailboxes.entries()].map(([jmapAccountId, v]) => ({ jmapAccountId, mailboxes: v.list }));
 }
 
+/**
+ * Whether a row's own account has an Archive folder, from the folder list
+ * cached when the row was fetched. True while that is not known, so the
+ * action stays on offer and the move says what is wrong.
+ */
+export function unifiedCanArchive(email: UnifiedEmail): boolean {
+  const cached = entries.get(email.sourceAccountId)?.mailboxes.get(email.jmapAccountId);
+  return !cached || !!findByRole(cached.list, 'archive');
+}
+
 // ── Queries ─────────────────────────────────────────────────────────────
 
 function findByRole(mailboxes: Mailbox[], role: UnifiedRole): Mailbox | undefined {

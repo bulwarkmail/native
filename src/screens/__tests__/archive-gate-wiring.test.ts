@@ -28,7 +28,7 @@ describe('archive gate wiring', () => {
     expect(src).toMatch(/const swipeRightAction = swipeActionShown\(useSettingsStore\(\(s\) => s\.swipeRightAction\), archiveEnabled\);/);
     expect(src).toMatch(/\{archiveEnabled && role !== 'archive' && \(\s+<Pressable\s+onPress=\{\(\) => \{ void archive\(selectedEmails\)/);
     expect(src).toMatch(/case 'archive': if \(archiveEnabled && role !== 'archive'\)/);
-    expect(src).toMatch(/rowHoverActions\(archiveEnabled && role !== 'archive'\)/);
+    expect(src).toMatch(/rowHoverActions\(archiveEnabled && role !== 'archive' && /);
   });
 
   it('drops the reader Archive button, quick action and menu entry', () => {
