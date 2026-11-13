@@ -20,15 +20,9 @@ tags:
     direction: LEFT
     duration: 400
 # The undo bar shows for 5 s; when it goes, the Compose button slides into
-# its place, and a late tap on UNDO opens the composer. So tap soon and
-# check the rest afterwards, but not while the bar still slides up (220 ms):
-# a tap aimed at UNDO mid-slide can land below it, and the bar then times
-# out untouched (seen once on the iPad).
-- extendedWaitUntil:
-    visible: "UNDO"
-    timeout: 3000
-- waitForAnimationToEnd:
-    timeout: 1000
+# its place, and a late tap on UNDO opens the composer. So tap at once and
+# check the rest afterwards: on the CI simulator, waiting for the bar to
+# settle first took longer than those 5 s (each command reads the screen).
 - tapOn:
     text: "UNDO"
     waitToSettleTimeoutMs: 500
