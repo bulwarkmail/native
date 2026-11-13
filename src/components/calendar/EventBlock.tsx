@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import { TINTED_BAR_WIDTH, type EventBlockColors } from '../../lib/event-colors';
+import { EVENT_TIME_LINE_HEIGHT, EVENT_TITLE_LINE_HEIGHT, timedTitleLines } from '../../lib/calendar-time-grid';
 
 // Events in the week and day grids, shared by the paged WeekView and the
 // scrolling TimeGridScrollView. Every event is a solid block of its calendar
@@ -51,7 +52,9 @@ interface TimedEventBlockProps {
   continuesBefore: boolean;
   /** The event runs into the next day (square bottom corners). */
   continuesAfter: boolean;
-  /** Position and size in the day column. */
+  /** Height in the day column; the title wraps over as many lines as it leaves room for. */
+  height: number;
+  /** Position and width in the day column. */
   style: StyleProp<ViewStyle>;
   onPress?: () => void;
   /** What a screen reader says: title, date, time (see lib/calendar-a11y). */
@@ -66,11 +69,13 @@ export function TimedEventBlock({
   ringColor,
   continuesBefore,
   continuesAfter,
+  height,
   style,
   onPress,
   accessibilityLabel,
 }: TimedEventBlockProps) {
   const inactive = colors.border !== null;
+  const { fontScale } = useWindowDimensions();
   return (
     <Pressable
       onPress={onPress}
@@ -82,6 +87,7 @@ export function TimedEventBlock({
         { backgroundColor: colors.fill, borderColor: ringColor },
         colors.bar ? styles.blockWithBar : null,
         style,
+        { height },
       ]}
     >
       {colors.bar ? <View pointerEvents="none" style={[styles.startBar, { backgroundColor: colors.bar }]} /> : null}
@@ -98,7 +104,7 @@ export function TimedEventBlock({
       )}
       <Text
         style={[styles.blockTitle, { color: colors.text }, inactive && styles.struck]}
-        numberOfLines={1}
+        numberOfLines={timedTitleLines(height, timeLabel !== null, fontScale)}
       >
         {title}
       </Text>
@@ -173,8 +179,8 @@ const styles = StyleSheet.create({
   barWithBar: { paddingStart: 4 + TINTED_BAR_WIDTH },
   // "Light event colors": the calendar colour along the start edge.
   startBar: { position: 'absolute', top: 0, bottom: 0, start: 0, width: TINTED_BAR_WIDTH },
-  blockTitle: { fontSize: 12, lineHeight: 15, fontWeight: '500' },
-  blockTime: { fontSize: 10.5, lineHeight: 13, fontWeight: '400', opacity: 0.85 },
+  blockTitle: { fontSize: 12, lineHeight: EVENT_TITLE_LINE_HEIGHT, fontWeight: '500' },
+  blockTime: { fontSize: 10.5, lineHeight: EVENT_TIME_LINE_HEIGHT, fontWeight: '400', opacity: 0.85 },
   struck: { textDecorationLine: 'line-through' },
   bar: {
     position: 'absolute',

@@ -164,6 +164,22 @@ export function shownAllDayRows(rows: number, expanded: boolean): number {
   return expanded ? rows : Math.min(rows, ALL_DAY_COLLAPSED_ROWS);
 }
 
+/** Line heights of a timed event block's title and time, at the default text size. */
+export const EVENT_TITLE_LINE_HEIGHT = 15;
+export const EVENT_TIME_LINE_HEIGHT = 13;
+/** A timed block's border and padding, top and bottom together. */
+const EVENT_BLOCK_INSET = 4;
+
+/**
+ * Lines of title a timed event block `height` tall has room for: the title
+ * wraps over what is left once the time line under it is placed, and never
+ * gets fewer than one. The line heights grow with the system text size.
+ */
+export function timedTitleLines(height: number, withTimeLine: boolean, fontScale = 1): number {
+  const room = height - EVENT_BLOCK_INSET - (withTimeLine ? EVENT_TIME_LINE_HEIGHT * fontScale : 0);
+  return Math.max(1, Math.floor(room / (EVENT_TITLE_LINE_HEIGHT * fontScale)));
+}
+
 /** The hour a long press at `offsetY` in a day column lands on. */
 export function hourAtOffset(offsetY: number, hourHeight: number): number {
   return Math.max(0, Math.min(23, Math.floor(offsetY / hourHeight)));

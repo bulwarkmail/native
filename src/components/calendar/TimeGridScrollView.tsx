@@ -662,7 +662,8 @@ const DayColumn = React.memo(function DayColumn({
             continuesAfter={continuesAfter}
             accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
             onPress={() => onSelectEvent?.(event)}
-            style={{ top, height, left: `${column * widthPct}%`, width: `${widthPct}%` }}
+            height={height}
+            style={{ top, left: `${column * widthPct}%`, width: `${widthPct}%` }}
           />
         );
       })}
