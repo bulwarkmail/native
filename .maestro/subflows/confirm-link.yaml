@@ -10,10 +10,12 @@ appId: org.bulwarkmail.mobile
       visible: "Open in .*Bulwark Mobile.*"
     commands:
       - tapOn: "Open"
-# Right after a sign-out the app can take a while to get to the link.
+# Right after a sign-out the app can take a while to get to the link: on
+# the iPad, 61 to 67 s passed between Open and this dialog in two runs (the
+# first link flow of the leg, 08), so 60 s was just too short.
 - extendedWaitUntil:
     visible: "Sign in with a link.|Open the sign-in page of.*"
-    timeout: 60000
+    timeout: 90000
 - takeScreenshot: link-confirm-prompt
 - tapOn:
     text: "Continue"
