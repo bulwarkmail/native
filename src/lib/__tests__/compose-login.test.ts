@@ -11,12 +11,16 @@ const { client, blob } = vi.hoisted(() => ({
     uploadBytes: vi.fn(async () => ({ blobId: 'b2', size: 3, type: 'text/plain' })),
   },
 }));
+const { auth } = vi.hoisted(() => ({
+  auth: { retrySession: vi.fn(async () => true) },
+}));
 vi.mock('../../api/jmap-client', () => ({ jmapClient: client }));
 vi.mock('../../api/blob', () => blob);
+vi.mock('../../stores/auth-store', () => ({ useAuthStore: { getState: () => auth } }));
 
 import { useAccountStore } from '../../stores/account-store';
 import {
-  ComposerLoginMovedError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
+  ComposerLoginMovedError, ComposerOfflineError, loginMovedFrom, uploadBytesForLogin, uploadFileForLogin,
 } from '../compose-login';
 
 const LOGIN = 'me@example.com@mail.example.com';
@@ -52,5 +56,39 @@ describe('composer writes after an account switch', () => {
     client.isConnected = false;
     expect(loginMovedFrom(LOGIN)).toBe(false);
     client.isConnected = true;
+  });
+});
+
+describe('composer uploads without a session', () => {
+  // A start whose session check found no network drops the session until the
+  // session retry runs; the upload asked the client for an account id then
+  // and failed with "Not authenticated - call connect() first".
+  it('brings the session up before uploading', async () => {
+    client.isConnected = false;
+    auth.retrySession.mockImplementationOnce(async () => {
+      client.isConnected = true;
+      return true;
+    });
+    blob.uploadBlob.mockImplementationOnce(async () => {
+      if (!client.isConnected) throw new Error('Not authenticated - call connect() first');
+      return { blobId: 'b1', size: 3, type: 'text/plain' };
+    });
+    await expect(uploadFileForLogin(LOGIN, 'file:///a.png', 'image/png')).resolves.toMatchObject({ blobId: 'b1' });
+    expect(auth.retrySession).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the device is offline when the session doesn't come up", async () => {
+    client.isConnected = false;
+    auth.retrySession.mockImplementationOnce(async () => false);
+    await expect(uploadFileForLogin(LOGIN, 'file:///a.png', 'image/png')).rejects.toBeInstanceOf(ComposerOfflineError);
+    await expect(uploadBytesForLogin(LOGIN, new Uint8Array([1]), 'image/png')).rejects.toBeInstanceOf(ComposerOfflineError);
+    expect(blob.uploadBlob).not.toHaveBeenCalled();
+    expect(blob.uploadBytes).not.toHaveBeenCalled();
+    client.isConnected = true;
+  });
+
+  it('asks for no session when the client has one', async () => {
+    await uploadFileForLogin(LOGIN, 'file:///a.png', 'image/png');
+    expect(auth.retrySession).not.toHaveBeenCalled();
   });
 });
