@@ -182,8 +182,12 @@ export function NotificationSettings() {
 
   // `relay` is the relay an enable run just settled on: the field's state
   // has not caught up with it yet.
+  // Over the direct connection nothing is listed: a listing asks the relay
+  // about every subscription. The stored transport is read: the screen may
+  // not have rendered it yet, at its opening and in a switch.
   const refreshDevices = useCallback(async (relay?: string) => {
     if (!activeAccountId || !client) return;
+    if (!usesRelay((await getStoredPushTransport()) ?? 'fcm')) return;
     setDevices({ kind: 'loading' });
     try {
       const list = await listPushDevices({ accountId: activeAccountId, relayBaseUrl: relay ?? trimmed });
@@ -561,7 +565,7 @@ export function NotificationSettings() {
         )}
       </SettingsSection>
 
-      {supported && client && (
+      {supported && client && usesRelay(transport) && (
         <SettingsSection
           title={t('settings.notifications.push.devices_title', 'Registered devices')}
           description={t(

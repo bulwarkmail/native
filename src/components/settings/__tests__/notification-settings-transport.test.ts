@@ -83,7 +83,7 @@ vi.mock('../../../lib/push-notifications', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/push-notifications')>()),
   isPushActiveForAccount: vi.fn(async () => true),
   serverSupportsEmailPush: vi.fn(() => false),
-  listPushDevices: async () => [],
+  listPushDevices: vi.fn(async () => []),
   mailAccountsWithoutPush: async () => [],
   enablePushFromSettings: vi.fn(),
   setUpOtherPushAccounts: vi.fn(async () => undefined),
@@ -94,6 +94,7 @@ import {
   enablePushFromSettings,
   getStoredPushTransport,
   isPushActiveForAccount,
+  listPushDevices,
   serverSupportsEmailPush,
   setUpOtherPushAccounts,
   setupDirectPushForOtherAccounts,
@@ -307,5 +308,25 @@ describe('the email settings over the direct connection', () => {
     } finally {
       vi.mocked(serverSupportsEmailPush).mockReturnValue(false);
     }
+  });
+});
+
+describe('the registered devices over the direct connection', () => {
+  const section = (node: unknown) => find(node, (e) => e.type === 'SettingsSection' && e.props.title === 'Registered devices');
+
+  it('lists none and asks no relay about any, as each listing does for every subscription', async () => {
+    const list = vi.mocked(listPushDevices);
+    list.mockClear();
+    const direct = await openScreen('direct');
+    expect(section(direct.current)).toBeNull();
+    expect(list).not.toHaveBeenCalled();
+    enable.mockResolvedValue({ error: null, relayBaseUrl: 'https://relay.example', enabled: true });
+    await press(direct, 'Re-register');
+    expect(enable).toHaveBeenCalledTimes(1);
+    expect(list).not.toHaveBeenCalled();
+
+    const relay = await openScreen('fcm');
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+    expect(section(relay.current)).not.toBeNull();
   });
 });
