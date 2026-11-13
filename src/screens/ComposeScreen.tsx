@@ -3136,7 +3136,17 @@ export default function ComposeScreen({ route, navigation }: Props) {
         >
           {savingDraft ? <ActivityIndicator size="small" color={c.text} /> : <X size={22} color={c.text} />}
         </Pressable>
-        <View style={styles.headerTitleWrap}>
+        <View
+          style={[styles.headerTitleWrap, !headerTitle && styles.headerTitleWrapUntitled]}
+          // No visible title on a new message: screen readers still hear
+          // which screen this is, with the draft status after it. Stretched
+          // to the header's height, or an empty wrap has none and is skipped.
+          {...(!headerTitle && {
+            accessible: true,
+            accessibilityRole: 'header' as const,
+            accessibilityLabel: [t('email_composer.new_message', 'New Message'), draftStatusText].filter(Boolean).join(', '),
+          })}
+        >
           {!!headerTitle && <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>}
           {!!draftStatusText && !typingInShortWindow && (
             <Text style={styles.headerSubtitle} numberOfLines={1}>{draftStatusText}</Text>
@@ -3965,6 +3975,7 @@ function makeStyles(c: ThemePalette) {
     borderRadius: radius.full,
   },
   headerTitleWrap: { flex: 1, minWidth: 0 },
+  headerTitleWrapUntitled: { alignSelf: 'stretch', justifyContent: 'center' },
   headerTitle: { ...typography.h3, color: c.text },
   headerSubtitle: { ...typography.caption, color: c.textMuted, marginTop: -2 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
