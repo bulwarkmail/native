@@ -880,6 +880,24 @@
     "send_anyway": "Enviar mesmo assim",
     "back": "Voltar"
   },
+  "phishing_report": {
+    "action": "Reportar phishing…",
+    "confirm_title": "Reportar phishing?",
+    "confirm_message": "{count, plural, one {A mensagem vai para {address} e é movida para Spam.} other {Cada uma das # mensagens vai para {address} como uma denúncia separada e é movida para Spam.}}",
+    "confirm": "Reportar",
+    "cancel": "Cancelar",
+    "sending": "Reportando…",
+    "done": "{count, plural, one {Reportada para {address} e movida para Spam.} other {# mensagens reportadas para {address} e movidas para Spam.}}",
+    "not_moved": "{count, plural, one {Reportada para {address}, mas não foi possível mover a mensagem para Spam.} other {Reportadas para {address}, mas não foi possível mover # mensagens para Spam.}}",
+    "failed": "{count, plural, one {Não foi possível reportar a mensagem.} other {Não foi possível reportar # mensagens.}}",
+    "undo": "Desfazer",
+    "undone": "{count, plural, one {Devolvida ao lugar. A denúncia já foi enviada.} other {Devolvidas ao lugar. As denúncias já foram enviadas.}}",
+    "undo_failed": "Não foi possível devolver ao lugar.",
+    "banner": "Você reportou esta mensagem como phishing. Os links dela estão desativados.",
+    "link_off": "link desativado",
+    "link_off_note": "(link desativado)",
+    "no_subject": "(sem assunto)"
+  },
   "email_composer": {
     "select_from_directory": "Selecionar do diretório",
     "minimize": "Minimizar",

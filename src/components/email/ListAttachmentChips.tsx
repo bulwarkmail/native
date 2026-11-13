@@ -19,6 +19,8 @@ import { getAttachmentDisplayName } from '../../lib/attachment-display';
 import { attachmentSaveName, downloadAttachment } from '../../lib/email-export';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal';
 import { useFilePreview } from './use-file-preview';
+import { PHISHING_KEYWORD } from '../../lib/phishing-report';
+import { reportedKey, usePhishingReportStore } from '../../stores/phishing-report-store';
 
 /** How many chips a row shows before collapsing the rest into a count. */
 const MAX_CHIPS = 2;
@@ -129,6 +131,8 @@ export const ListAttachmentOpener = React.forwardRef<ListAttachmentOpenerHandle>
     const t = useLocaleStore((s) => s.t);
     const preview = useFilePreview();
     const busy = React.useRef(false);
+    // The row's message was reported as phishing (#124): links off in what is previewed.
+    const [linksOff, setLinksOff] = React.useState(false);
 
     const run = React.useCallback(async (fn: () => Promise<void>) => {
       if (busy.current) return;
@@ -152,20 +156,26 @@ export const ListAttachmentOpener = React.forwardRef<ListAttachmentOpenerHandle>
           void run(() => downloadAttachment(attachment.blobId, attachment.name, attachment.type, email, accountId));
           return;
         }
-        void run(() => openPreview({
-          from: 'blob',
-          blobId: attachment.blobId,
-          accountId,
-          email,
-          name: getAttachmentDisplayName(attachment.name, attachment.type),
-          type: attachment.type || 'application/octet-stream',
-          size: attachment.size,
-          saveName: attachmentSaveName(email, attachment.name, attachment.type),
-        }));
+        const reported = email.keywords?.[PHISHING_KEYWORD] === true
+          || usePhishingReportStore.getState().reported[reportedKey(email.id, accountId)] === true;
+        void run(() => {
+          // Set only once this preview is the one opening (run drops a second tap).
+          setLinksOff(reported);
+          return openPreview({
+            from: 'blob',
+            blobId: attachment.blobId,
+            accountId,
+            email,
+            name: getAttachmentDisplayName(attachment.name, attachment.type),
+            type: attachment.type || 'application/octet-stream',
+            size: attachment.size,
+            saveName: attachmentSaveName(email, attachment.name, attachment.type),
+          });
+        });
       },
     }), [run, openPreview]);
 
-    return <AttachmentPreviewModal {...preview.modalProps} />;
+    return <AttachmentPreviewModal {...preview.modalProps} linksOff={linksOff} />;
   },
 );
 

@@ -880,6 +880,24 @@
     "send_anyway": "Send likevel",
     "back": "Tilbake"
   },
+  "phishing_report": {
+    "action": "Rapporter nettfisking…",
+    "confirm_title": "Rapportere nettfisking?",
+    "confirm_message": "{count, plural, one {Meldingen sendes til {address} og flyttes til Søppelpost.} other {Hver av de # meldingene sendes til {address} som en egen rapport og flyttes til Søppelpost.}}",
+    "confirm": "Rapporter",
+    "cancel": "Avbryt",
+    "sending": "Rapporterer…",
+    "done": "{count, plural, one {Rapportert til {address} og flyttet til Søppelpost.} other {# meldinger rapportert til {address} og flyttet til Søppelpost.}}",
+    "not_moved": "{count, plural, one {Rapportert til {address}, men meldingen kunne ikke flyttes til Søppelpost.} other {Rapportert til {address}, men # meldinger kunne ikke flyttes til Søppelpost.}}",
+    "failed": "{count, plural, one {Meldingen kunne ikke rapporteres.} other {# meldinger kunne ikke rapporteres.}}",
+    "undo": "Angre",
+    "undone": "{count, plural, one {Flyttet tilbake. Rapporten var allerede sendt.} other {Flyttet tilbake. Rapportene var allerede sendt.}}",
+    "undo_failed": "Kunne ikke flytte den tilbake.",
+    "banner": "Du har rapportert denne meldingen som nettfisking. Lenkene i den er slått av.",
+    "link_off": "lenke slått av",
+    "link_off_note": "(lenke slått av)",
+    "no_subject": "(uten emne)"
+  },
   "email_composer": {
     "select_from_directory": "Velg fra katalog",
     "minimize": "Minimer",

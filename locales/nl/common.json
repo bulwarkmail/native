@@ -880,6 +880,24 @@
     "send_anyway": "Toch verzenden",
     "back": "Terug"
   },
+  "phishing_report": {
+    "action": "Phishing melden…",
+    "confirm_title": "Phishing melden?",
+    "confirm_message": "{count, plural, one {Het bericht gaat naar {address} en wordt naar Spam verplaatst.} other {Elk van de # berichten gaat als aparte melding naar {address} en wordt naar Spam verplaatst.}}",
+    "confirm": "Melden",
+    "cancel": "Annuleren",
+    "sending": "Bezig met melden…",
+    "done": "{count, plural, one {Gemeld bij {address} en naar Spam verplaatst.} other {# berichten gemeld bij {address} en naar Spam verplaatst.}}",
+    "not_moved": "{count, plural, one {Gemeld bij {address}, maar het bericht kon niet naar Spam worden verplaatst.} other {Gemeld bij {address}, maar # berichten konden niet naar Spam worden verplaatst.}}",
+    "failed": "{count, plural, one {Het bericht kon niet worden gemeld.} other {# berichten konden niet worden gemeld.}}",
+    "undo": "Ongedaan maken",
+    "undone": "{count, plural, one {Teruggezet. De melding was al verstuurd.} other {Teruggezet. De meldingen waren al verstuurd.}}",
+    "undo_failed": "Kon niet worden teruggezet.",
+    "banner": "Je hebt dit bericht als phishing gemeld. De links erin zijn uitgeschakeld.",
+    "link_off": "link uitgeschakeld",
+    "link_off_note": "(link uitgeschakeld)",
+    "no_subject": "(geen onderwerp)"
+  },
   "email_composer": {
     "select_from_directory": "Kiezen uit adresboek van de organisatie",
     "minimize": "Minimaliseren",

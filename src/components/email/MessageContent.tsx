@@ -15,6 +15,7 @@ import { useBodyOverride } from './use-body-override';
 import { useSecureMessage } from './use-secure-message';
 import { SecureMessageBanner } from './SecureMessageBanner';
 import { deriveHeaderInfo } from '../../lib/email-headers';
+import { usePhishingMarked } from '../../stores/phishing-report-store';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
 import { hidesPgpMimeControlParts, pgpMimeControlParts } from '../../lib/pgp-mime-parts';
 
@@ -68,6 +69,8 @@ export function MessageContent({
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
   const calendarParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const headerInfo = React.useMemo(() => deriveHeaderInfo(email), [email]);
+  // Reported as phishing (#124): its links and the sender's actions are off.
+  const phishingMarked = usePhishingMarked(email, jmapAccountId);
   const unwrap = useBodyOverride(email, jmapAccountId);
   // PGP / S/MIME (#58): the decrypted or verified body replaces the
   // message's own; an encrypted one that can't be opened shows nothing but
@@ -99,6 +102,7 @@ export function MessageContent({
       tnefUnpacked={unwrap.tnefUnpacked}
       extracted={extracted}
       hidePart={hidePart}
+      linksOff={phishingMarked}
     />
   );
 
@@ -128,7 +132,8 @@ export function MessageContent({
           onHandled={onEmailPatched}
         />
       )}
-      {headerInfo.list.listUnsubscribe?.preferred && (
+      {/* A phishing mail's unsubscribe link and cards are the sender's (#124). */}
+      {headerInfo.list.listUnsubscribe?.preferred && !phishingMarked && (
         <UnsubscribeBanner
           email={email}
           list={headerInfo.list}
@@ -139,7 +144,7 @@ export function MessageContent({
 
       {(secure.loading || secure.result) && <SecureMessageBanner status={secure.result?.status ?? null} loading={secure.loading} offeredKey={secure.result?.offeredKey} />}
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
-      <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />
+      {!phishingMarked && <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />}
 
       <View style={[styles.body, fill && styles.fill]}>
         {deferBody ? (

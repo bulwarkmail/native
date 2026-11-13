@@ -880,6 +880,24 @@
     "send_anyway": "Saada ikkagi",
     "back": "Tagasi"
   },
+  "phishing_report": {
+    "action": "Teata õngitsusest…",
+    "confirm_title": "Teatada õngitsusest?",
+    "confirm_message": "{count, plural, one {Kiri saadetakse aadressile {address} ja teisaldatakse rämpsposti.} other {Kõik # kirja saadetakse aadressile {address} eraldi teadetena ja teisaldatakse rämpsposti.}}",
+    "confirm": "Teata",
+    "cancel": "Tühista",
+    "sending": "Teatamine…",
+    "done": "{count, plural, one {Teatatud aadressile {address} ja teisaldatud rämpsposti.} other {# kirjast teatatud aadressile {address} ja teisaldatud rämpsposti.}}",
+    "not_moved": "{count, plural, one {Teatatud aadressile {address}, kuid kirja ei õnnestunud rämpsposti teisaldada.} other {Teatatud aadressile {address}, kuid # kirja ei õnnestunud rämpsposti teisaldada.}}",
+    "failed": "{count, plural, one {Kirjast ei õnnestunud teatada.} other {# kirjast ei õnnestunud teatada.}}",
+    "undo": "Võta tagasi",
+    "undone": "{count, plural, one {Tõstetud tagasi. Teade oli juba saadetud.} other {Tõstetud tagasi. Teated olid juba saadetud.}}",
+    "undo_failed": "Tagasi tõstmine ei õnnestunud.",
+    "banner": "Teatasid sellest kirjast kui õngitsusest. Selle lingid on välja lülitatud.",
+    "link_off": "link välja lülitatud",
+    "link_off_note": "(link välja lülitatud)",
+    "no_subject": "(teema puudub)"
+  },
   "email_composer": {
     "select_from_directory": "Vali kataloogist",
     "minimize": "Minimeeri",

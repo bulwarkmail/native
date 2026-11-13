@@ -880,6 +880,24 @@
     "send_anyway": "そのまま送信",
     "back": "戻る"
   },
+  "phishing_report": {
+    "action": "フィッシングを報告…",
+    "confirm_title": "フィッシングとして報告しますか？",
+    "confirm_message": "{count, plural, =1 {メールを {address} に送信し、迷惑メールに移動します。} other {# 件のメールをそれぞれ個別の報告として {address} に送信し、迷惑メールに移動します。}}",
+    "confirm": "報告",
+    "cancel": "キャンセル",
+    "sending": "報告中…",
+    "done": "{count, plural, =1 {{address} に報告し、迷惑メールに移動しました。} other {# 件のメールを {address} に報告し、迷惑メールに移動しました。}}",
+    "not_moved": "{count, plural, =1 {{address} に報告しましたが、メールを迷惑メールに移動できませんでした。} other {{address} に報告しましたが、# 件のメールを迷惑メールに移動できませんでした。}}",
+    "failed": "{count, plural, =1 {メールを報告できませんでした。} other {# 件のメールを報告できませんでした。}}",
+    "undo": "元に戻す",
+    "undone": "{count, plural, =1 {元の場所に戻しました。報告はすでに送信済みです。} other {元の場所に戻しました。報告はすでに送信済みです。}}",
+    "undo_failed": "元に戻せませんでした。",
+    "banner": "このメールをフィッシングとして報告しました。メール内のリンクは無効になっています。",
+    "link_off": "リンクは無効です",
+    "link_off_note": "（リンク無効）",
+    "no_subject": "(件名なし)"
+  },
   "email_composer": {
     "select_from_directory": "ディレクトリから選択",
     "minimize": "最小化",

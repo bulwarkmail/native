@@ -1184,13 +1184,14 @@ export async function moveEmails(
 /**
  * File messages into Junk and flip `$junk`/`$notjunk` so the server's
  * classifier and other clients learn (#850). Optionally also marks them read
- * (the "trash-and-read" delete action).
+ * (the "trash-and-read" delete action, a phishing report) and sets further
+ * keywords (a report's `$phishing`, #124).
  */
 export async function markAsSpam(
   ids: string[],
   junkMailboxId: string,
   accountIdOverride?: string,
-  opts?: { markRead?: boolean },
+  opts?: { markRead?: boolean; keywords?: string[] },
 ): Promise<void> {
   if (ids.length === 0) return;
   const accountId = accountIdOverride ?? jmapClient.accountId;
@@ -1201,6 +1202,8 @@ export async function markAsSpam(
       [keywordPointer('$junk')]: true,
       [keywordPointer('$notjunk')]: null,
       ...(opts?.markRead ? { [keywordPointer('$seen')]: true } : {}),
+      // A report's `$phishing` (#124).
+      ...Object.fromEntries((opts?.keywords ?? []).map((keyword) => [keywordPointer(keyword), true])),
     };
   }
   await emailSetBatched(accountId, { update });
@@ -1761,6 +1764,12 @@ export interface SendEmailOptions {
    * since Bcc is not in its headers. The webmail's sendRawEmail.
    */
   rawBlobId?: string;
+  /**
+   * Keep no copy: the message is created as usual and destroyed once the
+   * submission is made (`onSuccessDestroyEmail`), so it never reaches Sent.
+   * For a phishing report (#124): the admin's mailbox is the record.
+   */
+  noSentCopy?: boolean;
 }
 
 export async function sendEmail(
@@ -1822,11 +1831,15 @@ export async function sendEmail(
     accountId,
     create: { 'sub-1': submissionCreate },
   };
-  submissionArgs.onSuccessUpdateEmail = {
-    '#sub-1': viaDrafts
-      ? { mailboxIds: { [sentMailboxId]: true }, [keywordPointer('$draft')]: null }
-      : { [keywordPointer('$draft')]: null },
-  };
+  if (opts?.noSentCopy) {
+    submissionArgs.onSuccessDestroyEmail = ['#sub-1'];
+  } else {
+    submissionArgs.onSuccessUpdateEmail = {
+      '#sub-1': viaDrafts
+        ? { mailboxIds: { [sentMailboxId]: true }, [keywordPointer('$draft')]: null }
+        : { [keywordPointer('$draft')]: null },
+    };
+  }
 
   let res = await jmapClient.request(
     [
@@ -1902,6 +1915,13 @@ export async function sendEmail(
       if (notUpdated && Object.keys(notUpdated).length) {
         const first = Object.values(notUpdated)[0];
         filingWarning = filingWarning ?? (first?.description || first?.type || 'post-send filing failed');
+      }
+      // With noSentCopy the copy is destroyed instead; one left behind is a
+      // filing problem too (it sits in Drafts).
+      const notDestroyed = (result as { notDestroyed?: Record<string, { description?: string; type?: string }> }).notDestroyed;
+      if (notDestroyed && Object.keys(notDestroyed).length) {
+        const first = Object.values(notDestroyed)[0];
+        filingWarning = filingWarning ?? (first?.description || first?.type || 'post-send cleanup failed');
       }
     }
     if (methodName === 'EmailSubmission/set') {

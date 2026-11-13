@@ -33,6 +33,8 @@ interface Props {
   extracted?: ExtractedAttachment[];
   /** Server-listed parts to leave out (a decrypted PGP/MIME message's control parts). */
   hidePart?: (att: Attachment) => boolean;
+  /** The message was reported as phishing: previewed files have their links off (#124). */
+  linksOff?: boolean;
 }
 
 type Item =
@@ -47,7 +49,7 @@ const MAX_BUNDLE_BYTES = 100 * 1024 * 1024;
  * save), long-press opens Preview / Open / Save / Share, and "Download all"
  * bundles every part into a zip named by the export template.
  */
-export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tnefUnpacked, extracted, hidePart }: Props) {
+export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tnefUnpacked, extracted, hidePart, linksOff }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -283,7 +285,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
         onClose={() => setSheetItem(null)}
       />
 
-      <AttachmentPreviewModal {...preview.modalProps} />
+      <AttachmentPreviewModal {...preview.modalProps} linksOff={linksOff} />
 
       <FilesPickerSheet
         visible={!!filesTarget}

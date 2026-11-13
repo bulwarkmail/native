@@ -880,6 +880,24 @@
     "send_anyway": "Yine de gönder",
     "back": "Geri"
   },
+  "phishing_report": {
+    "action": "Kimlik avı bildir…",
+    "confirm_title": "Kimlik avı olarak bildirilsin mi?",
+    "confirm_message": "{count, plural, one {İleti {address} adresine gönderilir ve Spam klasörüne taşınır.} other {# iletinin her biri ayrı bir bildirim olarak {address} adresine gönderilir ve Spam klasörüne taşınır.}}",
+    "confirm": "Bildir",
+    "cancel": "İptal",
+    "sending": "Bildiriliyor…",
+    "done": "{count, plural, one {{address} adresine bildirildi ve Spam klasörüne taşındı.} other {# ileti {address} adresine bildirildi ve Spam klasörüne taşındı.}}",
+    "not_moved": "{count, plural, one {{address} adresine bildirildi ancak ileti Spam klasörüne taşınamadı.} other {{address} adresine bildirildi ancak # ileti Spam klasörüne taşınamadı.}}",
+    "failed": "{count, plural, one {İleti bildirilemedi.} other {# ileti bildirilemedi.}}",
+    "undo": "Geri al",
+    "undone": "{count, plural, one {Geri taşındı. Bildirim zaten gönderilmişti.} other {Geri taşındı. Bildirimler zaten gönderilmişti.}}",
+    "undo_failed": "Geri taşınamadı.",
+    "banner": "Bu iletiyi kimlik avı olarak bildirdiniz. İçindeki bağlantılar devre dışı.",
+    "link_off": "bağlantı devre dışı",
+    "link_off_note": "(bağlantı devre dışı)",
+    "no_subject": "(konu yok)"
+  },
   "email_composer": {
     "select_from_directory": "Dizinden seç",
     "minimize": "Simge durumuna küçült",

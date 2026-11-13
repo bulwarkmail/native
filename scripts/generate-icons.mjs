@@ -93,6 +93,7 @@ const MAP = {
   FileText: 'file-text',
   FileVideo: 'video',
   Filter: 'filter',
+  Fish: 'fish',
   Flag: 'flag',
   FlaskConical: 'flask',
   Folder: 'folder',

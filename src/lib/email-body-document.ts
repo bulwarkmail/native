@@ -36,6 +36,8 @@ export interface BodyDocumentInput {
   plainDarkColors?: PlainTextColors;
   /** The reading font (Settings > Accessibility > Font) for a plain-text body. */
   appFont?: AppFont;
+  /** A message reported as phishing: its links are off, each saying this (#124). */
+  linksOff?: string;
 }
 
 export interface BodyDocument {
@@ -57,6 +59,7 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       cidMap: input.cidMap,
       isDark,
       messageSpacing: input.messageSpacing,
+      linksOff: input.linksOff,
     });
     return { ...res, isHtml: true };
   }
@@ -72,6 +75,7 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       fontPx: mailBaseFontPx(input.textFactor ?? 1),
       darkColors: input.plainDarkColors,
       readingFont: input.appFont,
+      linksOff: input.linksOff,
     }),
     recolorDark: false,
     hasNativeDark: false,
@@ -101,7 +105,7 @@ export function bodyDocument(input: BodyDocumentInput): BodyDocument {
   const key = JSON.stringify([
     input.key, input.blockRemoteImages, input.isDark, input.messageSpacing, input.plainTextFont,
     input.quoteLabels.show, input.quoteLabels.hide, input.emptyLabel, input.textFactor ?? 1,
-    input.plainDarkColors ?? null, input.appFont ?? 'default',
+    input.plainDarkColors ?? null, input.appFont ?? 'default', input.linksOff ?? null,
   ]);
   const hit = documents.get(key);
   if (hit && sameSources(hit.input, input)) {

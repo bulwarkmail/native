@@ -880,6 +880,24 @@
     "send_anyway": "Envoyer quand même",
     "back": "Retour"
   },
+  "phishing_report": {
+    "action": "Signaler comme hameçonnage…",
+    "confirm_title": "Signaler comme hameçonnage ?",
+    "confirm_message": "{count, plural, one {Le message sera envoyé à {address} et déplacé dans le dossier Spam.} other {Chacun des # messages sera envoyé à {address} dans un signalement distinct et déplacé dans le dossier Spam.}}",
+    "confirm": "Signaler",
+    "cancel": "Annuler",
+    "sending": "Signalement en cours…",
+    "done": "{count, plural, one {Signalé à {address} et déplacé dans le dossier Spam.} other {# messages signalés à {address} et déplacés dans le dossier Spam.}}",
+    "not_moved": "{count, plural, one {Signalé à {address}, mais le message n'a pas pu être déplacé dans le dossier Spam.} other {Signalés à {address}, mais # messages n'ont pas pu être déplacés dans le dossier Spam.}}",
+    "failed": "{count, plural, one {Le message n'a pas pu être signalé.} other {# messages n'ont pas pu être signalés.}}",
+    "undo": "Annuler",
+    "undone": "{count, plural, one {Remis à sa place. Le signalement a déjà été envoyé.} other {Remis à leur place. Les signalements ont déjà été envoyés.}}",
+    "undo_failed": "Impossible de le remettre à sa place.",
+    "banner": "Vous avez signalé ce message comme hameçonnage. Ses liens sont désactivés.",
+    "link_off": "lien désactivé",
+    "link_off_note": "(lien désactivé)",
+    "no_subject": "(sans objet)"
+  },
   "email_composer": {
     "select_from_directory": "Choisir dans l'annuaire",
     "minimize": "Réduire",

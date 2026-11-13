@@ -28,6 +28,7 @@ import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useShouldAnimate, useTypography } from '../theme/dynamic';
 import { useColors, useResolvedTheme } from '../theme/colors';
 import { perfEndAfterPaint, perfLap } from '../lib/perf-marks';
+import { usePhishingMarked } from '../stores/phishing-report-store';
 import type { RootStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -624,6 +625,10 @@ export default function EmailBodyView({
     () => (resolvedTheme === 'dark' ? { background: c.background, text: c.text, link: c.textLink } : undefined),
     [resolvedTheme, c.background, c.text, c.textLink],
   );
+  // Reported as phishing (`$phishing`, #124): links off, with the
+  // webmail's banner, and the WebView opens none (below).
+  const linksOff = usePhishingMarked(email, jmapAccountId);
+  const linkOffTitle = linksOff ? t('phishing_report.link_off', 'link turned off') : undefined;
   const prepared = React.useMemo(() => bodyDocument({
     key: `${jmapAccountId ?? ''}|${email.id}`,
     rawHtml,
@@ -638,9 +643,10 @@ export default function EmailBodyView({
     textFactor,
     plainDarkColors,
     appFont,
+    linksOff: linkOffTitle,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
-    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont,
+    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont, linkOffTitle,
   ]);
 
   const source = React.useMemo(
@@ -756,6 +762,13 @@ export default function EmailBodyView({
           )}
         </View>
       )}
+      {linksOff && (
+        <View style={styles.banner} accessibilityRole="alert">
+          <Text style={styles.bannerText}>
+            {t('phishing_report.banner', 'You reported this message as phishing. Its links are turned off.')}
+          </Text>
+        </View>
+      )}
       {showBanner && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
@@ -839,6 +852,8 @@ export default function EmailBodyView({
             // any other) navigation would replace the email body with no way
             // back, so it is refused; images are reachable via the chips.
             if (!url || url === 'about:blank') return true;
+            // A message reported as phishing opens nothing (#124).
+            if (linksOff) return false;
             // A message opens links only when the user taps one. The page
             // runs no script of its own, so nothing else should navigate;
             // iOS says how a navigation started, so anything but a tap is

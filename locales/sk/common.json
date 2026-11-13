@@ -880,6 +880,24 @@
     "send_anyway": "Odoslať aj tak",
     "back": "Späť"
   },
+  "phishing_report": {
+    "action": "Nahlásiť phishing…",
+    "confirm_title": "Nahlásiť phishing?",
+    "confirm_message": "{count, plural, one {Správa sa odošle na {address} a presunie do priečinka Spam.} few {# správy sa odošlú na {address}, každá ako samostatné hlásenie, a presunú do priečinka Spam.} many {# správy sa odošle na {address}, každá ako samostatné hlásenie, a presunie do priečinka Spam.} other {# správ sa odošle na {address}, každá ako samostatné hlásenie, a presunie do priečinka Spam.}}",
+    "confirm": "Nahlásiť",
+    "cancel": "Zrušiť",
+    "sending": "Nahlasuje sa…",
+    "done": "{count, plural, one {Nahlásené na {address} a presunuté do priečinka Spam.} few {# správy nahlásené na {address} a presunuté do priečinka Spam.} many {# správy nahlásené na {address} a presunuté do priečinka Spam.} other {# správ nahlásených na {address} a presunutých do priečinka Spam.}}",
+    "not_moved": "{count, plural, one {Nahlásené na {address}, ale správu sa nepodarilo presunúť do priečinka Spam.} few {Nahlásené na {address}, ale # správy sa nepodarilo presunúť do priečinka Spam.} many {Nahlásené na {address}, ale # správy sa nepodarilo presunúť do priečinka Spam.} other {Nahlásené na {address}, ale # správ sa nepodarilo presunúť do priečinka Spam.}}",
+    "failed": "{count, plural, one {Správu sa nepodarilo nahlásiť.} few {# správy sa nepodarilo nahlásiť.} many {# správy sa nepodarilo nahlásiť.} other {# správ sa nepodarilo nahlásiť.}}",
+    "undo": "Späť",
+    "undone": "{count, plural, one {Presunuté späť. Hlásenie už bolo odoslané.} few {Presunuté späť. Hlásenia už boli odoslané.} many {Presunuté späť. Hlásenia už boli odoslané.} other {Presunuté späť. Hlásenia už boli odoslané.}}",
+    "undo_failed": "Nepodarilo sa presunúť späť.",
+    "banner": "Túto správu ste nahlásili ako phishing. Odkazy v nej sú vypnuté.",
+    "link_off": "odkaz vypnutý",
+    "link_off_note": "(odkaz vypnutý)",
+    "no_subject": "(bez predmetu)"
+  },
   "email_composer": {
     "select_from_directory": "Vybrať z adresára",
     "minimize": "Minimalizovať",
