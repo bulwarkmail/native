@@ -119,7 +119,9 @@ One account holds the settings of the whole app: the first one signed in, or the
 Settings > Storage & backup > Settings sync. The same page has the switch (on by default). "First"
 is the first in the account list at the first round that reaches its server. Once an account holds
 them it stays the holder on that device. When it signs out, sync stops and the page
-asks which account to use; nothing is moved to another mailbox unasked. The stamps a device keeps are
+asks which account to use; nothing is moved to another mailbox unasked. Signed in again it is the
+holder again, also when the app gives it another id than before (an id from before ports were part
+of it is not given twice): it is known by its login and server. The stamps a device keeps are
 for one holder: after a change of holder it meets the new account's copy as a device that never
 synced. Two devices sync with each other only if they use the same holder; the page names it.
 
