@@ -25,6 +25,7 @@ import {
   senderFaviconsAllowed,
 } from '../push-background-task';
 import type { Email } from '../../api/types';
+import { showNotificationOnce } from './native-notified-ids';
 
 describe('parseRelayPushData', () => {
   it('decodes the relay FCM data payload (all values are strings)', () => {
@@ -126,7 +127,7 @@ describe('matchAccountsForPush', () => {
 
 describe('pushBackgroundTask notifications', () => {
   const LOCAL = 'alice@mail.example.com';
-  const showNotification = vi.fn(async () => undefined);
+  const showNotification = vi.fn(showNotificationOnce);
   let emailGetAccount: string | null = null;
 
   beforeEach(async () => {
@@ -183,6 +184,24 @@ describe('pushBackgroundTask notifications', () => {
     expect(showNotification).toHaveBeenCalledWith(
       expect.objectContaining({ emailId: 'm1', accountId: LOCAL, jmapAccountId: 'team' }),
     );
+  });
+
+  it('leaves recording the notified message to the native side, which posts it once', async () => {
+    // A native side that records nothing: whatever is in the ring after the
+    // push, the push task wrote it.
+    showNotification.mockImplementationOnce(async () => true);
+
+    await pushBackgroundTask({
+      kind: 'jmap-email-push',
+      accountLabel: 'alice',
+      accountId: 'jmap-primary',
+      emailIds: JSON.stringify(['m1']),
+    });
+
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification).toHaveBeenCalledWith(expect.objectContaining({ emailId: 'm1', accountId: LOCAL }));
+    expect(await AsyncStorage.getItem(`push:notifiedIds:v1:${LOCAL}`)).toBeNull();
+    expect(await AsyncStorage.getItem(`push:lastNotifiedEmailId:v2:${LOCAL}`)).toBeNull();
   });
 
   it("shows a plain notification, not another server's message, when two logins fit the push", async () => {

@@ -43,9 +43,6 @@ const LOCALE_STORAGE_KEY = 'webmail:locale:v1';
 // account id is not known yet.
 const ACCOUNT_REGISTRY_KEY = 'account-registry';
 
-// How many recently-notified ids to remember per account. Enough to cover a
-// burst of deliveries without growing the AsyncStorage record unbounded.
-const NOTIFIED_IDS_LIMIT = 200;
 // Legacy state-change payloads carry no ids; look at this many newest unread
 // inbox messages and notify the ones we have not shown yet.
 const LEGACY_QUERY_LIMIT = 5;
@@ -145,10 +142,18 @@ interface ShowNotificationOptions {
   // account's group summary takes no lines from the other notifications in
   // the group, which may be message notifications just taken out.
   withoutContent?: true;
+  // The account and messages a notification for no one message stands for
+  // (a message notification stands for its `emailId` in `accountId`). A
+  // notification for messages of an account is posted once per message: the
+  // native side reads the account's notified ids, posts unless all of them
+  // are there and records them, under one lock per account shared with the
+  // native push lookup.
+  notified?: { accountId: string; ids: string[] };
 }
 
 interface BulwarkFcmNative {
-  showNotification(opts: ShowNotificationOptions): Promise<void>;
+  // Resolves false when the messages were notified before and nothing was posted.
+  showNotification(opts: ShowNotificationOptions): Promise<boolean>;
 }
 
 /**
@@ -292,20 +297,14 @@ async function readNotifiedIds(accountId: string): Promise<string[]> {
 }
 
 // One lane per account for each use of its notified ids, from reading them
-// through the lookups and the notifications posted to writing them back: the
-// push tasks and the app share one JS runtime, and two pushes for an account
-// that come together would otherwise both find the same new mail missing and
-// post it twice. Another account's pushes do not wait for a slow server. A
+// through the lookups to the notifications posted: two pushes for an account
+// that come together look up the same new mail once. The native side writes
+// the ids, and is what keeps a mail from being posted twice
+// (ShowNotificationOptions.notified), also against a push the native
+// lookup handles. Another account's pushes do not wait for a slow server. A
 // session is opened before entering, outside the lane: an OAuth token
 // refresh has no deadline and would hold up every push behind it.
 const notifiedIdsLane = makeKeyedLane();
-
-async function rememberNotifiedIds(accountId: string, ids: string[]): Promise<void> {
-  const current = await readNotifiedIds(accountId);
-  const next = [...ids, ...current.filter((id) => !ids.includes(id))].slice(0, NOTIFIED_IDS_LIMIT);
-  await AsyncStorage.setItem(notifiedIdsKey(accountId), JSON.stringify(next));
-  if (ids.length > 0) await AsyncStorage.setItem(lastNotifiedKey(accountId), ids[0]);
-}
 
 // ─── Detached JMAP access ───────────────────────────────
 // The headless task may run inside the live RN instance (app foregrounded a
@@ -666,8 +665,7 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     // One notification per account, however many messages came: the
     // account's name and nothing about them, no actions, and a tap opens
     // the app as it is.
-    await showAccountNotification(accountId, payload, registry, true);
-    await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
+    await showAccountNotification(accountId, payload, registry, true, ordered.map((e) => e.id).reverse());
     return;
   }
 
@@ -719,8 +717,6 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
       replyLabel,
     });
   }
-
-  await rememberNotifiedIds(accountId, ordered.map((e) => e.id).reverse());
 }
 
 /**
@@ -764,6 +760,7 @@ async function showAccountNotification(
   payload: RelayPushData,
   registry: RegistryAccount[],
   withoutContent = false,
+  notifiedIds?: string[],
 ): Promise<void> {
   const native = NativeModules.BulwarkFcm as BulwarkFcmNative | undefined;
   if (!native?.showNotification) return;
@@ -780,6 +777,7 @@ async function showAccountNotification(
     groupKey: `bulwark-mail:${accountId}`,
     groupTitle: label,
     ...(withoutContent ? { withoutContent: true as const } : {}),
+    ...(notifiedIds ? { notified: { accountId, ids: notifiedIds } } : {}),
   });
 }
 
