@@ -56,7 +56,7 @@ import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
 } from '../lib/mailbox-tree';
 import { replyComposeParams } from '../lib/reply-compose';
-import { findReplyDraftContext } from '../lib/reply-draft-resume';
+import { heldReplyDraftContext, prepareReplyDrafts, resumableReplyDraftIds } from '../lib/reply-draft-resume';
 import { singleLine } from '../lib/single-line';
 import { buildForwardAsAttachmentPayload } from '../lib/forward-as-attachment';
 import { viewerInstance, viewerPages, type ViewerInstance } from '../lib/viewer-pages';
@@ -85,6 +85,9 @@ const REVEAL_WINDOW_MS = 2000;
 
 // How long the pages beside the one on screen wait for its body at most.
 const NEIGHBOUR_FALLBACK_MS = 1500;
+
+// How long a widget's Reply waits for the saved reply to be read at most.
+const REPLY_DRAFT_WAIT_MS = 500;
 
 // Actions finish after the viewer may already have gone back, so a failure is
 // reported as a toast instead of vanishing with the promise (webmail
@@ -676,13 +679,26 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     navigation.goBack();
   };
 
+  // The conversation's saved replies are read as the message opens (webmail
+  // compose-p2-6), and again when its drafts change (one saved or discarded
+  // meanwhile), so Reply finds them at hand instead of asking the server.
+  const replyThreadId = email?.threadId;
+  const replyDraftIds = replyThreadId
+    ? resumableReplyDraftIds(replyThreadId, ownerAccountId, scopedMailboxes).join(',')
+    : '';
+  React.useEffect(() => {
+    if (replyThreadId) void prepareReplyDrafts(replyThreadId, ownerAccountId, scopedMailboxes);
+  }, [replyThreadId, replyDraftIds, ownerAccountId, scopedMailboxes]);
+
   // Reply / forward the given message (a thread card's own, or the active one).
-  // A reply already saved as a draft opens again instead of a second one.
-  const navigateCompose = React.useCallback(async (mode: 'reply' | 'replyAll' | 'forward', target?: Email, typed?: string) => {
+  // A reply already saved as a draft opens again instead of a second one. Only
+  // what is held counts: Reply never waits for the network, and starts a new
+  // reply while the saved one is still being read.
+  const navigateCompose = React.useCallback((mode: 'reply' | 'replyAll' | 'forward', target?: Email, typed?: string) => {
     const source = target ?? email;
     if (!source) return;
     if (mode !== 'forward' && !typed?.trim()) {
-      const draft = await findReplyDraftContext(mode, source, ownerAccountId);
+      const draft = heldReplyDraftContext(mode, source, ownerAccountId, scopedMailboxes);
       if (draft) {
         navigation.navigate('Compose', { draft });
         return;
@@ -690,16 +706,21 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     }
     const params = replyComposeParams(mode, source, ownerAccountId, typed);
     if (params) navigation.navigate('Compose', params);
-  }, [email, navigation, ownerAccountId]);
+  }, [email, navigation, ownerAccountId, scopedMailboxes]);
 
   // Opened to reply (a widget's Reply): the composer follows as soon as the
   // message is here, once. If it never loads, the reader's error says why.
+  // The saved reply has only just started loading then, so it gets a moment.
   const replyPending = React.useRef(route.params.action === 'reply');
   React.useEffect(() => {
     if (!replyPending.current || email?.id !== route.params.emailId) return;
     replyPending.current = false;
-    void navigateCompose('reply', email);
-  }, [email, route.params.emailId, navigateCompose]);
+    const prepared = email.threadId
+      ? prepareReplyDrafts(email.threadId, ownerAccountId, scopedMailboxes)
+      : Promise.resolve();
+    void Promise.race([prepared, new Promise((r) => setTimeout(r, REPLY_DRAFT_WAIT_MS))])
+      .then(() => navigateCompose('reply', email));
+  }, [email, route.params.emailId, navigateCompose, ownerAccountId, scopedMailboxes]);
 
   // Forward the raw message as a message/rfc822 attachment (webmail 1.8.1).
   const onForwardAsAttachment = () => {
@@ -732,19 +753,19 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     reply: {
       label: t('email_viewer.reply', 'Reply'),
       icon: (s, col) => <Reply size={s} color={col} />,
-      onPress: () => void navigateCompose('reply'),
+      onPress: () => navigateCompose('reply'),
       available: true,
     },
     replyAll: {
       label: t('email_viewer.reply_all', 'Reply All'),
       icon: (s, col) => <ReplyAll size={s} color={col} />,
-      onPress: () => void navigateCompose('replyAll'),
+      onPress: () => navigateCompose('replyAll'),
       available: true,
     },
     forward: {
       label: t('email_viewer.forward', 'Forward'),
       icon: (s, col) => <Forward size={s} color={col} />,
-      onPress: () => void navigateCompose('forward'),
+      onPress: () => navigateCompose('forward'),
       available: true,
     },
     delete: {

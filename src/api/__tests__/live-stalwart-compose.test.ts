@@ -23,7 +23,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 
 import { JMAPClient } from '../jmap-client';
 import {
-  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreads, getThreadDrafts, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
+  cancelScheduledSend, destroyEmails, getFullEmails, getMailboxes, getThreads, listScheduledEmails, rescheduleScheduledSend, saveDraftVersion, sendEmail,
   type OutgoingAttachment,
 } from '../email';
 import { uploadBytes } from '../blob';
@@ -41,7 +41,7 @@ import { embedTemplateImages } from '../../lib/template-utils';
 import { buildEmbeddedSignatureHtml, spliceSignature } from '../../lib/signature-utils';
 import { attachmentFromFileNode, saveAttachmentToFiles } from '../../lib/compose-files';
 import { servedLoginOf } from '../../lib/draft-login';
-import { findReplyDraftContext } from '../../lib/reply-draft-resume';
+import { heldReplyDraftContext, prepareReplyDrafts } from '../../lib/reply-draft-resume';
 import { replyComposeParams } from '../../lib/reply-compose';
 import { resolveReplyIdentity } from '../../lib/reply-identity';
 import { mergeRecipientSuggestions } from '../../lib/recipient-suggestions';
@@ -54,7 +54,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { findReceivingIdentity } from '../../lib/email-headers';
 import { defaultSenderIdentity } from '../../lib/identity-order';
 import { discardDraft, draftThreadOf, refreshDraftThread } from '../../lib/draft-thread-refresh';
-import { loadThread, peekThread, rememberRows } from '../../lib/email-detail-cache';
+import { loadThread, peekDetail, peekThread, refreshThread, rememberRows } from '../../lib/email-detail-cache';
 
 const SERVER = process.env.BULWARK_LIVE_JMAP;
 const USER = process.env.BULWARK_LIVE_USER ?? 'e2e-phone-dark@example.org';
@@ -298,14 +298,16 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       createdEmails.push(reply.id);
       const [original] = await getFullEmails([origId]);
 
-      const threadDrafts = await getThreadDrafts(original.threadId);
-      expect(threadDrafts.map((d) => d.id)).toContain(reply.id);
-      expect(threadDrafts.find((d) => d.id === reply.id)?.inReplyTo).toEqual([msgId]);
+      // What the reader does as the message opens; Reply then goes by it.
+      const mailboxes = await getMailboxes();
+      await prepareReplyDrafts(original.threadId, undefined, mailboxes);
+      expect(peekThread(original.threadId)?.ids).toContain(reply.id);
+      expect(peekDetail(reply.id)?.inReplyTo).toEqual([msgId]);
 
-      const ctx = await findReplyDraftContext('reply', original);
+      const ctx = heldReplyDraftContext('reply', original, undefined, mailboxes);
       expect(ctx?.id).toBe(reply.id);
       expect(ctx?.textBody).toContain('draft reply');
-      const all = await findReplyDraftContext('replyAll', original);
+      const all = heldReplyDraftContext('replyAll', original, undefined, mailboxes);
       expect(all?.cc?.map((r) => r.email)).toEqual(['bob@example.org']);
     }, 60_000);
 
@@ -341,10 +343,16 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(thread?.threadId).toBe(original.threadId);
       await refreshDraftThread(thread!);
       expect(peekThread(original.threadId)?.ids).toContain(reply.id);
+      const mailboxes = await getMailboxes();
+      await prepareReplyDrafts(original.threadId, undefined, mailboxes);
+      expect(heldReplyDraftContext('reply', original, undefined, mailboxes)?.id).toBe(reply.id);
 
       await discardDraft(reply.id, undefined, thread);
 
       expect(peekThread(original.threadId)?.ids).toEqual([origId]);
+      // Reply starts a new message, although the draft's copy is still held.
+      await prepareReplyDrafts(original.threadId, undefined, mailboxes);
+      expect(heldReplyDraftContext('reply', original, undefined, mailboxes)).toBeNull();
       const [onServer] = await getThreads([original.threadId]);
       expect(onServer.emailIds).toEqual([origId]);
     }, 60_000);
@@ -375,7 +383,8 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       }, drafts);
       createdEmails.push(reply.id);
       const [original] = await getFullEmails([origId]);
-      expect((await getThreadDrafts(original.threadId)).map((d) => d.id)).toContain(reply.id);
+      await prepareReplyDrafts(original.threadId, undefined, boxes);
+      expect(heldReplyDraftContext('reply', original, undefined, boxes)?.id).toBe(reply.id);
 
       const moved = await singleton.request([['Email/set', {
         accountId: singleton.accountId, update: { [reply.id]: { mailboxIds: { [trash]: true } } },
@@ -385,8 +394,12 @@ live('live Stalwart: composer and sending (0.16 and 1.0)', () => {
       expect(binned.keywords?.$draft).toBe(true);
       expect(binned.threadId).toBe(original.threadId);
 
-      expect((await getThreadDrafts(original.threadId)).map((d) => d.id)).not.toContain(reply.id);
-      expect(await findReplyDraftContext('reply', original)).toBeNull();
+      // The reader hears of the move by push; read the conversation again
+      // the way that does.
+      await refreshThread(original.threadId);
+      expect(peekThread(original.threadId)?.ids).toContain(reply.id);
+      await prepareReplyDrafts(original.threadId, undefined, boxes);
+      expect(heldReplyDraftContext('reply', original, undefined, boxes)).toBeNull();
     }, 60_000);
   });
 

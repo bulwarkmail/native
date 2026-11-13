@@ -3,7 +3,7 @@
 // the webmail's lib/reply-drafts.ts and withReplyAllRecipients
 // (lib/draft-composer-data.ts).
 
-import type { Email, EmailAddress } from '../api/types';
+import type { Email, EmailAddress, Mailbox } from '../api/types';
 import type { ComposeDraftContext } from '../navigation/types';
 import { stripMessageIdBrackets } from './email-threading';
 import { buildReplyRecipients, type ReplySource } from './reply-recipients';
@@ -35,6 +35,32 @@ export function pickReplyDraft<T extends Pick<Email, 'id' | 'inReplyTo' | 'keywo
     .filter((d) => d.id !== email.id && answersMessage(d, email))
     .sort((a, b) => (b.receivedAt ?? '').localeCompare(a.receivedAt ?? ''));
   return candidates[0] ?? null;
+}
+
+/** Raw ids of an account's Drafts folder, and of its Trash and Junk. */
+export interface DraftFolders {
+  drafts: string[];
+  binned: string[];
+}
+
+export function draftFoldersOf(mailboxes: readonly Mailbox[]): DraftFolders {
+  const raw = (m: Mailbox) => m.originalId ?? m.id;
+  return {
+    drafts: mailboxes.filter((m) => m.role === 'drafts').map(raw),
+    binned: mailboxes.filter((m) => m.role === 'trash' || m.role === 'junk' || m.role === 'spam').map(raw),
+  };
+}
+
+/**
+ * Whether Reply may reopen this draft: it is in the Drafts folder. A reply
+ * draft moved to Trash or Junk keeps $draft and its conversation, but it is
+ * not the one to reopen. When the account's Drafts folder is not known, any
+ * draft outside Trash and Junk counts.
+ */
+export function isResumableDraft(email: Pick<Email, 'keywords' | 'mailboxIds'>, folders: DraftFolders): boolean {
+  if (!email.keywords?.$draft) return false;
+  const inAny = (ids: string[]) => ids.some((id) => !!email.mailboxIds?.[id]);
+  return folders.drafts.length > 0 ? inAny(folders.drafts) : !inAny(folders.binned);
 }
 
 /**
