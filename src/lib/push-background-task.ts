@@ -17,6 +17,7 @@ import {
 } from './avatar-utils';
 import { singleLine } from './single-line';
 import { cleanPreview } from './preview-text';
+import { makeKeyedLane } from './lane';
 import {
   lastNotifiedKey,
   migrateLegacyPushKeys,
@@ -289,6 +290,15 @@ async function readNotifiedIds(accountId: string): Promise<string[]> {
   const legacy = await AsyncStorage.getItem(lastNotifiedKey(accountId));
   return legacy ? [legacy] : [];
 }
+
+// One lane per account for each use of its notified ids, from reading them
+// through the lookups and the notifications posted to writing them back: the
+// push tasks and the app share one JS runtime, and two pushes for an account
+// that come together would otherwise both find the same new mail missing and
+// post it twice. Another account's pushes do not wait for a slow server. A
+// session is opened before entering, outside the lane: an OAuth token
+// refresh has no deadline and would hold up every push behind it.
+const notifiedIdsLane = makeKeyedLane();
 
 async function rememberNotifiedIds(accountId: string, ids: string[]): Promise<void> {
   const current = await readNotifiedIds(accountId);
@@ -605,7 +615,7 @@ async function processAccountForPush(accountId: string, payload: RelayPushData, 
   const session = await openDetachedSession(accountId);
   if (!session) return;
   try {
-    if (notify) await notifyForPush(accountId, session, payload);
+    if (notify) await notifiedIdsLane(accountId, () => notifyForPush(accountId, session, payload));
   } finally {
     await extendPushSubscription(accountId, session).catch(() => undefined);
   }

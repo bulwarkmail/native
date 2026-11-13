@@ -306,6 +306,97 @@ describe('pushBackgroundTask notifications', () => {
     expect((showNotification.mock.calls[0] as unknown[])[0]).toMatchObject({ title: 'New email', emailId: '' });
   });
 
+  describe('a push that names no message', () => {
+    const RECEIVED: Record<string, string> = { before: '2026-11-12T16:00:00Z', after: '2026-11-12T16:30:00Z' };
+    // The newest unread Inbox mail, newest first.
+    let unread: string[] = [];
+
+    beforeEach(() => {
+      unread = ['after', 'before'];
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+        if (url.endsWith('/.well-known/jmap')) {
+          return { ok: true, json: async () => ({ apiUrl: 'https://mail.example.com/jmap/', primaryAccounts: { 'urn:ietf:params:jmap:mail': 'jmap-primary' } }) };
+        }
+        const [[method, args]] = JSON.parse(init?.body ?? '{}').methodCalls;
+        const answer = method === 'Mailbox/get'
+          ? { list: [{ id: 'inbox', role: 'inbox' }] }
+          : method === 'Email/query'
+            ? { ids: unread.slice(0, args.limit) }
+            : { list: (args.ids as string[]).map((id) => ({ id, keywords: {}, subject: id, receivedAt: RECEIVED[id], from: [{ email: 'bob@example.com' }] })) };
+        return { ok: true, json: async () => ({ methodResponses: [[method, answer, '0']] }) };
+      });
+    });
+    const shown = () => showNotification.mock.calls.map((call) => ((call as unknown[])[0] as { emailId: string }).emailId);
+
+    it('notifies new mail once when two pushes for it come together', async () => {
+      const push = { kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' };
+
+      await Promise.all([pushBackgroundTask(push), pushBackgroundTask(push)]);
+
+      expect(shown()).toEqual(['before', 'after']);
+    });
+
+    it("does not hold one account's push behind another account's slow lookup", async () => {
+      const BOB = 'bob@other.example.com';
+      await AsyncStorage.setItem('push:accountIds:v1', JSON.stringify([LOCAL, BOB]));
+      // Both servers answer the same; Bob's login is told apart by its label.
+      await AsyncStorage.setItem('push:jmapAccountIds:v1', JSON.stringify({ [LOCAL]: 'jmap-primary', [BOB]: 'jmap-primary' }));
+      (jmapClient.getStoredCredentials as ReturnType<typeof vi.fn>).mockImplementation(async (accountId: string) => (
+        accountId === BOB
+          ? { serverUrl: 'https://other.example.com', username: 'bob', password: 'secret' }
+          : { serverUrl: 'https://mail.example.com', username: 'alice', password: 'secret' }
+      ));
+      const lookup = vi.mocked(secureFetch).getMockImplementation()!;
+      let answerAlice!: () => void;
+      const aliceAnswered = new Promise<void>((resolve) => { answerAlice = resolve; });
+      let aliceAsked!: () => void;
+      const aliceWaiting = new Promise<void>((resolve) => { aliceAsked = resolve; });
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+        const [[method] = []] = JSON.parse(init?.body ?? '{}').methodCalls ?? [];
+        if (url.startsWith('https://mail.example.com') && method === 'Email/query') {
+          aliceAsked();
+          await aliceAnswered;
+        }
+        return lookup(url, init);
+      });
+
+      const alice = pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' });
+      await aliceWaiting;
+      const bob = pushBackgroundTask({ kind: 'jmap-state-change', accountLabel: 'bob', changed: '{"jmap-primary":{"Email":"s"}}' });
+      // Bob's task ends while Alice's server has not answered yet; held
+      // behind Alice, it would still be waiting a second later.
+      const bobFirst = await Promise.race([
+        bob.then(() => 'bob done'),
+        new Promise<string>((resolve) => { setTimeout(() => resolve('bob still waiting'), 1000); }),
+      ]);
+      answerAlice();
+      await Promise.all([alice, bob]);
+
+      expect(bobFirst).toBe('bob done');
+      const accounts = showNotification.mock.calls.map((call) => ((call as unknown[])[0] as { accountId: string }).accountId);
+      expect(accounts).toEqual([BOB, BOB, LOCAL, LOCAL]);
+    });
+
+    it('a push whose lookup fails does not hold up the next one', async () => {
+      const lookup = vi.mocked(secureFetch).getMockImplementation()!;
+      let queries = 0;
+      (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string, init?: { body?: string }) => {
+        const [[method] = []] = JSON.parse(init?.body ?? '{}').methodCalls ?? [];
+        if (method === 'Email/query' && queries++ === 0) {
+          return { ok: true, json: async () => ({ methodResponses: [['error', { type: 'serverFail' }, '0']] }) };
+        }
+        return lookup(url, init);
+      });
+      const push = { kind: 'jmap-state-change', accountLabel: 'alice', changed: '{"jmap-primary":{"Email":"s"}}' };
+
+      await Promise.all([pushBackgroundTask(push), pushBackgroundTask(push)]);
+
+      // The first says that something came; the second names it.
+      const ids = showNotification.mock.calls.map((call) => ((call as unknown[])[0] as { notificationId: string }).notificationId);
+      expect(ids).toEqual([`mail-unknown:${LOCAL}`, 'mail:before', 'mail:after']);
+    });
+  });
+
   it('stays quiet when the lookup worked and found nothing new', async () => {
     (secureFetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
       if (url.endsWith('/.well-known/jmap')) {
