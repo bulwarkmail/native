@@ -3,6 +3,9 @@ package com.anonymous.bulwarkmobile
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.InputDevice
+import android.view.MotionEvent
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -42,6 +45,80 @@ class MainActivity : ReactActivity() {
     }
     val payload = NotificationTapStore.captureFromIntent(intent) ?: return
     BulwarkFcmModule.emit("fcm:notificationTap", payload.toMap())
+  }
+
+  // Where the mouse pointer is, for rehover(). Android reports a pointer only
+  // when it moves, so a view that moves under a still pointer (a list
+  // scrolled by the wheel, a row deleted) is never told it is hovered.
+  private var pointerX = 0f
+  private var pointerY = 0f
+  private var pointerDevice = 0
+  private var pointerOverWindow = false
+  private var pointerPressed = false
+
+  private fun isMouse(ev: MotionEvent) =
+    ev.isFromSource(InputDevice.SOURCE_MOUSE) && ev.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE
+
+  override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+    if (isMouse(ev)) {
+      when (ev.actionMasked) {
+        MotionEvent.ACTION_HOVER_ENTER, MotionEvent.ACTION_HOVER_MOVE -> {
+          pointerX = ev.x
+          pointerY = ev.y
+          pointerDevice = ev.deviceId
+          pointerOverWindow = true
+        }
+        // Also sent just before a button goes down; dispatchTouchEvent puts that right.
+        MotionEvent.ACTION_HOVER_EXIT -> pointerOverWindow = false
+      }
+    }
+    return super.dispatchGenericMotionEvent(ev)
+  }
+
+  override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+    if (isMouse(ev)) {
+      when (ev.actionMasked) {
+        MotionEvent.ACTION_DOWN -> pointerPressed = true
+        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> pointerPressed = false
+      }
+      pointerX = ev.x
+      pointerY = ev.y
+      pointerDevice = ev.deviceId
+      pointerOverWindow = true
+    }
+    return super.dispatchTouchEvent(ev)
+  }
+
+  /**
+   * Sends the views a hover move at the place the mouse pointer was last
+   * seen, so that the view now under it becomes the hovered one. Does nothing
+   * without a mouse over this window, or while a button is held.
+   *
+   * A dialog is a window of its own: while the pointer is on one this window
+   * does not know where it is, and nothing is sent until it moves here again.
+   */
+  fun rehover() {
+    if (!pointerOverWindow || pointerPressed) return
+    if (InputDevice.getDevice(pointerDevice) == null) {
+      // The mouse was unplugged.
+      pointerOverWindow = false
+      return
+    }
+    val now = SystemClock.uptimeMillis()
+    val properties = arrayOf(MotionEvent.PointerProperties().apply {
+      id = 0
+      toolType = MotionEvent.TOOL_TYPE_MOUSE
+    })
+    val coords = arrayOf(MotionEvent.PointerCoords().apply {
+      x = pointerX
+      y = pointerY
+    })
+    val move = MotionEvent.obtain(
+      now, now, MotionEvent.ACTION_HOVER_MOVE, 1, properties, coords,
+      0, 0, 1f, 1f, pointerDevice, 0, InputDevice.SOURCE_MOUSE, 0,
+    )
+    window.superDispatchGenericMotionEvent(move)
+    move.recycle()
   }
 
   /**

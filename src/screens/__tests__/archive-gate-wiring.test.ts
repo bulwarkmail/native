@@ -4,7 +4,7 @@ import path from 'node:path';
 
 // The organisation's archiveActionEnabled gate (webmail lib/archive-gate.ts,
 // email-list.tsx, email-viewer.tsx, downloads-settings.tsx): off, no swipe,
-// selection bar, reader toolbar, quick action, more-menu or after-export
+// hover button, selection bar, reader toolbar, quick action, more-menu or after-export
 // Archive. No React Native renderer in the test env, so this checks the
 // wiring; the helpers have unit tests in lib/__tests__/swipe-actions.test.ts.
 
@@ -17,6 +17,8 @@ describe('archive gate wiring', () => {
     expect(src).toMatch(/const swipeLeftAction = swipeActionShown\(useSettingsStore\(\(s\) => s\.swipeLeftAction\), archiveEnabled\);/);
     expect(src).toMatch(/const swipeRightAction = swipeActionShown\(useSettingsStore\(\(s\) => s\.swipeRightAction\), archiveEnabled\);/);
     expect(src).toMatch(/const canArchiveSelection =\s+archiveEnabled && /);
+    // The Archive button a row shows under a mouse pointer.
+    expect(src).toMatch(/rowHoverActions\(archiveEnabled && /);
   });
 
   it('drops them in the unified inbox', () => {
@@ -26,6 +28,7 @@ describe('archive gate wiring', () => {
     expect(src).toMatch(/const swipeRightAction = swipeActionShown\(useSettingsStore\(\(s\) => s\.swipeRightAction\), archiveEnabled\);/);
     expect(src).toMatch(/\{archiveEnabled && role !== 'archive' && \(\s+<Pressable\s+onPress=\{\(\) => \{ void archive\(selectedEmails\)/);
     expect(src).toMatch(/case 'archive': if \(archiveEnabled && role !== 'archive'\)/);
+    expect(src).toMatch(/rowHoverActions\(archiveEnabled && role !== 'archive' && /);
   });
 
   it('drops the reader Archive button, quick action and menu entry', () => {

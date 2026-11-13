@@ -21,6 +21,8 @@ import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
+import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
+import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import { MoveSheet } from '../components/MoveSheet';
 import { TagSheet } from '../components/TagSheet';
 import { useTagUndoGroup } from '../lib/tag-undo-group';
@@ -161,6 +163,7 @@ const EmailRow = React.memo(function EmailRow({
   onLongPress,
   selected,
   active = false,
+  hovered = false,
   selectionMode,
   loadAttachments,
   onOpenAttachment,
@@ -182,6 +185,8 @@ const EmailRow = React.memo(function EmailRow({
   selected: boolean;
   /** The row open in the detail pane of a split view. */
   active?: boolean;
+  /** A mouse pointer is over the row. */
+  hovered?: boolean;
   selectionMode: boolean;
   loadAttachments?: LoadListAttachments;
   onOpenAttachment?: (email: Email, attachment: Attachment) => void;
@@ -238,6 +243,7 @@ const EmailRow = React.memo(function EmailRow({
         styles.emailRow,
         { paddingVertical: density.rowPaddingVertical },
         unread && styles.emailRowUnread,
+        hovered && styles.emailRowHovered,
         pressed && styles.emailRowPressed,
         active && styles.emailRowActive,
         selected && styles.emailRowSelected,
@@ -365,6 +371,9 @@ const EmailRow = React.memo(function EmailRow({
   );
 });
 
+// No quick actions while rows are being picked: a click picks the row.
+const NO_HOVER_ACTIONS: readonly RowHoverAction[] = [];
+
 // A list row: the swipe wrapper around the email row. Its props are all
 // primitives or stable callbacks, so a re-render of the list (the refresh
 // flag, a new page, another row's selection) only re-renders the rows whose
@@ -376,13 +385,16 @@ const EmailListItem = React.memo(function EmailListItem({
   swipeMode,
   inJunk,
   onSwipe,
+  hoverActions,
   ...rowProps
-}: React.ComponentProps<typeof EmailRow> & {
+}: Omit<React.ComponentProps<typeof EmailRow>, 'hovered'> & {
   swipeLeftAction: SwipeAction;
   swipeRightAction: SwipeAction;
   swipeMode: SwipeMode;
   inJunk: boolean;
   onSwipe: (id: string, action: SwipeAction) => void;
+  /** Quick actions shown under a mouse pointer; handled like swipes. */
+  hoverActions: readonly RowHoverAction[];
 }) {
   const { item } = rowProps;
   const unread = isUnread(item);
@@ -405,7 +417,9 @@ const EmailListItem = React.memo(function EmailListItem({
       context={context}
       onAction={onAction}
     >
-      <EmailRow {...rowProps} />
+      <RowHoverActions actions={hoverActions} unread={unread} starred={starred} onAction={onAction}>
+        {(hovered) => <EmailRow {...rowProps} hovered={hovered} />}
+      </RowHoverActions>
     </SwipeableRow>
   );
 });
@@ -638,6 +652,7 @@ export default function EmailListScreen({
     () => collapseThreads(emails, disableThreading),
     [emails, disableThreading],
   );
+  const rowHoverListProps = useRowHoverList(visibleEmails);
   // Performance harness (off unless launched with -perfMarks YES).
   const scrollMonitor = React.useMemo(() => createFrameMonitor('list-scroll'), []);
   React.useEffect(() => { perfOnce('list-mounted'); }, []);
@@ -698,6 +713,10 @@ export default function EmailListScreen({
   const archiveMailboxId = React.useMemo(
     () => findArchiveMailbox(scopedMailboxes)?.id ?? null,
     [scopedMailboxes],
+  );
+  const hoverActions = React.useMemo(
+    () => rowHoverActions(archiveEnabled && !!archiveMailboxId && currentMailboxId !== archiveMailboxId),
+    [archiveEnabled, archiveMailboxId, currentMailboxId],
   );
   const trashMailboxId = React.useMemo(
     () => findTrashMailbox(scopedMailboxes)?.id ?? null,
@@ -946,6 +965,7 @@ export default function EmailListScreen({
           swipeMode={swipeMode}
           inJunk={inJunk}
           onSwipe={handleRowSwipe}
+          hoverActions={selectionMode ? NO_HOVER_ACTIONS : hoverActions}
           item={item}
           threadCount={threadCountFor(item)}
           showPreview={showPreview}
@@ -968,7 +988,7 @@ export default function EmailListScreen({
     },
     [
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
-      swipeMode, handleRowSwipe, disableThreading, rowFlags, rowTagIds, threadCountFor,
+      swipeMode, handleRowSwipe, hoverActions, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipientFor, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
       loadAttachments, openAttachment,
     ],
@@ -1918,6 +1938,7 @@ export default function EmailListScreen({
           onMomentumScrollEnd={scrollMonitor.stop}
           refreshing={loading}
           onRefresh={handleRefresh}
+          {...rowHoverListProps}
         />
       )}
 
@@ -2799,6 +2820,8 @@ function makeStyles(c: ThemePalette) {
   // Webmail: unread rows get bg-accent/30. Opaque, since the row covers
   // its swipe actions.
   emailRowUnread: { backgroundColor: mix(c.accent, c.background, 0.3) },
+  // Under a mouse pointer (webmail: hover:bg-muted).
+  emailRowHovered: { backgroundColor: c.muted },
   emailRowPressed: { backgroundColor: c.surface },
   emailRowSelected: { backgroundColor: c.selection },
   // The message open next to the list (webmail: bg-selection with a primary
