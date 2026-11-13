@@ -1378,6 +1378,23 @@
       "mobile_description": "Semnați și criptați e-mailurile cu certificate S/MIME.",
       "mobile_explainer": "S/MIME nu este încă disponibil în aplicația mobilă. Gestionați cheile și certificatele în webmail; aici, mesajele semnate sunt afișate fără verificare."
     },
+    "sync": {
+      "account": "Păstrați-le în",
+      "account_desc": "Un singur cont păstrează setările întregii aplicații.",
+      "description": "Păstrați setările în contul de e-mail, ca celelalte dispozitive să le aibă pe aceleași.",
+      "enabled": "Sincronizează setările",
+      "enabled_desc": "Opțiunile potrivite doar unui dispozitiv, precum panoul de citire și e-mailul offline, rămân pe acesta.",
+      "keep_mine": "Folosiți setările acestui dispozitiv",
+      "replaced": "{count, plural, one {# setare de pe acest dispozitiv urmează acum contul dvs.} few {# setări de pe acest dispozitiv urmează acum contul dvs.} other {# de setări de pe acest dispozitiv urmează acum contul dvs.}}",
+      "reset_everywhere": "Sincronizarea setărilor este activă, deci setările sunt resetate și pe celelalte dispozitive.",
+      "status_full": "Contul nu mai are loc pentru setări.",
+      "status_signed_out": "Contul care vă păstra setările este deconectat. Alegeți contul în care să fie păstrate.",
+      "status_syncing": "Se sincronizează…",
+      "status_unreachable": "Contul nu a putut fi contactat. Se va încerca din nou.",
+      "status_unsupported": "Serverul de e-mail al acestui cont nu poate păstra setări.",
+      "title": "Sincronizarea setărilor",
+      "too_large": "{count, plural, one {# listă lungă rămâne pe acest dispozitiv: contul nu mai are loc pentru altele.} few {# liste lungi rămân pe acest dispozitiv: contul nu mai are loc pentru altele.} other {# de liste lungi rămân pe acest dispozitiv: contul nu mai are loc pentru altele.}}"
+    },
     "tabs": {
       "plugins": "Pluginuri",
       "updates": "Actualizări",

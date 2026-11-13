@@ -1375,6 +1375,23 @@
       "mobile_description": "Signér og kryptér mail med S/MIME-certifikater.",
       "mobile_explainer": "S/MIME er endnu ikke tilgængelig i mobilappen. Administrér nøgler og certifikater i webmailen; signerede beskeder vises her uden verifikation."
     },
+    "sync": {
+      "account": "Gem dem i",
+      "account_desc": "Én konto gemmer indstillingerne for hele appen.",
+      "description": "Gem dine indstillinger i din mailkonto, så dine andre enheder har de samme.",
+      "enabled": "Synkronisér indstillinger",
+      "enabled_desc": "Valg, der kun giver mening på én enhed, som læseruden og offlinemail, bliver på den.",
+      "keep_mine": "Brug denne enheds",
+      "replaced": "{count, plural, one {# indstilling på denne enhed følger nu din konto.} other {# indstillinger på denne enhed følger nu din konto.}}",
+      "reset_everywhere": "Synkronisering af indstillinger er slået til, så de nulstilles også på dine andre enheder.",
+      "status_full": "Kontoen har ikke mere plads til indstillinger.",
+      "status_signed_out": "Kontoen, der gemte dine indstillinger, er logget ud. Vælg den konto, de skal gemmes i.",
+      "status_syncing": "Synkroniserer…",
+      "status_unreachable": "Kunne ikke få forbindelse til kontoen. Der prøves igen.",
+      "status_unsupported": "Mailserveren for denne konto kan ikke gemme indstillinger.",
+      "title": "Synkronisering af indstillinger",
+      "too_large": "{count, plural, one {# lang liste bliver på denne enhed: kontoen har ikke plads til flere.} other {# lange lister bliver på denne enhed: kontoen har ikke plads til flere.}}"
+    },
     "tabs": {
       "plugins": "Plugins",
       "updates": "Opdateringer",

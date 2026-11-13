@@ -1374,6 +1374,23 @@
       "mobile_description": "Levelek aláírása és titkosítása S/MIME-tanúsítványokkal.",
       "mobile_explainer": "Az S/MIME még nem érhető el a mobilalkalmazásban. A kulcsokat és tanúsítványokat a webmailben kezelheted; az aláírt üzenetek itt ellenőrzés nélkül jelennek meg."
     },
+    "sync": {
+      "account": "Tárolás itt:",
+      "account_desc": "Egyetlen fiók tárolja az egész alkalmazás beállításait.",
+      "description": "Tárold a beállításaidat a levelezőfiókodban, hogy a többi eszközödön is ugyanazok legyenek.",
+      "enabled": "Beállítások szinkronizálása",
+      "enabled_desc": "Az egy eszközre szabott opciók, például az olvasópanel és az offline levelezés, azon az eszközön maradnak.",
+      "keep_mine": "Ennek az eszköznek a használata",
+      "replaced": "{count, plural, one {# beállítás ezen az eszközön mostantól a fiókodat követi.} other {# beállítás ezen az eszközön mostantól a fiókodat követi.}}",
+      "reset_everywhere": "A beállítások szinkronizálása be van kapcsolva, ezért a többi eszközödön is visszaállnak.",
+      "status_full": "A fiókban nincs több hely a beállításoknak.",
+      "status_signed_out": "A beállításaidat tároló fiókból kijelentkeztél. Válaszd ki a fiókot, ahol tárolni kell őket.",
+      "status_syncing": "Szinkronizálás…",
+      "status_unreachable": "A fiók nem érhető el. Újra megpróbáljuk.",
+      "status_unsupported": "A fiók levelezőszervere nem tud beállításokat tárolni.",
+      "title": "Beállítások szinkronizálása",
+      "too_large": "{count, plural, one {# hosszú lista ezen az eszközön marad: a fiókban nincs hely továbbiaknak.} other {# hosszú lista ezen az eszközön marad: a fiókban nincs hely továbbiaknak.}}"
+    },
     "tabs": {
       "plugins": "Bővítmények",
       "updates": "Frissítések",

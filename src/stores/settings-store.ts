@@ -352,6 +352,13 @@ export interface PersistedSettings {
   // cache past this, the oldest messages are evicted to fit.
   offlineCacheMaxMB: number;
 
+  // Settings sync (#117): the settings are kept in an account's mailbox, so
+  // the user's other devices and this one have the same (lib/settings-sync).
+  // Which account, with several signed in: null until the first one is
+  // taken (stores/settings-sync-store).
+  settingsSyncEnabled: boolean;
+  settingsSyncAccountId: string | null;
+
   // calendar: the colour of the virtual Birthdays calendar (webmail
   // birthdayCalendarColor).
   birthdayCalendarColor: string;
@@ -380,7 +387,7 @@ export interface PersistedSettings {
   explicitSettings: string[];
 }
 
-const DEFAULT_PERSISTED: PersistedSettings = {
+export const DEFAULT_PERSISTED: PersistedSettings = {
   dateFormat: 'smart',
   timeFormat: '24h',
   includeGroupInUnified: true,
@@ -542,6 +549,9 @@ const DEFAULT_PERSISTED: PersistedSettings = {
   offlineCacheDays: 7,
   offlineCacheMaxMB: 50,
 
+  settingsSyncEnabled: true,
+  settingsSyncAccountId: null,
+
   // calendar:
   birthdayCalendarColor: '#eab308',
   // platform:
@@ -618,6 +628,14 @@ export interface SettingsState extends PersistedSettings {
   updateSidebarApp: (id: string, updates: Partial<Omit<SidebarApp, 'id'>>) => void;
   removeSidebarApp: (id: string) => void;
   reorderSidebarApps: (apps: SidebarApp[]) => void;
+
+  /**
+   * Take settings another device changed (stores/settings-sync-store):
+   * `values` by key, already checked with acceptSyncedValue, and the keys
+   * another device put back to their default. They count as chosen or not
+   * as they did there, and the organisation's locks hold over them.
+   */
+  applySyncedSettings: (values: Partial<PersistedSettings>, resets: (keyof PersistedSettings)[]) => void;
 
   /**
    * Apply what the active account's organisation policy does to the
@@ -723,6 +741,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   // chosen value looks like.
   activeThemeId: (v) => typeof v === 'string' && v.length > 0,
   trustedSendersAddressBook: (v) => typeof v === 'boolean',
+  settingsSyncAccountId: (v) => typeof v === 'string' && v.length > 0,
   sidebarApps: (v) => Array.isArray(v) && v.every((a) =>
     a && typeof a === 'object'
     && typeof (a as SidebarApp).id === 'string'
@@ -730,38 +749,40 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
     && typeof (a as SidebarApp).url === 'string'),
 };
 
+/**
+ * A stored or imported value of `k` as the store keeps it, or undefined when
+ * it isn't one: only a value whose basic shape matches the default and that
+ * the per-key validator (when there is one) accepts.
+ */
+function adoptValue(k: keyof PersistedSettings, v: unknown): unknown {
+  if (v === undefined || v === null) return undefined;
+  const def = DEFAULT_PERSISTED[k];
+  const validator = VALIDATORS[k];
+  if (validator && !validator(v)) return undefined;
+  if (k === 'bottomQuickActions') return normalizeBottomQuickActions(v);
+  if (k === 'notificationMutes') return normalizeNotificationMutes(v);
+  // No default to compare the shape with: the validator has decided.
+  if (def === null) return validator ? v : undefined;
+  if (Array.isArray(def)) return Array.isArray(v) ? v : undefined;
+  if (typeof def === 'object') {
+    return typeof v === 'object' && !Array.isArray(v) ? { ...(def as object), ...(v as object) } : undefined;
+  }
+  return typeof def === typeof v ? v : undefined;
+}
+
 export function mergeWithDefaults(parsed: Partial<PersistedSettings>): PersistedSettings {
   const out: Record<string, unknown> = { ...DEFAULT_PERSISTED };
   for (const k of PERSIST_KEYS) {
-    const v = parsed[k];
-    if (v === undefined || v === null) continue;
-    const def = DEFAULT_PERSISTED[k];
-    // Type-tolerant merge: only adopt when the basic shape matches the default
-    // and the per-key validator (when there is one) accepts the value.
-    const validator = VALIDATORS[k];
-    if (validator && !validator(v)) continue;
-    if (k === 'bottomQuickActions') {
-      out[k] = normalizeBottomQuickActions(v);
-    } else if (k === 'notificationMutes') {
-      out[k] = normalizeNotificationMutes(v);
-    } else if (def === null) {
-      // No default to compare the shape with: the validator has decided.
-      if (validator) out[k] = v;
-    } else if (Array.isArray(def)) {
-      if (Array.isArray(v)) out[k] = v;
-    } else if (typeof def === 'object') {
-      if (typeof v === 'object' && !Array.isArray(v)) out[k] = { ...(def as object), ...(v as object) };
-    } else if (typeof def === typeof v) {
-      out[k] = v;
-    }
+    const v = adoptValue(k, parsed[k]);
+    if (v !== undefined) out[k] = v;
   }
   return out as unknown as PersistedSettings;
 }
 
 // RN key → webmail key for the keys whose names differ. Everything else is
 // exported under its own name. Device-local keys (DEVICE_LOCAL_KEYS) are
-// never exported or imported. This is also the mapping a future settings
-// sync would use (see docs/parity/08-settings-push-i18n-ui.md).
+// never exported or imported. Settings sync stores the settings under the
+// same webmail names (docs/settings-sync.md).
 export const SETTINGS_KEY_MAP: Partial<Record<keyof PersistedSettings, string>> = {
   calendarFirstDayOfWeek: 'firstDayOfWeek',
   calendarTimeZone: 'timeZone',
@@ -795,7 +816,63 @@ export const DEVICE_LOCAL_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<k
   'filesShowHiddenFiles',
   'calendarDefaultView',
   'blockScreenshots',
+  'settingsSyncEnabled',
+  'settingsSyncAccountId',
 ]);
+
+/**
+ * Settings an export carries that still don't sync between devices
+ * (lib/settings-sync), because another device can't simply take them over:
+ * - notifications depend on this device's permission and its push
+ *   registration, which switching them off takes down;
+ * - the maps are keyed by the JMAP ids of the accounts signed in here, and
+ *   the app fills some of them in by itself;
+ * - trusted senders grow with every reply and would need merging sender by
+ *   sender; "Sync trusted senders with contacts" already shares them;
+ * - the list order goes with the direction, which is a device setting
+ *   (mailSortAscending), and a change of it has to re-read the lists;
+ * - debug logging is for the device being looked at.
+ */
+export const UNSYNCED_SETTING_KEYS: ReadonlySet<keyof PersistedSettings> = new Set<keyof PersistedSettings>([
+  'emailNotificationsEnabled',
+  'calendarNotificationsEnabled',
+  'pushNotifyInboxOnly',
+  'appIconUnreadBadge',
+  'notificationMutes',
+  'preferredIdentityIds',
+  'sharedCalendarColors',
+  'trustedSenders',
+  'messageListOrder',
+  'messageListOrderScope',
+  'debugMode',
+  'debugCategories',
+]);
+
+/** The settings that sync between devices. */
+export const SYNCED_SETTING_KEYS: readonly (keyof PersistedSettings)[] = PERSIST_KEYS.filter(
+  (k) => !DEVICE_LOCAL_KEYS.has(k) && !UNSYNCED_SETTING_KEYS.has(k) && k !== 'explicitSettings',
+);
+
+/**
+ * A change the user made to the settings, as opposed to one the organisation
+ * policy, a restart or another device made. `reset` is "Reset settings":
+ * every key went back to its default.
+ */
+export interface SettingsUserChange {
+  keys: (keyof PersistedSettings)[];
+  reset: boolean;
+}
+
+let userChangeListener: ((change: SettingsUserChange) => void) | null = null;
+
+/** Called after each change the user makes (the sync store stamps and sends it). */
+export function setSettingsUserChangeListener(listener: ((change: SettingsUserChange) => void) | null): void {
+  userChangeListener = listener;
+}
+
+function userChanged(keys: (keyof PersistedSettings)[], reset = false): void {
+  userChangeListener?.({ keys, reset });
+}
 
 export function toExportShape(state: PersistedSettings): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -946,6 +1023,19 @@ function currentPolicyPatch(state: PersistedSettings): Partial<PersistedSettings
   ) as Partial<PersistedSettings>;
 }
 
+/**
+ * A value another device stored for `key`, as this one would keep it, or
+ * undefined when it can't: a value this version doesn't know, or one the
+ * organisation doesn't allow here. Null stands for "none" where that is
+ * what the setting starts as (no theme picked).
+ */
+export function acceptSyncedValue(key: keyof PersistedSettings, value: unknown): unknown {
+  if (value === null) return DEFAULT_PERSISTED[key] === null ? null : undefined;
+  const adopted = adoptValue(key, value);
+  if (adopted === undefined || !policyAllowsValue(key, adopted, policyRules)) return undefined;
+  return adopted;
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...DEFAULT_PERSISTED,
   identities: [],
@@ -1023,6 +1113,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const explicit = get().explicitSettings;
     const mark = isPolicySettingKey(key) && !explicit.includes(key);
     set({ [key]: value, ...(mark ? { explicitSettings: [...explicit, key] } : {}) } as Partial<SettingsState>);
+    persist(snapshot(get()));
+    if (value !== current || mark) userChanged([key]);
+  },
+
+  applySyncedSettings: (values, resets) => {
+    const state = snapshot(get());
+    const explicit = new Set(state.explicitSettings);
+    const next: Record<string, unknown> = { ...state };
+    for (const [key, value] of Object.entries(values)) {
+      next[key] = value;
+      if (isPolicySettingKey(key)) explicit.add(key);
+    }
+    for (const key of resets) {
+      next[key] = DEFAULT_PERSISTED[key];
+      explicit.delete(key);
+    }
+    next.explicitSettings = [...explicit];
+    const merged = next as unknown as PersistedSettings;
+    set({ ...merged, ...currentPolicyPatch(merged) });
     persist(snapshot(get()));
   },
 
@@ -1106,6 +1215,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const id = `app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     set({ sidebarApps: [...get().sidebarApps, { ...app, id }] });
     persist(snapshot(get()));
+    userChanged(['sidebarApps']);
   },
 
   updateSidebarApp: (id, updates) => {
@@ -1113,23 +1223,30 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       sidebarApps: get().sidebarApps.map((a) => (a.id === id ? { ...a, ...updates } : a)),
     });
     persist(snapshot(get()));
+    userChanged(['sidebarApps']);
   },
 
   removeSidebarApp: (id) => {
     set({ sidebarApps: get().sidebarApps.filter((a) => a.id !== id) });
     persist(snapshot(get()));
+    userChanged(['sidebarApps']);
   },
 
   reorderSidebarApps: (apps) => {
     set({ sidebarApps: apps });
     persist(snapshot(get()));
+    userChanged(['sidebarApps']);
   },
 
   resetToDefaults: () => {
-    set({ ...DEFAULT_PERSISTED, explicitSettings: [] });
+    // Whether and where the settings sync stays as it is: a reset on a
+    // device that keeps its settings to itself must not start sending them.
+    const { settingsSyncEnabled, settingsSyncAccountId } = get();
+    set({ ...DEFAULT_PERSISTED, explicitSettings: [], settingsSyncEnabled, settingsSyncAccountId });
     // The defaults here are the organisation's, then the build's.
     set(currentPolicyPatch(snapshot(get())) as Partial<SettingsState>);
     persist(snapshot(get()));
+    userChanged([...PERSIST_KEYS], true);
   },
 
   exportSettings: () => JSON.stringify(toExportShape(snapshot(get())), null, 2),
@@ -1161,6 +1278,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // Locks hold over an imported file too.
     set({ ...merged, ...currentPolicyPatch(merged) });
     persist(snapshot(get()));
+    userChanged(Object.keys(incoming).filter((key) => key !== 'explicitSettings') as (keyof PersistedSettings)[]);
     return true;
   },
 

@@ -8,19 +8,23 @@ import Button from '../Button';
 import Dialog from '../Dialog';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
+import { distinctAccountLabels } from '../../lib/account-labels';
+import { syncSectionView } from '../../lib/settings-sync';
+import { useAccountStore } from '../../stores/account-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { usePolicyFeature } from '../../stores/policy-store';
 import { useOfflineCacheStore } from '../../stores/offline-cache-store';
 import { useOutboxStore } from '../../stores/outbox-store';
 import { runOfflineSync, formatBytes } from '../../lib/offline-sync';
+import { useSettingsSyncStore } from '../../stores/settings-sync-store';
 
 interface StorageSettingsProps {
   /** Opens Troubleshooting (refresh cached data, debug logging). */
   onOpenTroubleshooting?: () => void;
 }
 
-/** Settings → Storage & backup: offline mail, settings export/import, reset. */
+/** Settings → Storage & backup: offline mail, settings sync, settings export/import, reset. */
 export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -35,6 +39,11 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
   const exportAllowed = usePolicyFeature('settingsExportEnabled');
 
   const [confirmReset, setConfirmReset] = useState(false);
+  // With the settings in the account, a reset reaches the other devices too.
+  const settingsSyncEnabled = useSettingsStore((s) => s.settingsSyncEnabled);
+  // Also while the account can't be reached: the reset goes out once it can.
+  const settingsHeld = useSettingsSyncStore((s) => s.accountId !== null && s.status !== 'unsupported' && s.status !== 'signed-out');
+  const resetEverywhere = settingsSyncEnabled && settingsHeld;
 
   const offlineEnabled = useSettingsStore((s) => s.offlineCacheEnabled);
   const offlineDays = useSettingsStore((s) => s.offlineCacheDays);
@@ -229,6 +238,8 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
         </SettingItem>
       </SettingsSection>
 
+      <SettingsSyncSection formatRelativeTime={formatRelativeTime} />
+
       <SettingsSection
         title={t('settings.backup.title', 'Settings backup')}
         description={t('settings.backup.description', 'Move your settings to another device or the webmail.')}
@@ -268,12 +279,140 @@ export function StorageSettings({ onOpenTroubleshooting }: StorageSettingsProps)
         visible={confirmReset}
         variant="destructive"
         title={t('settings.advanced.reset_settings.label', 'Reset Settings')}
-        message={t('settings.reset_confirm', 'Are you sure you want to reset all settings to defaults?')}
+        message={resetEverywhere
+          ? `${t('settings.reset_confirm', 'Are you sure you want to reset all settings to defaults?')} ${t('settings.sync.reset_everywhere', 'Settings sync is on, so they are reset on your other devices too.')}`
+          : t('settings.reset_confirm', 'Are you sure you want to reset all settings to defaults?')}
         confirmText={t('settings.advanced.reset_settings.button', 'Reset to Defaults')}
         onCancel={() => setConfirmReset(false)}
         onConfirm={handleReset}
       />
     </View>
+  );
+}
+
+interface SettingsSyncSectionProps {
+  /** "5 min ago", as the offline mail card words it. */
+  formatRelativeTime: (ms: number | undefined) => string;
+}
+
+/**
+ * Settings > Storage & backup > Settings sync (#117): the switch, which
+ * account keeps the settings, and how the last round went.
+ */
+function SettingsSyncSection({ formatRelativeTime }: SettingsSyncSectionProps) {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const t = useLocaleStore((s) => s.t);
+  const enabled = useSettingsStore((s) => s.settingsSyncEnabled);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const accounts = useAccountStore((s) => s.accounts);
+  const status = useSettingsSyncStore((s) => s.status);
+  const picked = useSettingsStore((s) => s.settingsSyncAccountId);
+  const lastSyncedAt = useSettingsSyncStore((s) => s.lastSyncedAt);
+  const tooLarge = useSettingsSyncStore((s) => s.tooLarge.length);
+  const replaced = useSettingsSyncStore((s) => s.replaced);
+  const syncNow = useSettingsSyncStore((s) => s.syncNow);
+  const keepReplaced = useSettingsSyncStore((s) => s.keepReplaced);
+  const dismissReplaced = useSettingsSyncStore((s) => s.dismissReplaced);
+
+  const labels = React.useMemo(() => distinctAccountLabels(accounts), [accounts]);
+  const view = syncSectionView({ enabled, status, accountIds: accounts.map((a) => a.id), picked });
+  if (!view.visible) return null;
+  const accountOptions = [
+    // The holder signed out: nothing is picked until the user does.
+    ...(view.holder === '' ? [{ value: '', label: t('files.choose_account', 'Choose an account') }] : []),
+    ...accounts.map((a) => ({ value: a.id, label: labels.get(a.id) ?? a.email })),
+  ];
+
+  const statusLine = (): string => {
+    switch (status) {
+      case 'signed-out':
+        return t('settings.sync.status_signed_out', 'The account that kept your settings is signed out. Pick the account to keep them in.');
+      case 'unsupported':
+        return t('settings.sync.status_unsupported', "This account's mail server can't keep settings.");
+      case 'unreachable':
+        return t('settings.sync.status_unreachable', "Couldn't reach the account. It will be tried again.");
+      case 'full':
+        return t('settings.sync.status_full', 'The account has no room left for settings.');
+      case 'synced':
+        return t('settings.offline.synced', 'Synced {when}', { when: formatRelativeTime(lastSyncedAt ?? undefined) });
+      default:
+        return t('settings.sync.status_syncing', 'Syncing…');
+    }
+  };
+  const replacedCount = replaced ? Object.keys(replaced).length : 0;
+
+  return (
+    <SettingsSection
+      title={t('settings.sync.title', 'Settings sync')}
+      description={t('settings.sync.description', 'Keep your settings in your mail account, so your other devices have the same ones.')}
+    >
+      <SettingItem
+        label={t('settings.sync.enabled', 'Sync settings')}
+        description={t('settings.sync.enabled_desc', 'Choices that fit one device, such as the reading pane and offline mail, stay on it.')}
+        noBorder={!enabled}
+      >
+        <ToggleSwitch checked={enabled} onChange={(v) => updateSetting('settingsSyncEnabled', v)} />
+      </SettingItem>
+      {view.showPicker && (
+        <SettingItem
+          label={t('settings.sync.account', 'Keep them in')}
+          description={t('settings.sync.account_desc', 'One account holds the settings of the whole app.')}
+        >
+          <Select
+            value={view.holder}
+            onChange={(id) => { if (id) updateSetting('settingsSyncAccountId', id); }}
+            options={accountOptions}
+          />
+        </SettingItem>
+      )}
+      {enabled && (
+        <View style={styles.statusRow} testID="settings-sync-status">
+          <View style={styles.statusText}>
+            <Text style={styles.status}>{statusLine()}</Text>
+            {tooLarge > 0 && (
+              <Text style={styles.status}>
+                {t(
+                  'settings.sync.too_large',
+                  '{count, plural, one {# long list stays} other {# long lists stay}} on this device: the account has no room for more.',
+                  { count: tooLarge },
+                )}
+              </Text>
+            )}
+          </View>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => void syncNow()}
+            loading={status === 'syncing'}
+            disabled={!view.canSyncNow}
+            // The offline mail card above has a "Sync now" of its own.
+            accessibilityLabel={`${t('settings.sync.title', 'Settings sync')}: ${t('settings.offline.sync_now', 'Sync now')}`}
+          >
+            {t('settings.offline.sync_now', 'Sync now')}
+          </Button>
+        </View>
+      )}
+      {enabled && replacedCount > 0 && (
+        <View style={styles.replaced} testID="settings-sync-replaced">
+          <Text style={styles.replacedText}>
+            {t(
+              'settings.sync.replaced',
+              '{count, plural, one {# setting on this device now follows} other {# settings on this device now follow}} your account.',
+              { count: replacedCount },
+            )}
+          </Text>
+          <View style={styles.replacedButtons}>
+            <Button variant="outline" size="sm" onPress={keepReplaced}>
+              {t('settings.sync.keep_mine', "Use this device's")}
+            </Button>
+            <Button variant="ghost" size="sm" onPress={dismissReplaced}>
+              {t('common.close', 'Close')}
+            </Button>
+          </View>
+        </View>
+      )}
+    </SettingsSection>
   );
 }
 
@@ -301,5 +440,11 @@ function makeStyles(c: ThemePalette) {
     usageFooter: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     usageSub: { ...typography.caption, color: c.mutedForeground },
     buttonPair: { flexDirection: 'row', gap: spacing.sm },
+    statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.md },
+    statusText: { flex: 1, gap: 2 },
+    status: { ...typography.caption, color: c.mutedForeground },
+    replaced: { gap: spacing.sm, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: c.border },
+    replacedText: { ...typography.body, color: c.text },
+    replacedButtons: { flexDirection: 'row', gap: spacing.sm },
   });
 }

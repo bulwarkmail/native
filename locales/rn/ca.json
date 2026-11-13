@@ -1378,6 +1378,23 @@
       "mobile_description": "Signeu i xifreu el correu amb certificats S/MIME.",
       "mobile_explainer": "S/MIME encara no està disponible a l'aplicació mòbil. Gestioneu les claus i els certificats al webmail; aquí els missatges signats es mostren sense verificar."
     },
+    "sync": {
+      "account": "Desa-ho al compte",
+      "account_desc": "Un únic compte conserva la configuració de tota l'aplicació.",
+      "description": "Deseu la configuració al vostre compte de correu perquè els altres dispositius tinguin la mateixa.",
+      "enabled": "Sincronitza la configuració",
+      "enabled_desc": "Les opcions que només tenen sentit en un dispositiu, com el panell de lectura i el correu fora de línia, hi queden.",
+      "keep_mine": "Usa la d'aquest dispositiu",
+      "replaced": "{count, plural, one {# opció d'aquest dispositiu ara segueix el vostre compte.} other {# opcions d'aquest dispositiu ara segueixen el vostre compte.}}",
+      "reset_everywhere": "La sincronització de la configuració està activada, així que també es restableix als altres dispositius.",
+      "status_full": "Al compte no li queda espai per a la configuració.",
+      "status_signed_out": "S'ha tancat la sessió del compte que conservava la configuració. Trieu el compte on desar-la.",
+      "status_syncing": "S'està sincronitzant…",
+      "status_unreachable": "No s'ha pogut accedir al compte. Es tornarà a provar.",
+      "status_unsupported": "El servidor de correu d'aquest compte no pot conservar la configuració.",
+      "title": "Sincronització de la configuració",
+      "too_large": "{count, plural, one {# llista llarga es queda en aquest dispositiu: el compte no té espai per a més.} other {# llistes llargues es queden en aquest dispositiu: el compte no té espai per a més.}}"
+    },
     "tabs": {
       "plugins": "Connectors",
       "updates": "Actualitzacions",

@@ -1382,6 +1382,23 @@
       "mobile_description": "Signer et chiffrer les e-mails avec des certificats S/MIME.",
       "mobile_explainer": "S/MIME n'est pas encore disponible dans l'application mobile. Gérez les clés et certificats dans le webmail. Les messages signés sont affichés ici sans vérification."
     },
+    "sync": {
+      "account": "Les conserver dans",
+      "account_desc": "Un seul compte conserve les paramètres de toute l'application.",
+      "description": "Conservez vos paramètres dans votre compte de messagerie pour retrouver les mêmes sur vos autres appareils.",
+      "enabled": "Synchroniser les paramètres",
+      "enabled_desc": "Les choix propres à un appareil, comme le volet de lecture et le courrier hors ligne, restent sur celui-ci.",
+      "keep_mine": "Utiliser ceux de cet appareil",
+      "replaced": "{count, plural, one {# paramètre de cet appareil suit désormais votre compte.} other {# paramètres de cet appareil suivent désormais votre compte.}}",
+      "reset_everywhere": "La synchronisation des paramètres est activée : ils sont donc aussi réinitialisés sur vos autres appareils.",
+      "status_full": "Le compte n'a plus de place pour les paramètres.",
+      "status_signed_out": "Le compte qui conservait vos paramètres est déconnecté. Choisissez le compte où les conserver.",
+      "status_syncing": "Synchronisation…",
+      "status_unreachable": "Impossible de joindre le compte. Nouvelle tentative à venir.",
+      "status_unsupported": "Le serveur de messagerie de ce compte ne peut pas conserver de paramètres.",
+      "title": "Synchronisation des paramètres",
+      "too_large": "{count, plural, one {# longue liste reste sur cet appareil : le compte n'a plus de place pour en accueillir d'autres.} other {# longues listes restent sur cet appareil : le compte n'a plus de place pour en accueillir d'autres.}}"
+    },
     "tabs": {
       "plugins": "Plugins",
       "updates": "Mises à jour",

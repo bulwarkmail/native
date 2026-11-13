@@ -1379,6 +1379,23 @@
       "mobile_description": "Postaları S/MIME sertifikalarıyla imzalayın ve şifreleyin.",
       "mobile_explainer": "S/MIME henüz mobil uygulamada kullanılamıyor. Anahtarları ve sertifikaları webmail'de yönetin; imzalı iletiler burada doğrulama olmadan gösterilir."
     },
+    "sync": {
+      "account": "Şurada sakla",
+      "account_desc": "Tüm uygulamanın ayarlarını tek bir hesap tutar.",
+      "description": "Ayarlarını posta hesabında sakla; diğer cihazlarında da aynı ayarlar olsun.",
+      "enabled": "Ayarları senkronize et",
+      "enabled_desc": "Okuma bölmesi ve çevrimdışı posta gibi yalnızca tek bir cihaza uyan seçimler o cihazda kalır.",
+      "keep_mine": "Bu cihazınkini kullan",
+      "replaced": "{count, plural, one {Bu cihazdaki # ayar artık hesabını izliyor.} other {Bu cihazdaki # ayar artık hesabını izliyor.}}",
+      "reset_everywhere": "Ayar senkronizasyonu açık olduğundan ayarlar diğer cihazlarında da sıfırlanır.",
+      "status_full": "Hesapta ayarlar için yer kalmadı.",
+      "status_signed_out": "Ayarlarını tutan hesabın oturumu kapalı. Ayarların saklanacağı hesabı seç.",
+      "status_syncing": "Senkronize ediliyor…",
+      "status_unreachable": "Hesaba ulaşılamadı. Yeniden denenecek.",
+      "status_unsupported": "Bu hesabın posta sunucusu ayarları saklayamıyor.",
+      "title": "Ayar senkronizasyonu",
+      "too_large": "{count, plural, one {# uzun liste bu cihazda kalıyor: hesapta daha fazlası için yer yok.} other {# uzun liste bu cihazda kalıyor: hesapta daha fazlası için yer yok.}}"
+    },
     "tabs": {
       "plugins": "Eklentiler",
       "updates": "Güncellemeler",

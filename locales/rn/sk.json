@@ -1377,6 +1377,23 @@
       "mobile_description": "Podpisujte a šifrujte poštu pomocou certifikátov S/MIME.",
       "mobile_explainer": "S/MIME zatiaľ v mobilnej aplikácii nie je k dispozícii. Kľúče a certifikáty spravujte vo webmaile; podpísané správy sa tu zobrazujú bez overenia."
     },
+    "sync": {
+      "account": "Uložiť do účtu",
+      "account_desc": "Nastavenia celej aplikácie uchováva jeden účet.",
+      "description": "Uložte nastavenia do svojho e-mailového účtu, aby ich mali aj vaše ďalšie zariadenia.",
+      "enabled": "Synchronizovať nastavenia",
+      "enabled_desc": "Voľby, ktoré dávajú zmysel len na jednom zariadení, napríklad panel čítania a pošta offline, na ňom zostanú.",
+      "keep_mine": "Použiť nastavenia tohto zariadenia",
+      "replaced": "{count, plural, one {# nastavenie v tomto zariadení sa teraz riadi vaším účtom.} few {# nastavenia v tomto zariadení sa teraz riadia vaším účtom.} many {# nastavenia v tomto zariadení sa teraz riadi vaším účtom.} other {# nastavení v tomto zariadení sa teraz riadi vaším účtom.}}",
+      "reset_everywhere": "Synchronizácia nastavení je zapnutá, takže sa obnovia aj na vašich ďalších zariadeniach.",
+      "status_full": "V účte už nie je miesto pre nastavenia.",
+      "status_signed_out": "Účet, ktorý uchovával vaše nastavenia, je odhlásený. Vyberte účet, do ktorého sa majú ukladať.",
+      "status_syncing": "Synchronizuje sa…",
+      "status_unreachable": "Účet nie je dostupný. Skúsi sa to znova.",
+      "status_unsupported": "Poštový server tohto účtu nevie uchovávať nastavenia.",
+      "title": "Synchronizácia nastavení",
+      "too_large": "{count, plural, one {# dlhý zoznam zostáva v tomto zariadení: v účte nie je miesto pre ďalšie.} few {# dlhé zoznamy zostávajú v tomto zariadení: v účte nie je miesto pre ďalšie.} many {# dlhého zoznamu zostáva v tomto zariadení: v účte nie je miesto pre ďalšie.} other {# dlhých zoznamov zostáva v tomto zariadení: v účte nie je miesto pre ďalšie.}}"
+    },
     "tabs": {
       "plugins": "Pluginy",
       "updates": "Aktualizácie",

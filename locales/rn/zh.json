@@ -1377,6 +1377,23 @@
       "mobile_description": "使用 S/MIME 证书对邮件进行签名和加密。",
       "mobile_explainer": "移动应用暂不支持 S/MIME。请在网页邮箱中管理密钥和证书；已签名的邮件在此显示时不会进行验证。"
     },
+    "sync": {
+      "account": "保存到",
+      "account_desc": "由一个账户保存整个应用的设置。",
+      "description": "把设置保存在您的邮件账户中，这样您的其他设备也会使用相同的设置。",
+      "enabled": "同步设置",
+      "enabled_desc": "只适合单台设备的选项，例如阅读窗格和离线邮件，会保留在该设备上。",
+      "keep_mine": "使用此设备的设置",
+      "replaced": "{count, plural, other {此设备上有 # 项设置已改为跟随您的账户。}}",
+      "reset_everywhere": "设置同步已开启，因此您其他设备上的设置也会被重置。",
+      "status_full": "账户中已没有空间保存设置。",
+      "status_signed_out": "保存您设置的账户已退出登录。请选择用来保存设置的账户。",
+      "status_syncing": "正在同步…",
+      "status_unreachable": "无法连接到账户，稍后会重试。",
+      "status_unsupported": "此账户的邮件服务器无法保存设置。",
+      "title": "设置同步",
+      "too_large": "{count, plural, other {账户中没有更多空间，# 个长列表会保留在此设备上。}}"
+    },
     "tabs": {
       "plugins": "插件",
       "updates": "更新",
