@@ -167,9 +167,24 @@ async function createPairingLink(user) {
       await page.waitForURL((u) => !/\/login/.test(u.pathname), { timeout: 30_000 });
     }
 
-    await page.goto(`${WEBMAIL}/en/settings/security`, { waitUntil: 'domcontentloaded' });
+    // The Security page now and then lands on the webmail's "Something went
+    // wrong / This page stopped working" screen instead: load it again, up
+    // to twice, before giving up.
     const show = page.getByRole('button', { name: /Show QR code/i });
-    await show.waitFor({ timeout: 30_000 });
+    for (let attempt = 1; ; attempt++) {
+      if (attempt === 1) await page.goto(`${WEBMAIL}/en/settings/security`, { waitUntil: 'domcontentloaded' });
+      else await page.reload({ waitUntil: 'domcontentloaded' });
+      try {
+        await show.waitFor({ timeout: attempt === 3 ? 30_000 : 20_000 });
+        break;
+      } catch (err) {
+        if (attempt === 3) throw err;
+        if (process.env.HELPER_SHOTS) {
+          await page.screenshot({ path: path.join(process.env.HELPER_SHOTS, `pair-${user}-retry-${Date.now()}.png`), fullPage: true }).catch(() => undefined);
+        }
+        log(`pair: no "Show QR code" for ${user} (attempt ${attempt}), loading the page again`);
+      }
+    }
     await show.click();
 
     // Step-up: the password again (and a code for a TOTP account).
