@@ -880,6 +880,24 @@
     "send_anyway": "Sūtīt tik un tā",
     "back": "Atpakaļ"
   },
+  "phishing_report": {
+    "action": "Ziņot par pikšķerēšanu…",
+    "confirm_title": "Ziņot par pikšķerēšanu?",
+    "confirm_message": "{count, plural, =1 {Ziņojums tiks nosūtīts uz {address} un pārvietots uz mapi Mēstules.} zero {# ziņojumi tiks nosūtīti uz {address}, katrs atsevišķi, un pārvietoti uz mapi Mēstules.} one {# ziņojums tiks nosūtīts uz {address}, katrs atsevišķi, un pārvietots uz mapi Mēstules.} other {# ziņojumi tiks nosūtīti uz {address}, katrs atsevišķi, un pārvietoti uz mapi Mēstules.}}",
+    "confirm": "Ziņot",
+    "cancel": "Atcelt",
+    "sending": "Notiek ziņošana…",
+    "done": "{count, plural, =1 {Nosūtīts uz {address} un pārvietots uz mapi Mēstules.} zero {# ziņojumi nosūtīti uz {address} un pārvietoti uz mapi Mēstules.} one {# ziņojums nosūtīts uz {address} un pārvietots uz mapi Mēstules.} other {# ziņojumi nosūtīti uz {address} un pārvietoti uz mapi Mēstules.}}",
+    "not_moved": "{count, plural, =1 {Nosūtīts uz {address}, bet ziņojumu neizdevās pārvietot uz mapi Mēstules.} zero {Nosūtīti uz {address}, bet # ziņojumus neizdevās pārvietot uz mapi Mēstules.} one {Nosūtīti uz {address}, bet # ziņojumu neizdevās pārvietot uz mapi Mēstules.} other {Nosūtīti uz {address}, bet # ziņojumus neizdevās pārvietot uz mapi Mēstules.}}",
+    "failed": "{count, plural, =1 {Neizdevās ziņot par ziņojumu.} zero {Neizdevās ziņot par # ziņojumiem.} one {Neizdevās ziņot par # ziņojumu.} other {Neizdevās ziņot par # ziņojumiem.}}",
+    "undo": "Atsaukt",
+    "undone": "{count, plural, =1 {Pārvietots atpakaļ. Ziņa par pikšķerēšanu jau ir nosūtīta.} zero {Pārvietoti atpakaļ. Ziņas par pikšķerēšanu jau ir nosūtītas.} one {Pārvietoti atpakaļ. Ziņas par pikšķerēšanu jau ir nosūtītas.} other {Pārvietoti atpakaļ. Ziņas par pikšķerēšanu jau ir nosūtītas.}}",
+    "undo_failed": "Neizdevās pārvietot atpakaļ.",
+    "banner": "Jūs ziņojāt par šo ziņojumu kā par pikšķerēšanu. Tā saites ir izslēgtas.",
+    "link_off": "saite izslēgta",
+    "link_off_note": "(saite izslēgta)",
+    "no_subject": "(bez temata)"
+  },
   "email_composer": {
     "select_from_directory": "Izvēlēties no kataloga",
     "minimize": "Minimizēt",

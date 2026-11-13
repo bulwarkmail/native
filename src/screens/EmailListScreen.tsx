@@ -7,7 +7,7 @@ import {
   Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
-  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe, MoreVertical,
+  Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe, MoreVertical, Fish,
 } from '../components/icons';
 import { GlobalSearchSheet } from '../components/search/GlobalSearchSheet';
 import { ActionSheet } from '../components/email/ActionSheet';
@@ -91,6 +91,9 @@ import { createFrameMonitor, logModuleTimes, perfOnce, perfStart } from '../lib/
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { searchEverythingPlacement } from '../lib/search-everything-entry';
 import { fitToolbarActions } from '../lib/selection-toolbar';
+import { reportableOf } from '../lib/phishing-report';
+import { reportedKey, usePhishingReportStore } from '../stores/phishing-report-store';
+import { confirmPhishingReport, reportAsPhishing, usePhishingReportSetup } from '../lib/phishing-report-flow';
 import { setPromptListColumn } from '../lib/push-prompt-frame';
 
 // The server refuses keywords per message (a read-only shared folder;
@@ -1080,6 +1083,27 @@ export default function EmailListScreen({
   const canSpamSelection =
     currentRole !== 'sent' && currentRole !== 'drafts' && (inJunk || junkMailboxId != null);
 
+  // Report phishing for the selection, one report per message (#124).
+  const phishingSetup = usePhishingReportSetup();
+  const reportedThisSession = usePhishingReportStore((s) => s.reported);
+  const phishingSelection = React.useMemo(() => {
+    if (!phishingSetup) return [];
+    // Each row's folders are looked up in its own account: raw folder ids
+    // repeat across accounts.
+    return selectedEmails.filter((email) => {
+      const accountId = accountIdOfRow(email);
+      return !reportedThisSession[reportedKey(email.id, accountId)]
+        && reportableOf([email], currentRole, mailboxesOfAccount(mailboxes, accountId)).length > 0;
+    });
+  }, [phishingSetup, selectedEmails, currentRole, mailboxes, reportedThisSession]);
+  const handleBulkReportPhishing = async () => {
+    const rows = phishingSelection;
+    if (!phishingSetup || rows.length === 0) return;
+    if (!(await confirmPhishingReport(rows.length, phishingSetup.address))) return;
+    clearSelection();
+    await reportAsPhishing(rows.map((email) => ({ email, accountId: accountIdOfRow(email) })), phishingSetup);
+  };
+
   const handleBatchMovePick = (toId: string) => {
     const ids = selectedMessageIds;
     setBatchMoveOpen(false);
@@ -1369,7 +1393,7 @@ export default function EmailListScreen({
 
   // The selection toolbar's actions, in bar order. What doesn't fit the
   // list column goes into a "More" menu, the least used first.
-  type SelectionAction = 'star' | 'read' | 'tag' | 'move' | 'spam' | 'archive' | 'delete';
+  type SelectionAction = 'star' | 'read' | 'tag' | 'move' | 'spam' | 'phishing' | 'archive' | 'delete';
   const selectionActions: Array<{ key: SelectionAction; label: string; icon: React.ReactNode; onPress: () => void }> = [
     {
       key: 'star',
@@ -1409,6 +1433,12 @@ export default function EmailListScreen({
       icon: inJunk ? <ShieldCheck size={20} color={c.text} /> : <ShieldAlert size={20} color={c.text} />,
       onPress: () => reportFailure(handleBulkSpam()),
     }] : []),
+    ...(phishingSelection.length > 0 ? [{
+      key: 'phishing' as const,
+      label: t('phishing_report.action', 'Report phishing…'),
+      icon: <Fish size={20} color={c.text} />,
+      onPress: () => reportFailure(handleBulkReportPhishing()),
+    }] : []),
     ...(canArchiveSelection ? [{
       key: 'archive' as const,
       label: t('context_menu.archive', 'Archive'),
@@ -1427,7 +1457,7 @@ export default function EmailListScreen({
     // Padding (sm each side), the close button and the count (min 24 + xs each side).
     reserved: spacing.sm * 2 + componentSizes.buttonLg + 24 + spacing.xs * 2,
     button: componentSizes.buttonLg,
-    overflowOrder: ['spam', 'tag', 'star', 'read', 'move', 'archive', 'delete'],
+    overflowOrder: ['phishing', 'spam', 'tag', 'star', 'read', 'move', 'archive', 'delete'],
   });
 
   const renderSearchBar = (inHeader: boolean) => (

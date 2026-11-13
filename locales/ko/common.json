@@ -880,6 +880,24 @@
     "send_anyway": "그래도 보내기",
     "back": "뒤로"
   },
+  "phishing_report": {
+    "action": "피싱 신고…",
+    "confirm_title": "피싱으로 신고할까요?",
+    "confirm_message": "{count, plural, =1 {메시지를 {address} 주소로 보내고 스팸함으로 옮겨요.} other {메시지 #개를 각각 별도의 신고로 {address} 주소로 보내고 스팸함으로 옮겨요.}}",
+    "confirm": "신고",
+    "cancel": "취소",
+    "sending": "신고하는 중…",
+    "done": "{count, plural, =1 {{address} 주소로 신고하고 스팸함으로 옮겼어요.} other {메시지 #개를 {address} 주소로 신고하고 스팸함으로 옮겼어요.}}",
+    "not_moved": "{count, plural, =1 {{address} 주소로 신고했지만 메시지를 스팸함으로 옮기지 못했어요.} other {{address} 주소로 신고했지만 메시지 #개를 스팸함으로 옮기지 못했어요.}}",
+    "failed": "{count, plural, =1 {메시지를 신고하지 못했어요.} other {메시지 #개를 신고하지 못했어요.}}",
+    "undo": "실행 취소",
+    "undone": "{count, plural, =1 {원래 위치로 되돌렸어요. 신고는 이미 보내졌어요.} other {원래 위치로 되돌렸어요. 신고는 이미 보내졌어요.}}",
+    "undo_failed": "되돌리지 못했어요.",
+    "banner": "이 메시지를 피싱으로 신고했어요. 메시지의 링크는 꺼져 있어요.",
+    "link_off": "링크 꺼짐",
+    "link_off_note": "(링크 꺼짐)",
+    "no_subject": "(제목 없음)"
+  },
   "email_composer": {
     "select_from_directory": "디렉터리에서 선택",
     "minimize": "최소화",

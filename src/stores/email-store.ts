@@ -144,6 +144,18 @@ function currentAccountId(state: EmailState): string | undefined {
   return refFor(state.mailboxes, state.currentMailboxId).accountId;
 }
 
+/** How "Report phishing" (#124) files the reported messages (fileReported). */
+export interface SpamOptions {
+  /** Keywords set besides `$junk` (`$phishing`); Undo clears them again. */
+  keywords?: string[];
+  /** Mark read whatever the delete action says: a report shouldn't count as new mail in Junk. */
+  markRead?: boolean;
+  /** The Undo bar's text in place of "Marked as spam". */
+  label?: (count: number) => string;
+  /** Runs once Undo has moved them back (UndoEntry.afterUndo). */
+  afterUndo?: () => void;
+}
+
 /**
  * A message acted on from the viewer: the copy the viewer holds and the JMAP
  * account it lives in (undefined = the user's own). The loaded list only
@@ -366,6 +378,8 @@ export interface UndoEntry {
   undoGroup?: string;
   /** JMAP account the messages live under; unset for the user's own mail. */
   accountId?: string;
+  /** Runs once the undo is done: a report says it already went out (#124). */
+  afterUndo?: () => void;
   /**
    * Keywords the action also changed (spam / not spam flip
    * `$junk`/`$notjunk`). Undo puts just these back to each item's
@@ -536,6 +550,14 @@ export interface EmailState {
   markSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
   /** Inverse of markSpam: back to Inbox with `$notjunk`. */
   unmarkSpam: (emailIds: string[], viewed?: ViewedEmail) => Promise<void>;
+  /**
+   * File reported messages (#124) into their own accounts' Junk with
+   * markSpam's options, by account and id rather than by the open list:
+   * a selection's reports take a while, and the user may have opened
+   * another folder meanwhile. One Undo for all. Resolves to the ones filed,
+   * as `<accountId>:<id>` (accountId empty for the user's own).
+   */
+  fileReported: (targets: ViewedEmail[], opts: SpamOptions) => Promise<string[]>;
   // ── Batch (multi-select) actions ──────────────────────────────
   archiveEmailsBatch: (emailIds: string[]) => Promise<void>;
   moveEmailsToMailbox: (emailIds: string[], toMailboxId: string) => Promise<void>;
@@ -1720,6 +1742,40 @@ export const useEmailStore = create<EmailState>()(
     for (const e of targets) patchCache(e.id, { mailboxIds: junkTarget, keywords: keywordPatch }, junk.accountId);
   },
 
+  fileReported: async (targets, opts) => {
+    if (targets.length === 0) return [];
+    const own = jmapClient.connectedAccountId ?? undefined;
+    // Stamped with their account, as rows of a list spanning accounts are.
+    const stamped = targets.map(({ email, accountId }) => ({ ...email, jmapAccountId: accountId ?? own }));
+    const before = get().pendingUndo;
+    try {
+      await fileAcrossAccounts('spam', stamped, undefined, opts);
+    } catch (err) {
+      // Refused for some: the others are filed, and the caller counts them.
+      console.warn('[email-store] filing reported messages failed for some', err);
+    }
+    const entry = get().pendingUndo;
+    if (!entry || entry === before) return [];
+    const filed = new Set(entry.items.map((it) => `${it.accountId ?? ''}:${it.email.id}`));
+    const unstamped = new Map(targets.map(({ email, accountId }) => [`${accountId ?? ''}:${email.id}`, email]));
+    const accounts = new Set(entry.items.map((it) => it.accountId ?? ''));
+    set({
+      // The open list's rows of them go, in whatever account it shows.
+      emails: get().emails.filter((e) => !filed.has(`${rowAccountId(get(), e) ?? ''}:${e.id}`)),
+      // Undo puts them back into the list they came from, a single folder's
+      // rows unstamped as they were.
+      pendingUndo: {
+        ...entry,
+        ...(accounts.size === 1 ? { accountId: entry.items[0].accountId } : {}),
+        items: entry.items.map((it) => ({
+          ...it,
+          email: unstamped.get(`${it.accountId ?? ''}:${it.email.id}`) ?? it.email,
+        })),
+      },
+    });
+    return [...filed];
+  },
+
   unmarkSpam: async (emailIds, viewed) => {
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
@@ -2418,11 +2474,16 @@ export const useEmailStore = create<EmailState>()(
           mailboxIds: it.originalMailboxIds,
           ...(patch ? { keywords: patch } : {}),
         }, accountOf(it));
+        // A message opened again reads its keywords from the detail cache
+        // (a report's `$phishing` turns its links off).
+        const held = patch ? peekDetail(it.email.id, accountOf(it)) : undefined;
+        if (held && patch) patchDetail(it.email.id, accountOf(it), { keywords: applyKeywordPatch(held.keywords, patch) });
       }
     } catch (err) {
       set({ error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed') });
       return;
     }
+    entry.afterUndo?.();
 
     // Re-insert each restored email into the visible list if its original
     // mailboxIds include the current view. Server is the source of truth for
@@ -2627,7 +2688,28 @@ type SpanningAction = 'archive' | 'delete' | 'spam' | 'notSpam' | 'move';
 // list is not one folder it could be taken out of. `move` goes to the picked
 // folder, copying across accounts when it is another account's. One undo
 // covers all accounts.
-async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMailboxId?: string): Promise<void> {
+// The keywords "Mark as spam" sets: `$junk`, `$seen` for the trash-and-read
+// delete action or a report, and a report's own (`$phishing`).
+function spamKeywordPatch(opts?: SpamOptions): KeywordPatch {
+  const markRead = opts?.markRead || useSettingsStore.getState().deleteAction === 'trash-and-read';
+  const patch: KeywordPatch = { $junk: true, $notjunk: null, ...(markRead ? { $seen: true } : {}) };
+  for (const keyword of opts?.keywords ?? []) patch[keyword] = true;
+  return patch;
+}
+
+function spamLabel(count: number, opts?: SpamOptions): string {
+  if (opts?.label) return opts.label(count);
+  return count === 1
+    ? t('email_list.marked_as_spam', 'Marked as spam')
+    : t('email_list.marked_as_spam_count', `${count} emails marked as spam`, { count });
+}
+
+async function fileAcrossAccounts(
+  action: SpanningAction,
+  targets: Email[],
+  toMailboxId?: string,
+  spam?: SpamOptions,
+): Promise<void> {
   const get = useEmailStore.getState;
   const set = useEmailStore.setState;
   const state = get();
@@ -2649,7 +2731,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
   let missing: string | null = null;
   let refreshFolders = false;
   const keywordPatch: KeywordPatch | undefined =
-    action === 'spam' ? { $junk: true, $notjunk: null, ...(settings.deleteAction === 'trash-and-read' ? { $seen: true } : {}) }
+    action === 'spam' ? spamKeywordPatch(spam)
       : action === 'notSpam' ? { $junk: null, $notjunk: true }
         : undefined;
 
@@ -2756,7 +2838,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
       fileInto(accountId, emails, destId, keywordPatch);
       runs.push({
         run: () => (action === 'spam'
-          ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: settings.deleteAction === 'trash-and-read' })
+          ? apiMarkAsSpam(ids(emails), destId, accountId, { markRead: keywordPatch?.$seen === true, keywords: spam?.keywords })
           : apiUndoSpam(ids(emails), destId, accountId)),
         accountId,
         ids: ids(emails),
@@ -2833,7 +2915,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
     : action === 'delete'
       ? (count === 1 ? t('email_list.moved_to_trash', 'Email moved to Trash') : t('email_list.moved_to_trash_count', `${count} emails moved to Trash`, { count }))
       : action === 'spam'
-        ? (count === 1 ? t('email_list.marked_as_spam', 'Marked as spam') : t('email_list.marked_as_spam_count', `${count} emails marked as spam`, { count }))
+        ? spamLabel(count, spam)
         : action === 'notSpam'
           ? (count === 1 ? t('email_list.marked_not_spam', 'Marked as not spam') : t('email_list.marked_not_spam_count', `${count} emails marked as not spam`, { count }))
           : targetName
@@ -2850,6 +2932,7 @@ async function fileAcrossAccounts(action: SpanningAction, targets: Email[], toMa
         pendingUndo: {
           kind: action === 'notSpam' ? 'spam' : action,
           label,
+          ...(action === 'spam' && spam?.afterUndo ? { afterUndo: spam.afterUndo } : {}),
           createdAt: Date.now(),
           ...(keywordPatch ? { keywordPatch } : {}),
           items,

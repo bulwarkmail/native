@@ -880,6 +880,24 @@
     "send_anyway": "Invia comunque",
     "back": "Indietro"
   },
+  "phishing_report": {
+    "action": "Segnala come phishing…",
+    "confirm_title": "Segnalare come phishing?",
+    "confirm_message": "{count, plural, one {Il messaggio viene inviato a {address} e spostato in Spam.} other {Ognuno dei # messaggi viene inviato a {address} come segnalazione separata e spostato in Spam.}}",
+    "confirm": "Segnala",
+    "cancel": "Annulla",
+    "sending": "Segnalazione in corso…",
+    "done": "{count, plural, one {Segnalato a {address} e spostato in Spam.} other {# messaggi segnalati a {address} e spostati in Spam.}}",
+    "not_moved": "{count, plural, one {Segnalato a {address}, ma non è stato possibile spostare il messaggio in Spam.} other {Segnalati a {address}, ma non è stato possibile spostare # messaggi in Spam.}}",
+    "failed": "{count, plural, one {Non è stato possibile segnalare il messaggio.} other {Non è stato possibile segnalare # messaggi.}}",
+    "undo": "Annulla",
+    "undone": "{count, plural, one {Rimesso al suo posto. La segnalazione era già stata inviata.} other {Rimessi al loro posto. Le segnalazioni erano già state inviate.}}",
+    "undo_failed": "Impossibile rimetterlo al suo posto.",
+    "banner": "Hai segnalato questo messaggio come phishing. I suoi link sono disattivati.",
+    "link_off": "link disattivato",
+    "link_off_note": "(link disattivato)",
+    "no_subject": "(nessun oggetto)"
+  },
   "email_composer": {
     "select_from_directory": "Seleziona dalla rubrica aziendale",
     "minimize": "Riduci a icona",

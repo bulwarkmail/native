@@ -70,7 +70,7 @@ export function utf8ToBase64(value: string): string {
 }
 
 /** UTF-8 base64 body, wrapped at 76 chars per RFC 2045. */
-function base64Body(text: string): string {
+export function base64Body(text: string): string {
   return (utf8ToBase64(text).match(/.{1,76}/g) || []).join('\r\n');
 }
 
@@ -92,7 +92,7 @@ function stripHeaderControls(value: string): string {
 }
 
 /** Address-like atoms (mailboxes, message-ids) may contain no whitespace at all. */
-function headerAtom(value: string): string {
+export function headerAtom(value: string): string {
   // eslint-disable-next-line no-control-regex
   return value.replace(/[\x00-\x20\x7F]+/g, '');
 }
@@ -108,7 +108,7 @@ export function encodeHeaderWord(value: string): string {
 }
 
 /** Display-name for a mailbox: encoded-word if non-ASCII, quoted if it uses specials. */
-function displayName(value: string): string {
+export function displayName(value: string): string {
   const encoded = encodeHeaderWord(value);
   if (encoded.startsWith('=?') || !/[()<>[\]:;@\\,."]/.test(encoded)) return encoded;
   return `"${encoded.replace(/["\\]/g, '\\$&')}"`;
@@ -122,7 +122,7 @@ function ensureAngles(messageId: string | string[] | null | undefined): string {
   return trimmed.startsWith('<') ? trimmed : `<${trimmed}>`;
 }
 
-function randomToken(): string {
+export function randomToken(): string {
   const rnd = Math.random().toString(36).slice(2);
   return `${Date.now().toString(36)}.${rnd}`;
 }

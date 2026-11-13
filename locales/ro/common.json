@@ -880,6 +880,24 @@
     "send_anyway": "Trimite oricum",
     "back": "Înapoi"
   },
+  "phishing_report": {
+    "action": "Raportează ca phishing…",
+    "confirm_title": "Raportați ca phishing?",
+    "confirm_message": "{count, plural, one {Mesajul ajunge la {address} și este mutat în Spam.} few {Fiecare dintre cele # mesaje ajunge la {address} ca raport separat și este mutat în Spam.} other {Fiecare dintre cele # de mesaje ajunge la {address} ca raport separat și este mutat în Spam.}}",
+    "confirm": "Raportează",
+    "cancel": "Anulează",
+    "sending": "Se raportează…",
+    "done": "{count, plural, one {Raportat la {address} și mutat în Spam.} few {# mesaje raportate la {address} și mutate în Spam.} other {# de mesaje raportate la {address} și mutate în Spam.}}",
+    "not_moved": "{count, plural, one {Raportat la {address}, dar mesajul nu a putut fi mutat în Spam.} few {Raportate la {address}, dar # mesaje nu au putut fi mutate în Spam.} other {Raportate la {address}, dar # de mesaje nu au putut fi mutate în Spam.}}",
+    "failed": "{count, plural, one {Mesajul nu a putut fi raportat.} few {# mesaje nu au putut fi raportate.} other {# de mesaje nu au putut fi raportate.}}",
+    "undo": "Anulează",
+    "undone": "{count, plural, one {Mutat înapoi. Raportul a fost deja trimis.} few {Mutate înapoi. Rapoartele au fost deja trimise.} other {Mutate înapoi. Rapoartele au fost deja trimise.}}",
+    "undo_failed": "Nu a putut fi mutat înapoi.",
+    "banner": "Ați raportat acest mesaj ca phishing. Linkurile din el sunt dezactivate.",
+    "link_off": "link dezactivat",
+    "link_off_note": "(link dezactivat)",
+    "no_subject": "(fără subiect)"
+  },
   "email_composer": {
     "select_from_directory": "Selectează din director",
     "minimize": "Minimizează",

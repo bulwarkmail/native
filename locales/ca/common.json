@@ -880,6 +880,24 @@
     "send_anyway": "Envia igualment",
     "back": "Enrere"
   },
+  "phishing_report": {
+    "action": "Denuncia com a pesca de credencials…",
+    "confirm_title": "Voleu denunciar-ho com a pesca de credencials?",
+    "confirm_message": "{count, plural, one {El missatge s'envia a {address} i es mou al correu brossa.} other {Cadascun dels # missatges s'envia a {address} com a denúncia independent i es mou al correu brossa.}}",
+    "confirm": "Denuncia",
+    "cancel": "Cancel·la",
+    "sending": "S'està denunciant…",
+    "done": "{count, plural, one {S'ha denunciat a {address} i s'ha mogut al correu brossa.} other {S'han denunciat # missatges a {address} i s'han mogut al correu brossa.}}",
+    "not_moved": "{count, plural, one {S'ha denunciat a {address}, però el missatge no s'ha pogut moure al correu brossa.} other {S'ha denunciat a {address}, però # missatges no s'han pogut moure al correu brossa.}}",
+    "failed": "{count, plural, one {No s'ha pogut denunciar el missatge.} other {No s'han pogut denunciar # missatges.}}",
+    "undo": "Desfés",
+    "undone": "{count, plural, one {S'ha tornat al lloc. La denúncia ja s'havia enviat.} other {S'han tornat al lloc. Les denúncies ja s'havien enviat.}}",
+    "undo_failed": "No s'ha pogut tornar al lloc.",
+    "banner": "Heu denunciat aquest missatge com a pesca de credencials. Els enllaços estan desactivats.",
+    "link_off": "enllaç desactivat",
+    "link_off_note": "(enllaç desactivat)",
+    "no_subject": "(sense assumpte)"
+  },
   "email_composer": {
     "select_from_directory": "Selecciona del directori",
     "minimize": "Minimitza",

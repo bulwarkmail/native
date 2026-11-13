@@ -880,6 +880,24 @@
     "send_anyway": "Wyślij mimo to",
     "back": "Wstecz"
   },
+  "phishing_report": {
+    "action": "Zgłoś phishing…",
+    "confirm_title": "Zgłosić phishing?",
+    "confirm_message": "{count, plural, one {Wiadomość trafi do {address} i zostanie przeniesiona do folderu Spam.} few {# wiadomości trafią do {address}, każda jako osobne zgłoszenie, i zostaną przeniesione do folderu Spam.} many {# wiadomości trafi do {address}, każda jako osobne zgłoszenie, i zostanie przeniesionych do folderu Spam.} other {# wiadomości trafi do {address}, każda jako osobne zgłoszenie, i zostanie przeniesionych do folderu Spam.}}",
+    "confirm": "Zgłoś",
+    "cancel": "Anuluj",
+    "sending": "Zgłaszanie…",
+    "done": "{count, plural, one {Zgłoszono do {address} i przeniesiono do folderu Spam.} few {Zgłoszono # wiadomości do {address} i przeniesiono je do folderu Spam.} many {Zgłoszono # wiadomości do {address} i przeniesiono je do folderu Spam.} other {Zgłoszono # wiadomości do {address} i przeniesiono je do folderu Spam.}}",
+    "not_moved": "{count, plural, one {Zgłoszono do {address}, ale nie udało się przenieść wiadomości do folderu Spam.} few {Zgłoszono do {address}, ale nie udało się przenieść # wiadomości do folderu Spam.} many {Zgłoszono do {address}, ale nie udało się przenieść # wiadomości do folderu Spam.} other {Zgłoszono do {address}, ale nie udało się przenieść # wiadomości do folderu Spam.}}",
+    "failed": "{count, plural, one {Nie udało się zgłosić wiadomości.} few {Nie udało się zgłosić # wiadomości.} many {Nie udało się zgłosić # wiadomości.} other {Nie udało się zgłosić # wiadomości.}}",
+    "undo": "Cofnij",
+    "undone": "{count, plural, one {Przeniesiono z powrotem. Zgłoszenie zostało już wysłane.} few {Przeniesiono z powrotem. Zgłoszenia zostały już wysłane.} many {Przeniesiono z powrotem. Zgłoszenia zostały już wysłane.} other {Przeniesiono z powrotem. Zgłoszenia zostały już wysłane.}}",
+    "undo_failed": "Nie udało się przenieść z powrotem.",
+    "banner": "Ta wiadomość została zgłoszona jako phishing. Linki w niej są wyłączone.",
+    "link_off": "link wyłączony",
+    "link_off_note": "(link wyłączony)",
+    "no_subject": "(brak tematu)"
+  },
   "email_composer": {
     "select_from_directory": "Wybierz z katalogu",
     "minimize": "Minimalizuj",

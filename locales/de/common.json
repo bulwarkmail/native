@@ -880,6 +880,24 @@
     "send_anyway": "Trotzdem senden",
     "back": "Zurück"
   },
+  "phishing_report": {
+    "action": "Phishing melden…",
+    "confirm_title": "Phishing melden?",
+    "confirm_message": "{count, plural, one {Die Nachricht geht an {address} und wird in den Spam-Ordner verschoben.} other {Jede der # Nachrichten geht als eigene Meldung an {address} und wird in den Spam-Ordner verschoben.}}",
+    "confirm": "Melden",
+    "cancel": "Abbrechen",
+    "sending": "Wird gemeldet…",
+    "done": "{count, plural, one {An {address} gemeldet und in den Spam-Ordner verschoben.} other {# Nachrichten an {address} gemeldet und in den Spam-Ordner verschoben.}}",
+    "not_moved": "{count, plural, one {An {address} gemeldet, aber die Nachricht konnte nicht in den Spam-Ordner verschoben werden.} other {An {address} gemeldet, aber # Nachrichten konnten nicht in den Spam-Ordner verschoben werden.}}",
+    "failed": "{count, plural, one {Die Nachricht konnte nicht gemeldet werden.} other {# Nachrichten konnten nicht gemeldet werden.}}",
+    "undo": "Rückgängig",
+    "undone": "{count, plural, one {Zurückverschoben. Die Meldung wurde bereits gesendet.} other {Zurückverschoben. Die Meldungen wurden bereits gesendet.}}",
+    "undo_failed": "Konnte nicht zurückverschoben werden.",
+    "banner": "Sie haben diese Nachricht als Phishing gemeldet. Die Links darin sind deaktiviert.",
+    "link_off": "Link deaktiviert",
+    "link_off_note": "(Link deaktiviert)",
+    "no_subject": "(kein Betreff)"
+  },
   "email_composer": {
     "select_from_directory": "Aus Verzeichnis auswählen",
     "minimize": "Minimieren",

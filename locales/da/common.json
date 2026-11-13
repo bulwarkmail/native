@@ -880,6 +880,24 @@
     "send_anyway": "Send alligevel",
     "back": "Tilbage"
   },
+  "phishing_report": {
+    "action": "Rapportér phishing…",
+    "confirm_title": "Rapportér phishing?",
+    "confirm_message": "{count, plural, one {Beskeden sendes til {address} og flyttes til Spam.} other {Hver af de # beskeder sendes til {address} som en separat rapport og flyttes til Spam.}}",
+    "confirm": "Rapportér",
+    "cancel": "Annuller",
+    "sending": "Rapporterer…",
+    "done": "{count, plural, one {Rapporteret til {address} og flyttet til Spam.} other {# beskeder rapporteret til {address} og flyttet til Spam.}}",
+    "not_moved": "{count, plural, one {Rapporteret til {address}, men beskeden kunne ikke flyttes til Spam.} other {Rapporteret til {address}, men # beskeder kunne ikke flyttes til Spam.}}",
+    "failed": "{count, plural, one {Beskeden kunne ikke rapporteres.} other {# beskeder kunne ikke rapporteres.}}",
+    "undo": "Fortryd",
+    "undone": "{count, plural, one {Flyttet tilbage. Rapporten var allerede sendt.} other {Flyttet tilbage. Rapporterne var allerede sendt.}}",
+    "undo_failed": "Kunne ikke flyttes tilbage.",
+    "banner": "Du har rapporteret denne besked som phishing. Links i den er slået fra.",
+    "link_off": "link slået fra",
+    "link_off_note": "(link slået fra)",
+    "no_subject": "(intet emne)"
+  },
   "email_composer": {
     "select_from_directory": "Vælg fra adressefortegnelse",
     "minimize": "Minimer",

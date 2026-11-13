@@ -85,6 +85,7 @@ vi.mock('../../api/jmap-client', () => ({
   jmapClient: {
     isConnected: true,
     accountId: 'acc-1',
+    connectedAccountId: 'acc-1',
     username: 'test@example.com',
     serverUrl: 'https://mail.example.com',
     getMaxObjectsInGet: () => 500,
@@ -228,6 +229,86 @@ describe('viewer Spam takes the list and swipe path (#695)', () => {
 
     expect(mockUndoSpam).toHaveBeenCalledWith(['e1'], 'a', 'grp-1');
     expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+  });
+});
+
+describe('Report phishing files the reported messages by account and id (#124)', () => {
+  const afterUndo = vi.fn();
+  const REPORT = {
+    keywords: ['$phishing'],
+    markRead: true,
+    label: (count: number) => `Reported (${count})`,
+    afterUndo,
+  };
+  const OWN_SECOND = { id: 'e2', subject: 'Invoice', keywords: {}, mailboxIds: { a: true } } as unknown as Email;
+
+  it('sets $phishing and $seen with $junk whatever the delete action, and takes the rows off the list', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW, OWN_SECOND] });
+
+    const filed = await useEmailStore.getState().fileReported([{ email: OWN_ROW, accountId: undefined }], REPORT);
+
+    expect(filed).toEqual([':e1']);
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', undefined, { markRead: true, keywords: ['$phishing'] });
+    expect(useEmailStore.getState().emails).toEqual([OWN_SECOND]);
+    expect(useEmailStore.getState().pendingUndo).toMatchObject({
+      kind: 'spam',
+      label: 'Reported (1)',
+      keywordPatch: { $junk: true, $notjunk: null, $seen: true, $phishing: true },
+    });
+  });
+
+  it('files a team message in the team Junk even when the open folder is now another account\'s, and leaves its same-id row alone', async () => {
+    // The reports took a while; meanwhile the user opened their own Inbox,
+    // which holds another message with the same id.
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+
+    await useEmailStore.getState().fileReported([{ email: TEAM_MESSAGE, accountId: 'grp-1' }], REPORT);
+
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', 'grp-1', { markRead: true, keywords: ['$phishing'] });
+    expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+  });
+
+  it('files an own message in the own Junk while a team folder is open', async () => {
+    const teamRow = { ...TEAM_MESSAGE } as Email;
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'grp-1:a', emails: [teamRow] });
+
+    await useEmailStore.getState().fileReported([{ email: OWN_ROW, accountId: undefined }], REPORT);
+
+    expect(mockMarkAsSpam).toHaveBeenCalledWith(['e1'], 'j', undefined, { markRead: true, keywords: ['$phishing'] });
+    expect(useEmailStore.getState().emails).toEqual([teamRow]);
+  });
+
+  it('moves them back on Undo, into the list they left, clears $phishing and $seen, and runs afterUndo', async () => {
+    const flagged = { ...OWN_ROW, keywords: { $flagged: true } } as unknown as Email;
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [flagged] });
+
+    await useEmailStore.getState().fileReported([{ email: flagged }], REPORT);
+    expect(useEmailStore.getState().emails).toEqual([]);
+    await useEmailStore.getState().undoLast();
+
+    expect(mockRestore).toHaveBeenCalledWith([{ id: 'e1', mailboxIds: { a: true } }], undefined);
+    expect(emailApi.patchKeywordsPerEmail).toHaveBeenCalledWith(
+      [{ id: 'e1', patch: { $junk: null, $notjunk: null, $seen: null, $phishing: null } }],
+      undefined,
+    );
+    expect(useEmailStore.getState().emails.map((e) => [e.id, e.jmapAccountId])).toEqual([['e1', undefined]]);
+    expect(afterUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it('files none without a Junk folder', async () => {
+    useEmailStore.setState({ mailboxes: [own('a', 'inbox')], currentMailboxId: 'a', emails: [OWN_ROW] });
+    expect(await useEmailStore.getState().fileReported([{ email: OWN_ROW }], REPORT)).toEqual([]);
+    expect(mockMarkAsSpam).not.toHaveBeenCalled();
+    expect(useEmailStore.getState().emails).toEqual([OWN_ROW]);
+  });
+
+  it('leaves plain Report spam as it was', async () => {
+    useEmailStore.setState({ mailboxes: MAILBOXES, currentMailboxId: 'a', emails: [OWN_ROW] });
+    await useEmailStore.getState().markSpam(['e1']);
+    const undo = useEmailStore.getState().pendingUndo!;
+    expect(undo.label).toBe('Marked as spam');
+    expect(undo.afterUndo).toBeUndefined();
+    expect(undo.keywordPatch).toEqual({ $junk: true, $notjunk: null });
   });
 });
 

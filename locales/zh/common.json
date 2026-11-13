@@ -880,6 +880,24 @@
     "send_anyway": "仍然发送",
     "back": "返回"
   },
+  "phishing_report": {
+    "action": "举报网络钓鱼…",
+    "confirm_title": "举报为网络钓鱼？",
+    "confirm_message": "{count, plural, =1 {该邮件将发送至 {address}，并移至垃圾邮件。} other {# 封邮件将分别作为单独的举报发送至 {address}，并移至垃圾邮件。}}",
+    "confirm": "举报",
+    "cancel": "取消",
+    "sending": "正在举报…",
+    "done": "{count, plural, =1 {已举报至 {address}，并移至垃圾邮件。} other {已将 # 封邮件举报至 {address}，并移至垃圾邮件。}}",
+    "not_moved": "{count, plural, =1 {已举报至 {address}，但无法将邮件移至垃圾邮件。} other {已举报至 {address}，但有 # 封邮件无法移至垃圾邮件。}}",
+    "failed": "{count, plural, =1 {无法举报该邮件。} other {有 # 封邮件无法举报。}}",
+    "undo": "撤销",
+    "undone": "{count, plural, =1 {已移回。举报已发出。} other {已移回。举报已发出。}}",
+    "undo_failed": "无法移回。",
+    "banner": "您已将此邮件举报为网络钓鱼。其中的链接已停用。",
+    "link_off": "链接已停用",
+    "link_off_note": "（链接已停用）",
+    "no_subject": "（无主题）"
+  },
   "email_composer": {
     "select_from_directory": "从目录中选择",
     "minimize": "最小化",

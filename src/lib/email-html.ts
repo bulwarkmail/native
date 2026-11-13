@@ -853,6 +853,36 @@ function replaceCidRefs(html: string, cidMap: Record<string, string>): string {
   });
 }
 
+// ─── Links turned off ────────────────────────────────────────────────────
+
+const LINK_OFF_ATTRS = new Set(['href', 'xlink:href', 'target', 'rel', 'ping', 'download', 'tabindex', 'title']);
+const LINK_OFF_STYLE = 'color:inherit !important;text-decoration:underline dotted !important;cursor:not-allowed !important';
+
+/**
+ * Links in a message the user reported as phishing (`$phishing`, RFC 9051
+ * §2.3.2: clients should warn and disable links) are turned off, as in the
+ * webmail's lib/phishing-links: each `<a>` and `<area>` loses its address,
+ * looks like text that was a link and says it is off (`title`). Runs on the
+ * sanitised body; the WebView refuses every link of such a message besides
+ * (EmailBodyView).
+ */
+export function turnOffLinks(html: string, title: string): string {
+  if (!/<(a|area)\b/i.test(html)) return html;
+  const safeTitle = title.replace(/&/g, '&amp;');
+  return mapTags(html, (tag, attrs) => {
+    if (tag !== 'a' && tag !== 'area') return null;
+    const kept = attrs.filter((attr) => !LINK_OFF_ATTRS.has(asciiLower(attr.name)));
+    if (tag === 'a') {
+      const style = kept.find((attr) => asciiLower(attr.name) === 'style');
+      if (style && style.value) style.value = `${style.value};${LINK_OFF_STYLE}`;
+      else if (style) style.value = LINK_OFF_STYLE;
+      else kept.push({ name: 'style', value: LINK_OFF_STYLE });
+    }
+    kept.push({ name: 'data-link-off', value: null }, { name: 'aria-disabled', value: 'true' }, { name: 'title', value: safeTitle });
+    return kept;
+  });
+}
+
 // ─── Document assembly ───────────────────────────────────────────────────
 
 export type MessageSpacing = 'auto' | 'always' | 'edge';
@@ -865,6 +895,8 @@ export interface WrapOptions {
    *  fallback colours and the body stays hidden until the recolour pass ran. */
   isDark?: boolean;
   messageSpacing?: MessageSpacing;
+  /** A reported message's links are turned off (turnOffLinks); the text each says. */
+  linksOff?: string;
 }
 
 export interface PreparedEmailHtml {
@@ -909,8 +941,9 @@ function buildCsp(strict: boolean): string {
  * decision was native #49).
  */
 export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): PreparedEmailHtml {
-  const { blockRemoteImages = false, cidMap, isDark = true, messageSpacing = 'auto' } = options;
-  const cleaned = stripDangerousTags(innerHtml);
+  const { blockRemoteImages = false, cidMap, isDark = true, messageSpacing = 'auto', linksOff } = options;
+  const sanitized = stripDangerousTags(innerHtml);
+  const cleaned = linksOff ? turnOffLinks(sanitized, linksOff) : sanitized;
   const withCids = cidMap ? replaceCidRefs(cleaned, cidMap) : cleaned;
   let processed = withCids;
   let blockedExternal = false;
@@ -990,10 +1023,13 @@ export function wrapPlainTextEmail(
      * body in the app document; monospace stays monospace.
      */
     readingFont?: AppFont;
+    /** A reported message's links are turned off (turnOffLinks); the text each says. */
+    linksOff?: string;
   } = {},
 ): string {
-  const { isDark = true, font = 'sans', fontPx = 14, darkColors, readingFont } = options;
-  const cleaned = stripDangerousTags(innerHtml);
+  const { isDark = true, font = 'sans', fontPx = 14, darkColors, readingFont, linksOff } = options;
+  const sanitized = stripDangerousTags(innerHtml);
+  const cleaned = linksOff ? turnOffLinks(sanitized, linksOff) : sanitized;
   const reading = font === 'sans' ? readingFont : undefined;
 
   // In dark mode the body takes the app theme's ground, text and link colours

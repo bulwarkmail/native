@@ -85,6 +85,7 @@ const G = {
   'file-text': ["M14 3v4a1 1 0 0 0 1 1h4","M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2","M9 9l1 0","M9 13l6 0","M9 17l6 0"],
   'file-zip': ["M6 20.735a2 2 0 0 1 -1 -1.735v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-1","M11 17a2 2 0 0 1 2 2v2a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-2a2 2 0 0 1 2 -2","M11 5l-1 0","M13 7l-1 0","M11 9l-1 0","M13 11l-1 0","M11 13l-1 0","M13 15l-1 0"],
   'filter': ["M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227"],
+  'fish': ["M16.69 7.44a6.973 6.973 0 0 0 -1.69 4.56c0 1.747 .64 3.345 1.699 4.571","M2 9.504c7.715 8.647 14.75 10.265 20 2.498c-5.25 -7.761 -12.285 -6.142 -20 2.504","M18 11v.01","M11.5 10.5c-.667 1 -.667 2 0 3"],
   'flag': ["M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9","M5 21v-7"],
   'flask': ["M9 3l6 0","M10 9l4 0","M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6"],
   'folder': ["M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2"],
@@ -261,6 +262,7 @@ export const FileSymlink = makeIcon('FileSymlink', G['file-symlink']);
 export const FileText = makeIcon('FileText', G['file-text']);
 export const FileVideo = makeIcon('FileVideo', G['video']);
 export const Filter = makeIcon('Filter', G['filter']);
+export const Fish = makeIcon('Fish', G['fish']);
 export const Flag = makeIcon('Flag', G['flag']);
 export const FlaskConical = makeIcon('FlaskConical', G['flask']);
 export const Folder = makeIcon('Folder', G['folder']);
