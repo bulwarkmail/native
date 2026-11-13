@@ -62,15 +62,19 @@ interface PushPersistedSettings {
   deleteAction?: string;
 }
 
-async function emailNotificationsAllowed(): Promise<boolean> {
+/** What the settings store persisted, or nothing on first launch and when unreadable. */
+async function readPersistedSettings(): Promise<PushPersistedSettings> {
   try {
     const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return true; // first launch: default to on
-    const parsed = JSON.parse(raw) as PushPersistedSettings;
-    return parsed.emailNotificationsEnabled !== false;
+    return (raw ? (JSON.parse(raw) as PushPersistedSettings | null) : null) ?? {};
   } catch {
-    return true;
+    return {};
   }
+}
+
+// On by default, also when unreadable.
+async function emailNotificationsAllowed(): Promise<boolean> {
+  return (await readPersistedSettings()).emailNotificationsEnabled !== false;
 }
 
 // The "Sender Favicons" setting covers notification icons as well as the
@@ -78,14 +82,7 @@ async function emailNotificationsAllowed(): Promise<boolean> {
 // and the device's IP never reach the icon service. Off by default, like the
 // store, and off when unreadable.
 export async function senderFaviconsAllowed(): Promise<boolean> {
-  try {
-    const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return false; // first launch: the store's default is off
-    const parsed = JSON.parse(raw) as PushPersistedSettings;
-    return parsed.senderFavicons === true;
-  } catch {
-    return false;
-  }
+  return (await readPersistedSettings()).senderFavicons === true;
 }
 
 // The "Delete Action" setting, as far as a notification's Delete honours it:
@@ -93,13 +90,7 @@ export async function senderFaviconsAllowed(): Promise<boolean> {
 // "Delete Permanently" still only moves to Trash: a notification never
 // destroys mail (#68).
 async function notificationDeleteMarksRead(): Promise<boolean> {
-  try {
-    const raw = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return false;
-    return (JSON.parse(raw) as PushPersistedSettings).deleteAction === 'trash-and-read';
-  } catch {
-    return false;
-  }
+  return (await readPersistedSettings()).deleteAction === 'trash-and-read';
 }
 
 /** The app's language: the in-app override, else the device's. */
