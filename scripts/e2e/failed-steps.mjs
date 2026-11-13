@@ -57,7 +57,13 @@ for (const file of walkFiles(root).filter((f) => /(^|[\\/])commands(-[^\\/]*)?\.
     const command = entry.command || {};
     const type = Object.keys(command).find((k) => command[k]) || '?';
     const status = entry.metadata?.status || '?';
-    out.push(`  ${status.padEnd(9)} ${type}`);
+    // When it ran (UTC) and for how long, to find a step in the screen
+    // recording; the recording's start is in the job log.
+    const at = Number(entry.metadata?.timestamp);
+    const took = Number(entry.metadata?.duration);
+    const when = Number.isFinite(at) && at > 0 ? new Date(at).toISOString().slice(11, 23) : '';
+    const length = Number.isFinite(took) && took >= 0 ? ` ${took} ms` : '';
+    out.push(`  ${status.padEnd(9)} ${type}${when ? `  @${when}${length}` : ''}`);
     if (status === 'FAILED') {
       const err = entry.metadata?.error?.message;
       if (err) out.push(`    error: ${String(err).slice(0, 300)}`);
