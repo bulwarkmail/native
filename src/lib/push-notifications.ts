@@ -1925,9 +1925,9 @@ export async function teardownPushNotificationsForAccount(
   // failed enable can leave a registration this client no longer tracks (#841).
   // The recorded id alone is trusted only when the server can't be asked: on
   // a server reinstalled at the same address it can name another device's.
-  const server = await pushSubscriptionsOf(accountId);
+  const client = await clientServing(accountId);
   const idsToDestroy = new Set<string>();
-  const existing = server && storedDcid ? await server.list().catch(() => null) : null;
+  const existing = client && storedDcid ? await listPushSubscriptions(client).catch(() => null) : null;
   if (existing) {
     for (const s of existing) {
       const recordedWithoutDevice = s.id === storedSubId && !s.deviceClientId;
@@ -1936,8 +1936,8 @@ export async function teardownPushNotificationsForAccount(
   } else if (storedSubId) {
     idsToDestroy.add(storedSubId);
   }
-  for (const id of idsToDestroy) {
-    await server?.destroy(id).catch(() => undefined);
+  if (client) {
+    for (const id of idsToDestroy) await destroyPushSubscription(id, client).catch(() => undefined);
   }
   if (relayBaseUrl && storedDcid) {
     await deregisterFromRelay(relayBaseUrl, storedDcid);
@@ -1950,35 +1950,14 @@ export async function teardownPushNotificationsForAccount(
 }
 
 /**
- * Listing and destroying the account's push subscriptions, through the
- * jmapClient when it serves the account, else through a client of its own.
- * Null when the account can't be loaded: its server is left alone then.
+ * The client serving the account: the jmapClient when it does, else one of
+ * its own. Null when the account can't be loaded: its server is left alone
+ * then.
  */
-async function pushSubscriptionsOf(accountId: string): Promise<{
-  list: () => Promise<ListedSubscription[]>;
-  destroy: (id: string) => Promise<void>;
-} | null> {
-  const username = jmapClient.username;
-  const serverUrl = jmapClient.serverUrl;
-  if (username && serverUrl && generateAccountId(username, serverUrl) === accountId) {
-    return { list: listPushSubscriptions, destroy: destroyPushSubscription };
-  }
+async function clientServing(accountId: string): Promise<JMAPClient | null> {
+  if (servedAccountId() === accountId) return jmapClient;
   const client = new JMAPClient();
-  if (!(await client.loadAccount(accountId).catch(() => false))) return null;
-  const using = [CAPABILITIES.CORE];
-  return {
-    list: async () => {
-      const res = await client.request(
-        [['PushSubscription/get', { ids: null, properties: ['id', 'deviceClientId'] }, '0']],
-        using,
-      );
-      return (requireMethodResult(res, '0', 'PushSubscription/get').list as ListedSubscription[] | undefined) ?? [];
-    },
-    destroy: async (id) => {
-      const res = await client.request([['PushSubscription/set', { destroy: [id] }, '0']], using);
-      requireMethodResult(res, '0', 'PushSubscription/set');
-    },
-  };
+  return (await client.loadAccount(accountId).catch(() => false)) ? client : null;
 }
 
 /**

@@ -66,8 +66,8 @@ const { DETACHED, SYNC_SESSION } = vi.hoisted(() => {
       // The subscription's expiry, and what an update of it settles on.
       expires: null as string | null,
       settles: null as string | null,
-      // Every subscription of the account, for a listing with ids: null, and
-      // whether that listing fails.
+      // Every subscription of the account, for a listing through its own
+      // client (listingOwnAccount), and whether that listing fails.
       all: [] as Array<{ id: string; deviceClientId?: string }>,
       listFails: false,
       log: [] as unknown[],
@@ -101,10 +101,6 @@ vi.mock('../../api/jmap-client', () => ({
     async request(calls: Array<[string, Record<string, any>, string]>) {
       const methodResponses = calls.map(([name, args, id]) => {
         DETACHED.log.push([name, args]);
-        if (name === 'PushSubscription/get' && args.ids === null) {
-          if (DETACHED.listFails) throw new Error('network down');
-          return [name, { list: DETACHED.all }, id];
-        }
         if (args.destroy) return [name, { destroyed: args.destroy }, id];
         if (name === 'PushSubscription/get') {
           const listed = {
@@ -1854,6 +1850,24 @@ describe('renewOtherPushAccounts (#1054)', () => {
   });
 });
 
+/** The accounts a client of its own was loaded for, in order. */
+const loads = () => DETACHED.log.filter((e) => (e as unknown[])[0] === 'load');
+
+/** Whether an api/push call went through a client of its own rather than the jmapClient. */
+const ownClient = (client: unknown) => client !== undefined && client !== jmapClient;
+
+/** What a signed-in account the client does not serve had destroyed through a client of its own. */
+const destroyedThroughOwnClient = () => destroyMock.mock.calls
+  .filter(([, client]) => ownClient(client))
+  .map(([id]) => [id]);
+
+/** Listings through a client of its own answer from DETACHED; the jmapClient's answer `open`. */
+const listingOwnAccount = (open: unknown[]) => async (client?: unknown) => {
+  if (!ownClient(client)) return open;
+  if (DETACHED.listFails) throw new Error('network down');
+  return DETACHED.all;
+};
+
 describe('teardownPushNotificationsForAccount', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -1907,16 +1921,13 @@ describe('teardownPushNotificationsForAccount', () => {
   describe('for a signed-in account the client does not serve', () => {
     const OTHER = 'bob@other.example.net';
     const OTHER_DCID = 'bobsphonebobsphonebobsphonebobsp';
-    const destroyedThroughOwnClient = () => DETACHED.log
-      .filter((entry) => (entry as unknown[])[0] === 'PushSubscription/set')
-      .map((entry) => ((entry as [string, { destroy: string[] }])[1]).destroy);
 
     beforeEach(async () => {
       await AsyncStorage.setItem('push:relayBaseUrl:v1', RELAY);
       await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
       await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
       // The open account's own push, with the same short id.
-      listMock.mockResolvedValue([{ id: 'b', types: ['EmailDelivery'] }]);
+      listMock.mockImplementation(listingOwnAccount([{ id: 'b', types: ['EmailDelivery'] }]));
       Object.assign(DETACHED, {
         loaded: true,
         all: [{ id: 'b', deviceClientId: OTHER_DCID }, { id: 'c', deviceClientId: 'ffffffffffffffffffffffffffffffff' }],
@@ -1933,31 +1944,68 @@ describe('teardownPushNotificationsForAccount', () => {
     it('destroys its subscriptions through a client of its own', async () => {
       await teardownPushNotificationsForAccount(OTHER);
 
-      expect(DETACHED.log[0]).toEqual(['load', OTHER]);
+      expect(DETACHED.log).toEqual([['load', OTHER]]);
       expect(destroyedThroughOwnClient()).toEqual([['b']]);
-      expect(listMock).not.toHaveBeenCalled();
-      expect(destroyMock).not.toHaveBeenCalled();
+      expect(listMock.mock.calls.filter(([client]) => !ownClient(client))).toEqual([]);
+      expect(destroyMock.mock.calls.filter(([, client]) => !ownClient(client))).toEqual([]);
       expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
     });
 
     it("never destroys the recorded id on the open account when its own server can't list", async () => {
-      listMock.mockRejectedValue(new Error('network down'));
       DETACHED.listFails = true;
 
       await teardownPushNotificationsForAccount(OTHER);
 
-      expect(destroyMock).not.toHaveBeenCalled();
+      expect(listMock.mock.calls.filter(([client]) => !ownClient(client))).toEqual([]);
+      expect(destroyMock.mock.calls.filter(([, client]) => !ownClient(client))).toEqual([]);
       expect(destroyedThroughOwnClient()).toEqual([['b']]);
 
       // An account that can't be loaded leaves every server alone.
       DETACHED.log = [];
       DETACHED.loaded = false;
+      destroyMock.mockClear();
       await AsyncStorage.setItem(`push:subscriptionId:v2:${OTHER}`, 'b');
       await AsyncStorage.setItem(deviceClientIdKey(OTHER), OTHER_DCID);
       await teardownPushNotificationsForAccount(OTHER);
       expect(destroyMock).not.toHaveBeenCalled();
-      expect(destroyedThroughOwnClient()).toEqual([]);
       expect(await AsyncStorage.getItem(`push:subscriptionId:v2:${OTHER}`)).toBeNull();
+    });
+  });
+
+  describe('for the account whose credentials the jmapClient holds', () => {
+    const client = jmapClient as { isConnected: boolean };
+
+    beforeEach(async () => {
+      await AsyncStorage.setItem(SUB_KEY, 'b');
+      await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+      listMock.mockImplementation(listingOwnAccount([sub('b', OUR_DCID)]));
+      Object.assign(DETACHED, { loaded: true, all: [sub('b', OUR_DCID)], listFails: false, log: [] });
+    });
+
+    afterEach(() => {
+      client.isConnected = true;
+      listMock.mockImplementation(async () => []);
+      Object.assign(DETACHED, { loaded: true, all: [], listFails: false });
+    });
+
+    it('destroys its subscriptions through the jmapClient while it is connected', async () => {
+      await teardownPushNotificationsForAccount(ACCOUNT_ID);
+
+      expect(loads()).toEqual([]);
+      expect(destroyMock.mock.calls.map(([id, by]) => [id, ownClient(by)])).toEqual([['b', false]]);
+      expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    });
+
+    it('destroys them through a client of its own while the jmapClient has no session', async () => {
+      client.isConnected = false;
+
+      await teardownPushNotificationsForAccount(ACCOUNT_ID);
+
+      expect(loads()).toEqual([['load', ACCOUNT_ID]]);
+      expect(listMock.mock.calls.filter(([by]) => !ownClient(by))).toEqual([]);
+      expect(destroyMock.mock.calls.filter(([, by]) => !ownClient(by))).toEqual([]);
+      expect(destroyedThroughOwnClient()).toEqual([['b']]);
+      expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
     });
   });
 });
