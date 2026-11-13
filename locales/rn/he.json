@@ -322,7 +322,10 @@
     "signing_out": "מסיר מהמכשיר הזה את אנשי הקשר ולוחות השנה המסונכרנים…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark קבצים",
     "attach_camera": "מצלמה",
+    "attach_gallery": "גלריה",
+    "attach_this_device": "מכשיר זה",
     "attachment_reminder_body": "ההודעה שלך מזכירה \"{keyword}\" אבל לא צורף קובץ. לשלוח בכל זאת?",
     "attachment_reminder_title": "שכחת קובץ מצורף?",
     "attachments_too_large_total": "הקבצים המצורפים יחרגו מהמגבלה של {max} להודעה שהשרת הזה מאפשר.",

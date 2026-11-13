@@ -325,7 +325,10 @@
     "signing_out": "Synchronisierte Kontakte und Kalender werden von diesem Gerät entfernt…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark Dateien",
     "attach_camera": "Kamera",
+    "attach_gallery": "Galerie",
+    "attach_this_device": "Dieses Gerät",
     "attachment_reminder_body": "Ihre Nachricht erwähnt \"{keyword}\", aber es ist keine Datei angehängt. Trotzdem senden?",
     "attachment_reminder_title": "Anhang vergessen?",
     "attachments_too_large_total": "Die Anhänge würden die {max} überschreiten, die dieser Server pro Nachricht erlaubt.",

@@ -322,7 +322,10 @@
     "signing_out": "동기화된 연락처와 캘린더를 이 기기에서 삭제하는 중…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark 파일",
     "attach_camera": "카메라",
+    "attach_gallery": "갤러리",
+    "attach_this_device": "이 기기",
     "attachment_reminder_body": "메시지에 \"{keyword}\"이(가) 언급되어 있지만 첨부된 파일이 없어요. 그래도 보낼까요?",
     "attachment_reminder_title": "첨부 파일을 잊으셨나요?",
     "attachments_too_large_total": "첨부 파일이 이 서버의 메시지당 한도({max})를 넘어요.",

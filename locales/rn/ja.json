@@ -322,7 +322,10 @@
     "signing_out": "同期した連絡先とカレンダーをこのデバイスから削除しています…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark ファイル",
     "attach_camera": "カメラ",
+    "attach_gallery": "ギャラリー",
+    "attach_this_device": "このデバイス",
     "attachment_reminder_body": "メッセージに「{keyword}」が含まれていますが、ファイルが添付されていません。このまま送信しますか？",
     "attachment_reminder_title": "添付ファイルを忘れていませんか？",
     "attachments_too_large_total": "添付ファイルがサーバーの上限（1 通あたり {max}）を超えます。",

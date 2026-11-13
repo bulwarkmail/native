@@ -322,7 +322,10 @@
     "signing_out": "Usuwanie zsynchronizowanych kontaktów i kalendarzy z tego urządzenia…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark Pliki",
     "attach_camera": "Aparat",
+    "attach_gallery": "Galeria",
+    "attach_this_device": "To urządzenie",
     "attachment_reminder_body": "Twoja wiadomość wspomina o „{keyword}”, ale nie załączono żadnego pliku. Wysłać mimo to?",
     "attachment_reminder_title": "Zapomniano o załączniku?",
     "attachments_too_large_total": "Załączniki przekroczyłyby limit {max} na wiadomość obowiązujący na tym serwerze.",

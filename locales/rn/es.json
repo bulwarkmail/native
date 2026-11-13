@@ -322,7 +322,10 @@
     "signing_out": "Quitando de este dispositivo los contactos y calendarios sincronizados…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark Archivos",
     "attach_camera": "Cámara",
+    "attach_gallery": "Galería",
+    "attach_this_device": "Este dispositivo",
     "attachment_reminder_body": "Tu mensaje menciona \"{keyword}\" pero no hay ningún archivo adjunto. ¿Enviar de todos modos?",
     "attachment_reminder_title": "¿Olvidaste un adjunto?",
     "attachments_too_large_total": "Los adjuntos superarían los {max} que este servidor permite por mensaje.",

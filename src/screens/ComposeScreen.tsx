@@ -11,7 +11,7 @@ import {
   List, ListOrdered, Link2, Link2Off, Image as ImageIcon, Quote,
   Heading1, Heading2, AlignLeft, AlignCenter, AlignRight, RemoveFormatting,
   Undo2, Redo2, FileText, Clock, Check, Palette, Table, LayoutTemplate, MailCheck,
-  Tag, Type, Highlighter, Trash2, Settings,
+  Tag, Type, Highlighter, Trash2, Settings, Camera, Smartphone, FolderOpen,
 } from '../components/icons';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
@@ -43,6 +43,7 @@ import { useAccountStore } from '../stores/account-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
+import type { AppIcon } from '../components/icons';
 import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import {
@@ -323,6 +324,7 @@ function ToolbarButton({
 
 interface SheetOption {
   label: string;
+  icon?: AppIcon;
   destructive?: boolean;
   onPress: () => void;
 }
@@ -360,6 +362,7 @@ function OptionsSheet({
               style={styles.scheduleRow}
               onPress={() => { onClose(); afterDismiss.run(opt.onPress); }}
             >
+              {opt.icon && <opt.icon size={18} color={opt.destructive ? c.error : c.textSecondary} />}
               <Text style={[styles.scheduleRowLabel, opt.destructive && { color: c.error }]}>{opt.label}</Text>
             </Pressable>
           ))}
@@ -2149,17 +2152,21 @@ export default function ComposeScreen({ route, navigation }: Props) {
   const [filesPickerOpen, setFilesPickerOpen] = React.useState(false);
   const hasServerFiles = supportsFiles();
   const attachOptions: SheetOption[] = [
-    { label: t('email_composer.attach_photos', 'Photos & Videos'), onPress: () => { void pickPhotoAttachments(); } },
-    { label: t('email_composer.attach_camera', 'Camera'), onPress: () => { void takePhotoAttachment(); } },
     {
-      // Next to "Attach from Files" a plain "Files" would read as the same.
-      label: hasServerFiles
-        ? t('email_composer.attach_from_device', 'Upload from this device')
-        : t('email_composer.attach_files', 'Files'),
-      onPress: () => { void pickFileAttachments(); },
+      // iOS calls its library Photos; "Gallery" is the Android word.
+      label: Platform.OS === 'ios'
+        ? t('email_composer.attach_photos', 'Photos & Videos')
+        : t('email_composer.attach_gallery', 'Gallery'),
+      icon: ImageIcon,
+      onPress: () => { void pickPhotoAttachments(); },
     },
+    { label: t('email_composer.attach_camera', 'Camera'), icon: Camera, onPress: () => { void takePhotoAttachment(); } },
+    // "This device" and "Bulwark Files" keep the phone's files and the
+    // server's Files apart.
+    { label: t('email_composer.attach_this_device', 'This device'), icon: Smartphone, onPress: () => { void pickFileAttachments(); } },
     ...(hasServerFiles ? [{
-      label: t('email_composer.attach_from_files', 'Attach from Files'),
+      label: t('email_composer.attach_bulwark_files', 'Bulwark Files'),
+      icon: FolderOpen,
       onPress: () => { if (!refuseAttachAfterSwitch()) setFilesPickerOpen(true); },
     }] : []),
   ];
@@ -2944,11 +2951,12 @@ export default function ComposeScreen({ route, navigation }: Props) {
     }
   };
 
-  const titleKey =
-    mode === 'forward' ? 'email_composer.forward'
-    : mode === 'replyAll' ? 'email_composer.reply_all'
-    : replyTo ? 'email_composer.reply'
-    : 'email_composer.new_message';
+  // A new message has no title: the empty fields already say what it is.
+  const headerTitle =
+    mode === 'forward' ? t('email_composer.forward', 'Forward')
+    : mode === 'replyAll' ? t('email_composer.reply_all', 'Reply All')
+    : replyTo ? t('email_composer.reply', 'Reply')
+    : '';
 
   const fromDisplay = React.useMemo(() => {
     if (!primaryIdentity) return identityError ? t('email_composer.identity_unavailable', 'Identity unavailable') : t('common.loading', 'Loading...');
@@ -3129,9 +3137,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
           {savingDraft ? <ActivityIndicator size="small" color={c.text} /> : <X size={22} color={c.text} />}
         </Pressable>
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {t(titleKey, mode === 'forward' ? 'Forward' : mode === 'replyAll' ? 'Reply All' : replyTo ? 'Reply' : 'New Message')}
-          </Text>
+          {!!headerTitle && <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>}
           {!!draftStatusText && !typingInShortWindow && (
             <Text style={styles.headerSubtitle} numberOfLines={1}>{draftStatusText}</Text>
           )}

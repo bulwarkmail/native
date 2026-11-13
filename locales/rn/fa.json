@@ -322,7 +322,10 @@
     "signing_out": "در حال حذف مخاطبین و تقویم‌های همگام‌سازی‌شده از این دستگاه…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark فایل‌ها",
     "attach_camera": "دوربین",
+    "attach_gallery": "گالری",
+    "attach_this_device": "این دستگاه",
     "attachment_reminder_body": "در پیام شما به «{keyword}» اشاره شده اما فایلی پیوست نشده است. با این حال ارسال شود؟",
     "attachment_reminder_title": "پیوست را فراموش کرده‌اید؟",
     "attachments_too_large_total": "پیوست‌ها از سقف {max} که این سرور برای هر پیام مجاز می‌داند بیشتر می‌شوند.",
