@@ -1489,7 +1489,8 @@ export default function EmailListScreen({
             hitSlop={8}
             style={styles.searchClearButton}
             accessibilityRole="button"
-            accessibilityLabel={t('contacts.clear_search', 'Clear search')}
+            // Named for what it does: on an empty field it closes the search.
+            accessibilityLabel={searchInput.length > 0 ? t('contacts.clear_search', 'Clear search') : t('common.close', 'Close')}
           >
             <X size={14} color={c.textMuted} />
           </Pressable>

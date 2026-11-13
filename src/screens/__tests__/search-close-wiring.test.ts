@@ -14,6 +14,12 @@ describe('mail search close wiring', () => {
     expect(src).toMatch(/\{\(searchInput\.length > 0 \|\| searchFocused\) && \(\s+<Pressable\s+onPress=\{clearOrCloseSearch\}/);
   });
 
+  it('is read out as what it does: Clear search with text, Close on an empty field', () => {
+    expect(src).toMatch(
+      /onPress=\{clearOrCloseSearch\}[\s\S]{0,200}?accessibilityLabel=\{searchInput\.length > 0 \? t\('contacts\.clear_search', 'Clear search'\) : t\('common\.close', 'Close'\)\}/,
+    );
+  });
+
   it('clears typed text first, then closes the panel and lets go of the keyboard', () => {
     expect(src).toMatch(
       /const clearOrCloseSearch = React\.useCallback\(\(\) => \{\s+if \(searchInput\.length > 0\) \{\s+setSearchInput\(''\);\s+setSearchQuery\(''\);\s+return;\s+\}\s+setSearchFocused\(false\);\s+searchInputRef\.current\?\.blur\(\);/,
