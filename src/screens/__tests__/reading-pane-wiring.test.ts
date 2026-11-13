@@ -45,6 +45,6 @@ describe('reading pane setting wiring', () => {
   });
 
   it('stays on this device', () => {
-    expect(read('stores/settings-store.ts')).toMatch(/'swipeMode',\n  'readingPane',\n/);
+    expect(read('stores/settings-store.ts')).toMatch(/'swipeMode',\r?\n  'readingPane',\r?\n/);
   });
 });
