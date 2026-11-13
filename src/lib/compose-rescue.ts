@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { OutgoingEmail, SavedDraftVersion } from '../api/email';
+import { makeKeyedLane } from './lane';
 
 // A composer whose draft can't reach the server (the session expired, or the
 // connection is gone) keeps it on the device here, so closing the composer or
@@ -50,12 +51,7 @@ async function write(accountId: string, drafts: RescuedDraft[]): Promise<void> {
 }
 
 // Reads and writes of one account's list run one after another.
-const queues = new Map<string, Promise<unknown>>();
-function serial<T>(accountId: string, fn: () => Promise<T>): Promise<T> {
-  const run = (queues.get(accountId) ?? Promise.resolve()).catch(() => undefined).then(fn);
-  queues.set(accountId, run);
-  return run;
-}
+const serial = makeKeyedLane();
 
 /** Keep (or replace) a composer's draft on the device for an account (app registry id). */
 export function rescueDraft(accountId: string, draft: RescuedDraft): Promise<void> {
