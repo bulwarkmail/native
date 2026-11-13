@@ -1,12 +1,468 @@
 # Native catch-up with webmail 1.21.1 and Stalwart 1.1.0 (2026-11b)
 
-Branch `catch-up-2026-11b` from native main 37b93729 (origin/main ce5d4dd4
-plus one local commit, the export compliance answer, made by another
-session on 2026-11-12 and not pushed yet). Worktree
-C:\Users\info\worktrees\react-native-catch-up-2.
+Branch `catch-up-2026-11b`, started from native main 37b93729 and merged
+with main again at c4e79f6c (0.1.94, which brought the security audit's
+native fixes). On GitHub as a branch only (decision 12), not on main. The
+version is still 0.1.94; no release is cut.
 
-Status: Phase 0 (inventory), the plan and the decisions are done; the
-build is running.
+The run brought the app to webmail 1.21.1 (and webmail main 2c21722ae) and
+Stalwart 1.1.0, fixed what the inventory found in the 2026-11 leftovers and
+on GitHub, merged contributor PRs #103 and #106 and the rel-ios-e2e flows,
+added Greek, Norwegian Nynorsk and Vietnamese, and moved the test server
+stw-rel to Stalwart 1.1.0. Parity file 12: 85 of 101 rows done, the 16 left
+are P3 with a reason on each row (most by decision 14). All eight Stalwart
+rows are done.
+
+The inventory, the plan and the decisions follow this report.
+
+## What landed
+
+Hashes are the fix commits; each parity row carries its own hash.
+
+### Stalwart 1.0.2 to 1.1.0 and sign-in (cu2-auth, fast-forwarded)
+
+- Two-factor sign-in works again on Stalwart 1.0.0 and 1.0.1: the app asks
+  for Stalwart's account scopes only when the server's discovery lists them
+  95f0f8f4 (d345d15b had broken it; confirmed live on stw-rel 1.0.1 before
+  the fix, and after it).
+- bulwark-mobile set up by a superuser webmail gets `full`, so Recover
+  deleted items and the admin's alias lookup keep working be9d8b3a.
+- Encryption at rest in Stalwart 1.0.2+'s `Enabled` form, shown as on/off
+  b82be4bd e27f6046, public keys without the server-set properties
+  8a2770dd; the live auth suite follows 1.0.3's scope rules 3c5d0350
+  6672d4a3.
+- Expired password said as such 2e493280; "sign in again" instead of a
+  locked notice after the 1.0.3 upgrade 0b9311d4; comments 76f9c57e; the
+  replaced grant is revoked on a new sign-in #1571 77d28679.
+- Header-protected subjects from Stalwart's encryption gateway cfe50e3c;
+  Inbuxa account security c4067311; masked addresses #1641 19bae844;
+  server settings for other mail apps #1633 31ea3a75; the server's account
+  page #1570 da0f091c; unread counts in the account switcher d1a26ab3;
+  shared accounts reordered 3a5ed109; a plain answer for Gmail, Outlook.com
+  and iCloud 94a0db80; language on the sign-in screens a5324408.
+
+### Mail (merge 9a329dff)
+
+- Folder lists over the server's get limit #1502 f18029ca, tags with
+  Cyrillic names #1613 defb045d, Recover deleted items on 1.0 #1480
+  f4bbdc1d, Report phishing and links turned off on `$phishing` mail
+  70b0d65b e3a47be5.
+- #98: Cyrillic, Central European, Greek and other single-byte charsets in
+  mail parsed on the phone 481e7adf. #91: tap to select in the unified
+  inbox and extra-compact rows ddbd27bd.
+- Reader, list and search rows: no "via" on own mail d624f983, SRS sender
+  #1542 4c8647dc, iPhone Mail and Outlook quotes #1476 d6e192d4 (made safe
+  against named form fields 3fe5a3cb 1018d10d), avatars #1581 4059f006,
+  BIMI between own domains c8f8f29a, Find mail e3d1bf43, search page race
+  7d66267d, folder menu offline 790eb40d, attachment chips setting #1604
+  3a01b64e, sender suggestions 25e0b977, Search in #1485 2edfcfd6, `$label:`
+  in tag settings 9c9b4106, .eml into Drafts #1535 85df1bb2, inline images
+  #1614 15338268, Restore from Trash aef6aea9, empty All Trash #1540
+  97265b45, Move sheet filter and recent folders 329468fe, Archive folder
+  made on first archive #1176 9480be15, group tag picker fba71cbd, compact
+  shared mailboxes #1483 acab8b21, rename an attachment #1623 0ebc5bae.
+
+### Compose (merge ea675faf)
+
+Template placeholders with a default #1609 17c9046e, forward header To and
+Cc 729bde85, Reply reopens the saved reply 7e61fa9e, reply from the
+delivered-to address #1353 891d9e74, signature switches #1493 570efabf,
+undo send on by default with 5 s 6ed687aa, one send-check sheet c68f0eed,
+"Draft saved" with Open and Discard bc54de1c, Tags in the composer #1610
+49762298, undo bar with long labels #1599 faae7363, link text 7fee8823,
+save as template #1506 0fda58fd, template pictures as inline parts #1492
+3226f868, recipient picker 26aaa502, signature editor aa9b1876.
+
+### Calendar, tasks, contacts, files, filters (merge a963ede5)
+
+- P1: saving a contact keeps what the form doesn't show #1515 245825fc.
+- Regex filter rules #885 1ff9421e, repeating tasks one day at a time #1621
+  7dbf2908, HTML event descriptions 227974f6.
+- Calendar event notifications paged and summed up #1567 0ff300c6, default
+  collection names 0460bb80, task lists in the drawer #1589 200f07a0, tasks
+  on by default ffa3a3c8, unanswered invitations marked d8985c11, month
+  view style #1449 e3ad5339, Files trash out of search 1d7304fc, read-only
+  address books a60ada1f, attached message titles 17ce8106, related
+  contacts #1578 7fa42606, contact dates #1616 010c0968, upload conflicts
+  97f0f8f4, out-of-office text cd93d10d, ticked contacts to a group cc577c93,
+  out of office in the drawer aaf76949, directory off #1457 e3446c72, run a
+  rule on the Inbox 0a3d1b66, block the calendar e19398ea.
+
+### Organisation policy (merges 0874daaf, 45c6b652)
+
+- P1: remote content stays blocked for trusted senders when the
+  organisation locks it to "block" 11632d78.
+- Device rules (downloads, export, watermark, offline caps) with per-account
+  offline caps a7176a1f, announcement banner d1b6cde9, retention notice
+  0cf473fa, default tags #1612 d7d3a676, attachment chips lock a56ea755,
+  share presets 66ee36bd, group identity signature 057178b9, directory
+  rules ed18165e, out-of-office templates f60e6109, refused accounts
+  dc8e34e9, idle sign-out and session length 3020d831.
+- Classification labels 8cf942e4 54cae455, External chip, external
+  recipient confirm d49d9ef1, invitations from the organisation's other
+  domains #1593 6cb26e52.
+
+### Push, sync and widgets (merge ea72bb31)
+
+Catch-up after a reconnect #1553 e2c4966b, Archive and Copy code on Android
+notifications ab715d6e, the native push lookup presents the client
+certificate #3 856536d3, the widget ticks a repeating task forward
+4f1df16b c36852fb. Relay (bulwarkmail/relay, local branch cu2-fcm-priority,
+90cd921, not pushed): pushes without new mail go out at normal FCM
+priority, which PR #101 needs.
+
+### Layout, iOS and e2e (fast-forward, merge bcfa7460 for the live fixes)
+
+#104 reading pane on foldables 9b59b1e9, #93 the split waits for the
+stored setting 3b24de3a, iOS widget signed into releases when its profile
+secret exists 3466a8ef, iOS flows 5c491543 9735e5c9 2d636248 da1ef242
+440b4684.
+
+### Translations (fast-forward)
+
+Every new key in all languages (German by hand 1b9282a5), English source
+pass a91c7708 (+ c3687a9f 53b60816), Dutch "je" d23e9dcc, settings search
+54ee4803, Greek f9f5a575, Nynorsk c498321e, Vietnamese f529d02d, the
+security branch's package hand-off strings in the three new languages
+68a0c6a1.
+
+### Identity order (merge b87d478c)
+
+The login's own identity comes first, as in the webmail, so quick reply,
+read receipts, unsubscribe and the signature no longer pick the group
+address on Stalwart 1.x 031fa60b.
+
+### Dependencies (fast-forward)
+
+postal-mime 4.2.1 (security release), node-forge 1.4.3 and nitro 0.37.2
+87e416f3, licence list 3ff1341d. npm audit: 15 findings (2 high, 12
+moderate, 1 low), all in the Expo CLI and Metro build chain, down from 18.
+
+### Contributor PRs and rel-ios-e2e
+
+PR #106 64c61e53 and PR #103 f712f015 merged with their authors' commits
+(which carry a Co-Authored-By trailer of their own; kept, decision 7/8),
+with 09947d8b on top. rel-ios-e2e cf5a55e8. Main merged in 06663f68 (the
+security branch; conflicts in five files resolved, Copy code stays off
+while the organisation hides notification content).
+
+### Review and test fixes
+
+- Code review (code-review skill, high) of the whole diff: 8 findings, all
+  fixed: idle sign-out loop and a declined forced sign-out de66b896, reply
+  draft in Trash 9dc1289c, load-more spinner b9eb835b, catch-up during a
+  check 3f564ab2, trash origins and recent folders cdaffe62, phishing links
+  fail closed bb0bcc20, quote folding with named form fields 1018d10d.
+- CI on the branch: hooks order in the contact screen 9e2fe661, device sync
+  kept free of stores 568ba4c5, licence list 3ff1341d, {appName} 79f07905.
+- Live suites: 9 test fixes and search across accounts with one refusing
+  account 568cab58 (merge bcfa7460).
+- Emulator walkthrough: repeating all-day task wiped on 0.16 when one day
+  is ticked 7f83a7b1 (Stalwart 0.16 behaviour, worked around), group shown
+  twice afdf6cdb, default names in the editor and contact 731df3c8, label
+  case 02ae9d74, settings search 91ad44b2, Dutch 56ab91fe, regex hint
+  91b40713, encryption switch before a key on 1.0.3+ e27f6046, sheets above
+  the keyboard 904154df, people suggestions 05b5d2ae, scroll after an
+  account switch 0ca54288, discarded reply draft cecaeaa2.
+- iOS e2e rounds: Reply opens the composer at once instead of waiting for
+  the saved-draft lookup 10b188e3 (a slowdown from 7e61fa9e); after a start
+  without network an attachment upload brings the session back first
+  instead of failing with "Not authenticated" 9a803bd8 (also on main); the
+  0.16 check goes through the metadata module 0fdee6b7; flows and the test
+  helper c0e9141e 8a0bdd76 18b72c00 a31750fb 01bf68ff ba200e52 063f240f
+  49aa2c4e ca20ccc5 142ed51e cd6aa3b1 dd554856.
+
+## Testing
+
+- Unit tests and typecheck (ci.yml on the branch, full vitest suite):
+  - 43258932798 at b4f0e0dc: red, 4 real failures (hooks after the
+    not-found return in the contact screen, device sync importing stores,
+    the licence list, a string called without {appName}); fixed in the
+    review round.
+  - 43265300591 at 6fae74f9: green.
+  - 43296905679 at a3640ce1: red, the JMAP Metadata guard (the 0.16 task
+    workaround named the capability outside the metadata module); fixed in
+    0fdee6b7.
+  - 43298051951 at 0fdee6b7: green (7,800+ tests); later green at
+    10b188e3 (43350545062), 49aa2c4e (43369940164), ca20ccc5 (43391168749)
+    and dd554856 (43415587328).
+  - Every agent ran the targeted test files of its change plus tsc, and
+    proved each fix's test fails without the fix (old file restored with
+    `git show`). eslint isn't installed in this repo, so nothing was
+    linted.
+- Live suites (all 18 src/api/__tests__/live-stalwart*.test.ts files and
+  unified-inbox-live-account) at bcfa7460: every file passes on Stalwart
+  1.1.0 (stw-rel) and 0.16.27 (stw-v016). Skipped: the two TOTP-account
+  cases (they'd need the e2e accounts), `full` on 0.16 (no such scope),
+  Recover deleted items on 1.1.0 (Enterprise licence), the archive-role
+  create when the account already has an Archive, and the 0.16 tag-keyword
+  cases (that account dropped custom keywords). Live cases added later
+  (task day on 0.16, discarded reply draft, reply draft in Trash, identity
+  order, push catch-up, labels) pass on both. Before the upgrade, on 1.0.1:
+  the consent case failed with `rejected`, then passed with 95f0f8f4.
+- Android emulator, release build (x86_64, debug-signed) at 6fae74f9:
+  - Phone (Pixel_7_API_34): sign-in by password, TOTP, OAuth through
+    bulwark-mobile (consent page, full access), QR pairing (link from the
+    test webmail's pairing API, opened with `am start`), the sign-in
+    language picker and the Gmail hint; list, reader, compose with
+    attachments, drafts, scheduled and undo send, search, folders and
+    tags, filters and vacation, settings, account switching across two
+    servers, calendar (create, edit, recurring, invitation, reminder),
+    contacts, widgets and device sync. Push from userb with the app in the
+    foreground, in the background and killed (`su 0 kill -9`): notification
+    within 2-3 s, a tap opens the message; Archive, Delete and Copy code
+    actions; catch-up after the network came back. Light on 0.16, a
+    subset on 1.1.0 and in dark mode.
+  - The quick-crypto self-test on Hermes (Settings > Encryption > Run
+    check): all 12 lines pass. This closes the RESULT PENDING line of the
+    2026-11 report, as the walkthrough closes its emulator recheck.
+  - Tablet (Pixel_Tablet_API_34): landscape (rail 84 + folders 271 + list
+    319 + reader 603 dp), portrait (list 319 + reader 396), 852 dp (list +
+    reader 447, folders in the drawer) and 616 dp (one pane) widths through
+    `wm size`, Reading pane Off without the split flashing, #105, calendar,
+    contacts, files, filters, every settings page (26, no error), Greek,
+    Nynorsk, Vietnamese and Dutch, dark mode.
+  - The P1 checks passed on both devices: saving a contact keeps
+    everything but the changed name (server JSON compared before and
+    after, both servers).
+  - 1 data-loss bug, 1 unreproducible freeze and 15 smaller bugs found;
+    fixed in the "Emulator walkthrough" commits above. A recheck on a
+    build at a3640ce1 passed all 13 rechecks; two small leftovers are under
+    Open.
+  - Screenshots (360 px wide) with notes: local-data/native-catch-up-2/
+    scratch/emu-phone, emu-tablet and emu-recheck in the webmail repo (not
+    in git).
+- iOS e2e (e2e-ios.yml by workflow_dispatch on the branch, after a reset
+  and seed of stw-v016):
+  - 41220976434 (pending from the last report): red; 79 of 87 flows
+    passed, no app bug (details in the inventory below).
+  - 43265877568 at 6fae74f9, `all,perf`: build and perf passed; the
+    failures were all on the test side (the webmail's new pairing prompt
+    broke the helper's /pair, flows outdated by intended changes: tasks
+    on by default, the new Appearance and Calendar settings texts; one
+    runner network outage; one landscape attachment tap). Fixed in
+    2d636248, da1ef242, 440b4684.
+  - Perf leg (this build, no baseline, medians): cold start 1865 ms to
+    bundle and 3738 ms to inbox (n=20), first start 5602 ms to inbox, open
+    message 1803 ms, compose 1794 ms, list scroll 0 long frames out of 164,
+    tab switches 36-82 ms; module evaluation at start 1485 ms, of which
+    expo-modules-core's NativeModulesProxy is 1255 ms.
+  - Reruns and fixes after it, each after a reset and seed of stw-v016
+    (the e2e accounts must start clean):
+    - 43296918746 at a3640ce1 (failed flows only): both sign-in legs,
+      features phone-dark, tablet-dark and tablet-light green; phone-light
+      and landscape red on settings search order (this branch put more
+      settings into the search) and a Back tap; flows fixed c0e9141e
+      8a0bdd76 18b72c00.
+    - 43314180988 at 18b72c00 (failed flows): all five feature legs green.
+    - 43324883343 at 18b72c00 (`all`): 2 of 7 green. Flow fixes a31750fb
+      01bf68ff; Reply waiting for a server lookup before opening the
+      composer was a real slowdown from 7e61fa9e, fixed in 10b188e3.
+    - 43350642545 at 10b188e3 (`all`): 2 of 7 green; 01bf68ff had broken
+      the undo tap, and a notification prompt nobody answered covered
+      Compose after a driver crash. Flow fixes ba200e52 063f240f 49aa2c4e.
+    - 43370032040 at 49aa2c4e (`all`): 2 of 7 green. One real app bug, also
+      on main: after a start without network the app dropped the saved
+      session, so a photo added later failed with "Not authenticated - call
+      connect() first" while the draft had saved; fixed in 9a803bd8 (the
+      upload brings the session back first or says it's offline). Flow fix
+      ca20ccc5 (the photo was picked twice).
+    - 43391304329 at ca20ccc5 (`all`): features phone-light, phone-dark,
+      tablet-dark and tablet-landscape green; signin-tablet (webmail error
+      page while making a link, a 61-67 s link dialog on the iPad),
+      signin-phone (driver died on the hand-off) and tablet-light (a Reply
+      tap that did nothing) red. Helper and flow fixes 142ed51e cd6aa3b1
+      dd554856.
+    - 43415589286 at dd554856 (the three red legs): red on a four-minute
+      outage between the runners and the test server, and a driver hang in
+      the OAuth sheet.
+    - 43432305143 at dd554856 (the three red legs): signin-tablet green;
+      signin-phone (settings search landed on Notifications instead of Sign
+      out; the webmail's hand-off button missing) and tablet-light (the
+      body text typed into the Subject field) red, both flakes.
+    - 43450745747 at dd554856 (signin-phone, tablet-light): green.
+  - Result: every leg is green on the final app code. signin-tablet in
+    43432305143, signin-phone and features-tablet-light in 43450745747 (both
+    at dd554856); features phone-light, phone-dark, tablet-dark and
+    tablet-landscape in 43391304329 at ca20ccc5, after which only the test
+    helper and flows changed (142ed51e, cd6aa3b1, dd554856). There is no
+    single all-green run of the full matrix: each full run hit a different
+    simulator, driver or runner-network failure.
+  - Every leg has passed on code within the last app change or two. The
+    remaining failures move between legs and flows from run to run and come
+    from the simulator, the Maestro driver or the runners' network.
+- Code review (code-review skill, high, fresh agent) of main...branch at
+  b4f0e0dc: 8 correctness findings, all fixed with tests (see "Review and
+  test fixes"); one note about the contributors' Co-Authored-By trailers,
+  kept (decisions 7 and 8).
+
+## Webmail bugs
+
+Found in this run, still open in the webmail at 2c21722ae:
+
+- Encryption at rest still reads and writes `Aes128`/`Aes256`, which
+  Stalwart 1.0.2+ refuses (stores/account-security-store.ts:14, :460,
+  :497; components/settings/account-security-settings.tsx:632, :798), and
+  it always sends `emailAddresses` for a new public key, which 1.0.2+
+  treats as server-set (stores/account-security-store.ts:807).
+- No RFC 9788 header protection handling; an expired password reads as a
+  wrong one.
+- Ticking one day of a repeating all-day task on Stalwart 0.16 wipes the
+  task (lib/calendar-tasks.ts overridePatch with stores/task-store.ts
+  toggleTaskComplete; 0.16 stores the override with a date-only
+  RECURRENCE-ID and returns it as the whole task).
+- Reply reopens a reply draft that was moved to Trash or Junk
+  (lib/reply-drafts.ts threadDrafts).
+- The rule editor shows the general "can run on existing mail" hint for a
+  regex rule whose switch is off.
+- unsupportedProvider flags any domain whose first label is outlook, live
+  or hotmail (e.g. live.school.edu).
+- Dutch catalog: 254 strings in the "u" form against 514 in "je"
+  (locales/nl/common.json), including settings.security.description.
+- English catalog mixes colour (12) and color (44); it dropped
+  settings.accessibility.plain_language.label and the attachment-position
+  keys the app still uses.
+- Dark mode: the mail body's #141414 sits on a #0a0a0a reader.
+- The catch-up after a reconnect checks only Mailbox, Email, Calendar,
+  CalendarEvent and SieveScript; contacts and files changed while
+  disconnected aren't caught up.
+
+Carried from the 2026-11 report: fixed in the webmail since are the
+filter-rule folder names (494ee5694), the composing-settings locks
+(8905d31b3), the push device id check (f0617a61b) and the smime keyUsage
+(plugins 3051115); partly fixed are the vacation filter re-include, the
+raw relay error text and HELO SPF. The rest of that list is still open.
+
+Stalwart, not the webmail:
+- 0.16: an override on a floating all-day event or task is stored with a
+  date-only RECURRENCE-ID and JMAP then returns the override as the whole
+  object (worked around in the app for tasks; all-day event occurrence
+  edits may hit it too).
+- 1.1.0: a repeating Task without a start returns no recurrenceRule over
+  JMAP although the RRULE is stored.
+- 0.16: Email/set and create drop non-system keywords for some accounts
+  (usera before the reset); emailPush refuses the whole map when it names
+  an account reached only through a share.
+
+## Open
+
+- Parity 12, not done (each row says why): offline search and the offline
+  database, app lock, remote wipe, mbox/PST import and export, CSV import
+  and duplicate merge, company calendars and "Suggest times" (decision
+  14); select all of a folder, group tag picker writes, hex tag colours,
+  per-event time zone, calendars of every sign-in, answering as the owner
+  of a shared calendar, task lists made by CalDAV clients, calendars for
+  shared accounts in settings.
+- Encryption at rest on Stalwart 1.0.2 (no scopes in discovery) still shows
+  the cipher picker; a save is retried as `Enabled`.
+- iOS: client certificates in the notification extension (#3) wait for a
+  device; the Swift from the last run and the widget still never ran on a
+  device. The widget needs the App ID org.bulwarkmail.mobile.Widget, its
+  profile and the IOS_WIDGET_PROVISIONING_PROFILE_BASE64 secret
+  (docs/ios-release.md step 6).
+- PR #101 stays with its author until the relay change is deployed.
+- Push with the same username on two servers shows content-free
+  notifications (the designed "ambiguous" case).
+- Other pop-ups with a text field and no keyboard handling (calendar,
+  contacts and compose sheets) may hide behind the keyboard; untested.
+- 16 languages capitalise the weekday mid-sentence in the calendar summary
+  (one line each in settings.summary.first_day); 163 translated strings
+  still contain " - " or an em dash.
+- One 1.5 to 2 minute UI freeze after tapping another account's
+  notification and pulling to refresh, not reproducible.
+- iOS simulator: on the iPad the "Sign in with a link?" dialog came 61 to
+  67 s after Open (the flow now waits 90 s); a minute would look broken to
+  a user, so check it on a device. Six taps the driver reported as done
+  did nothing (Back, Reply, "more" in the reader right after a message
+  opened, Delete on an event sheet); failure summaries now carry step
+  times (dd554856) to find the next one in the recording. The Maestro
+  driver dies on the webmail's "Hand over to the app" now and then.
+- On main, not from this branch: the app decides it is offline from a
+  check against clients3.google.com even when the mail server answers,
+  and the reader doesn't load a message again once the session is back
+  after "Failed to load email".
+- iOS: once in four phone runs, Back right after a message opened did
+  nothing for a few seconds (run 43296918746, phone-light 02); the flow now
+  taps Back a second time (18b72c00). If that second tap is needed again,
+  look at the reader's first seconds after opening (EmailThreadScreen and
+  the pager's web views) instead of adding retries.
+- Found in the last emulator recheck, not fixed: the new-tag field's error
+  line sits behind the keyboard's suggestion bar; calendar event chips'
+  screen-reader labels still read the raw default calendar name; the
+  encryption-at-rest description runs into its status ("…privacy
+  Disabled"). Dutch strings that come from the webmail catalog (about 164
+  with "uw", e.g. the display name on the Security page) stay formal until
+  the webmail changes them (decision 1).
+
+## Test rig changes (VM 106)
+
+- stw-rel: stalwartlabs/stalwart:v1.1.0 (servers.conf backup
+  servers.conf.bak-2026-11-12), reset and set up fresh with rel_setup.sh:
+  93 ok, 0 failed. bulwark-mobile registered with the data scopes plus
+  `full`. The regenerated admin@ password is in the vault item
+  "Stalwart test – stw-rel admin".
+- rel_setup.sh (backup rel_setup.sh.bak-2026-11-12): the 1.0 adjustments
+  now apply to every `v1.` image, not only `v1.0`.
+- register-mobile-client.py (backup register-mobile-client.py.bak-2026-11-12):
+  first-party on servers without Stalwart's scopes, explicit scopes from
+  1.0.3 on, with a `full` (default) or `account` variant, as the webmail's
+  setup does.
+- stw-v016: reset and seeded before the iOS e2e run (93 ok, 3000 bulk
+  messages); the regenerated admin@ password is in "Stalwart test – admin
+  (0.16)". The security audit's sec-* accounts were already gone.
+- Two seeded shares from usera to userb on 0.16 were removed by an old
+  delegation live test and put back before the reset; the test now restores
+  what it changes.
+
+## New questions
+
+1. PR #101: deploy the relay's normal-priority change (relay branch
+   cu2-fcm-priority 90cd921), then ask the author to rebase on top?
+2. The 0.16 workaround for ticking one day of an all-day task writes the
+   task's dates as midnight in the calendar's zone with SHOW-WITHOUT-TIME.
+   CalDAV clients may show such a task as due at 00:00. Report the 0.16
+   behaviour to Stalwart, or leave it since 1.x is fine?
+3. Same username on two servers: notifications then carry no content. Put
+   the server into the push subscription so the app can tell them apart?
+4. The online check against Google (on main): check the mail server
+   instead, so a network that blocks Google doesn't show the app offline?
+5. Reply on a widget: the reader waits up to 500 ms for the saved-draft
+   lookup there (REPLY_DRAFT_WAIT_MS), which the webmail doesn't do. Keep it?
+
+## Leftovers on disk
+
+- Worktree C:\Users\info\worktrees\react-native-catch-up-2 (this branch;
+  node_modules is a junction to the main checkout's).
+- Worktree C:\Users\info\worktrees\react-native-cu2-deps (branch cu2-deps,
+  merged; its own node_modules with the updated lockfile, and the Android
+  build output) and the junction C:\cu2b pointing at it. Kept as the build
+  tree for the emulator APKs; the local metro and cleartext patches are
+  reverted. Remove the junction first (`cmd /c rmdir C:\cu2b`), then the
+  worktree; its build output may need `rd /s /q "\\?\<path>"` (long
+  paths). Worktrees whose node_modules pointed at it are already removed.
+- An empty, locked folder C:\Users\info\worktrees\react-native-cu2-reply
+  (git refused to delete it, "Permission denied"; already unregistered and
+  its junction unlinked first). Delete it when Windows lets go of it.
+- Junction C:\cu2p (dangling, it pointed at the removed cu2-push worktree):
+  the permission settings block removing junctions under C:\ for agents;
+  `cmd /c rmdir C:\cu2p` removes only the link.
+- Kept from earlier runs: C:\ns and C:\Users\info\worktrees\native-sync
+  (decision 14 of the last run), C:\rn (the standing build junction to the
+  main checkout), the empty folder C:\cn-iosfix. C:\cn, C:\cd, C:\cp and the
+  react-native-cu-* folders the 2026-11 report listed are gone.
+- Removed in this run, each after `cmd /c rmdir node_modules`: every
+  react-native-cu2-* agent worktree, react-native-inv (no node_modules),
+  react-native-rel-ios (merged) and relay-cu2. The main checkout's and the
+  relay's node_modules were checked intact afterwards.
+- Local branches cu2-* (all merged into this branch; `git branch -d` refuses
+  them only because main doesn't have them yet), cu2-fcm-priority in
+  repos/relay (90cd921, not pushed).
+- The two untracked docs in the main checkout (docs/ios-push-design.md,
+  docs/ios-test-2026-10.md) are untouched.
+- The main checkout's node_modules still has postal-mime 4.2.0 and nitro
+  0.37.1; after the merge, `npm ci` there brings it to the lockfile.
+- Working notes, screenshots, logs and the APKs:
+  local-data/native-catch-up-2/ in the webmail repo (not in git).
 
 ## Inventory (Phase 0, 2026-11-12)
 
