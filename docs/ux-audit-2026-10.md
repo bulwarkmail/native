@@ -559,7 +559,7 @@ navigator:
 
 | Area | compact | medium | expanded |
 |---|---|---|---|
-| Mail | list → push thread | list (320–420 dp) + thread pane, while the thread keeps 360 dp (else as compact) | persistent folder sidebar (272 dp) + list + thread, while the thread keeps 360 dp (else as medium) |
+| Mail | list → push thread | list (320–420 dp, down to 280 dp before the split goes) + thread pane, while the thread keeps 360 dp (else as compact) | persistent folder sidebar (272 dp) + list + thread, while the thread keeps 360 dp (else as medium) |
 | Calendar | as today | wider grid, 3-day shows 5 days | week shows 7 wide columns, 3-day shows 7, day shows 2 |
 | Contacts | list → push detail | list + detail pane | list + detail pane |
 | Files | list / grid | grid columns from width (about 140 dp each) | grid columns from width + preview pane when a file is selected |
