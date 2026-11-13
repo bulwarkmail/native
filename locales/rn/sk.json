@@ -322,7 +322,10 @@
     "signing_out": "Odstraňujú sa synchronizované kontakty a kalendáre z tohto zariadenia…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Súbory Bulwark",
     "attach_camera": "Fotoaparát",
+    "attach_gallery": "Galéria",
+    "attach_this_device": "Toto zariadenie",
     "attachment_reminder_body": "Vaša správa spomína „{keyword}“, ale nie je priložený žiadny súbor. Odoslať aj tak?",
     "attachment_reminder_title": "Nezabudli ste prílohu?",
     "attachments_too_large_total": "Prílohy by prekročili limit {max}, ktorý tento server povoľuje na jednu správu.",

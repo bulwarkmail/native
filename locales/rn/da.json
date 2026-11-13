@@ -322,7 +322,10 @@
     "signing_out": "Fjerner synkroniserede kontakter og kalendere fra denne enhed…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark-filer",
     "attach_camera": "Kamera",
+    "attach_gallery": "Galleri",
+    "attach_this_device": "Denne enhed",
     "attachment_reminder_body": "Din besked nævner \"{keyword}\", men ingen fil er vedhæftet. Send alligevel?",
     "attachment_reminder_title": "Glemt en vedhæftning?",
     "attachments_too_large_total": "Vedhæftningerne ville overskride de {max}, som denne server tillader pr. besked.",

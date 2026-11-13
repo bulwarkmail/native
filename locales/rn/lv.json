@@ -322,7 +322,10 @@
     "signing_out": "Sinhronizētie kontakti un kalendāri tiek noņemti no šīs ierīces…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark faili",
     "attach_camera": "Kamera",
+    "attach_gallery": "Galerija",
+    "attach_this_device": "Šī ierīce",
     "attachment_reminder_body": "Jūsu ziņojumā minēts \"{keyword}\", bet nav pievienots neviens fails. Vai tomēr sūtīt?",
     "attachment_reminder_title": "Aizmirsāt pielikumu?",
     "attachments_too_large_total": "Pielikumi pārsniegtu {max}, ko šis serveris atļauj vienam ziņojumam.",

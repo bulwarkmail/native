@@ -322,7 +322,10 @@
     "signing_out": "正在從此裝置移除已同步的聯絡人和行事曆…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Bulwark 檔案",
     "attach_camera": "相機",
+    "attach_gallery": "圖庫",
+    "attach_this_device": "此裝置",
     "attachment_reminder_body": "您的郵件提到「{keyword}」，但沒有附加檔案。仍要傳送嗎？",
     "attachment_reminder_title": "忘記新增附件了嗎？",
     "attachments_too_large_total": "附件將超過此伺服器每封郵件 {max} 的上限。",

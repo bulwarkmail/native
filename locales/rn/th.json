@@ -324,7 +324,10 @@
     "signing_out": "กำลังนำผู้ติดต่อและปฏิทินที่ซิงค์ไว้ออกจากอุปกรณ์นี้…"
   },
   "email_composer": {
+    "attach_bulwark_files": "ไฟล์ Bulwark",
     "attach_camera": "กล้อง",
+    "attach_gallery": "แกลเลอรี",
+    "attach_this_device": "อุปกรณ์นี้",
     "attachment_reminder_body": "ข้อความของคุณมีคำว่า “{keyword}” แต่ไม่มีไฟล์แนบ ต้องการส่งต่อไปหรือไม่?",
     "attachment_reminder_title": "ลืมแนบไฟล์หรือไม่?",
     "attachments_too_large_total": "ไฟล์แนบจะเกิน {max} ที่เซิร์ฟเวอร์นี้อนุญาตต่อข้อความ",
