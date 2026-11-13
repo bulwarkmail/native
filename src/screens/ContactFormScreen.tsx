@@ -315,6 +315,11 @@ export default function ContactFormScreen() {
   const [datePickerIndex, setDatePickerIndex] = React.useState<number | null>(null);
   const [memberPickerOpen, setMemberPickerOpen] = React.useState(false);
 
+  // The form as it was filled from the card. A save compares each row with
+  // it to tell what the user touched; the card itself may be refreshed while
+  // the form is open.
+  const filledForm = React.useRef(existing ? form : undefined);
+
   // An edit link can open the form before the contacts have loaded: the
   // card's fields go in when it arrives, unless the user has typed already.
   const filledFromExisting = React.useRef(!!existing);
@@ -325,7 +330,9 @@ export default function ContactFormScreen() {
     const members = asGroup
       ? selectGroupMembers({ contacts: allContacts }, existing.id).map((m) => m.id)
       : [];
-    setForm(contactToForm(existing, members));
+    const filled = contactToForm(existing, members);
+    filledForm.current = filled;
+    setForm(filled);
   }, [existing, dirty, asGroup, allContacts]);
 
   React.useEffect(() => {
@@ -427,7 +434,7 @@ export default function ContactFormScreen() {
     }
     setSaving(true);
     try {
-      const patch = formToPatch(form, existing, !!asGroup || existing?.kind === 'group', allContacts);
+      const patch = formToPatch(form, existing, !!asGroup || existing?.kind === 'group', allContacts, filledForm.current);
       // `media` goes out only when the photo changed, built on the card as the
       // server has it now: a blobId from an older copy of the card, say of a
       // logo changed elsewhere since, makes Stalwart 1.0 refuse the whole
@@ -547,7 +554,7 @@ export default function ContactFormScreen() {
             value={n.note}
             onChangeText={(v) => {
               const next = [...form.notes];
-              next[i] = { note: v };
+              next[i] = { ...n, note: v };
               updateForm('notes', next);
             }}
           />
@@ -919,10 +926,10 @@ export default function ContactFormScreen() {
                         style={[styles.input, { flex: 1 }]}
                         placeholder={t('contacts.form.nickname_placeholder', 'Nickname')}
                         placeholderTextColor={c.textMuted}
-                        value={nick}
+                        value={nick.name}
                         onChangeText={(v) => {
                           const next = [...form.nicknames];
-                          next[i] = v;
+                          next[i] = { ...nick, name: v };
                           updateForm('nicknames', next);
                         }}
                       />
@@ -940,8 +947,8 @@ export default function ContactFormScreen() {
                     </View>
                   </Field>
                 ))}
-                {form.nicknames.every((n) => n.trim()) && (
-                  <AddButton label={t('contacts.form.add_nickname', 'Add nickname')} onPress={() => updateForm('nicknames', [...form.nicknames, ''])} />
+                {form.nicknames.every((n) => n.name.trim()) && (
+                  <AddButton label={t('contacts.form.add_nickname', 'Add nickname')} onPress={() => updateForm('nicknames', [...form.nicknames, { name: '' }])} />
                 )}
               </>
             )}
