@@ -27,6 +27,7 @@ import {
   MAX_PLAIN_VALUE_BYTES, nextStamp, planSettingsSync, readRemoteSettings, sameJson, settingsWrites,
   type LocalSetting, type SettingPush,
 } from '../lib/settings-sync';
+import { serverHostLabel } from '../lib/account-utils';
 import { onStateChangeType } from '../lib/state-change-bus';
 import { useAccountStore } from './account-store';
 import { useNetworkStore } from './network-store';
@@ -65,6 +66,12 @@ export type SettingsSyncStatus =
 interface Marks {
   /** The registry account these are for. Another account's copy has a history of its own. */
   holder: string | null;
+  /**
+   * Who that account is: its login and server. A registry id is not for
+   * good (an account signed in before ports counted gets another one when
+   * it signs in again), the login on a server is.
+   */
+  holderLogin: string | null;
   /** When each setting last changed here or was taken from the account, by its webmail name. */
   stamps: Record<string, number>;
   /** The settings whose last change here put them back to the default. */
@@ -98,7 +105,15 @@ interface SettingsSyncState {
   dismissReplaced: () => void;
 }
 
-const noMarks = (holder: string | null = null): Marks => ({ holder, stamps: {}, resets: {}, replaced: {} });
+const noMarks = (holder: string | null = null): Marks => ({
+  holder, holderLogin: holder ? loginOf(holder) : null, stamps: {}, resets: {}, replaced: {},
+});
+
+/** The login and server of a registry account, as one string; null when it isn't signed in. */
+function loginOf(registryId: string): string | null {
+  const account = useAccountStore.getState().accounts.find((a) => a.id === registryId);
+  return account ? `${account.username}@${serverHostLabel(account.serverUrl)}` : null;
+}
 let marks: Marks = noMarks();
 
 function persistMarks(): void {
@@ -111,7 +126,10 @@ function readMarks(raw: string | null): Marks {
   const out = noMarks();
   if (!raw) return out;
   try {
-    const parsed = JSON.parse(raw) as { holder?: unknown; stamps?: unknown; resets?: unknown; replaced?: unknown };
+    const parsed = JSON.parse(raw) as {
+      holder?: unknown; holderLogin?: unknown; stamps?: unknown; resets?: unknown; replaced?: unknown;
+    };
+    if (typeof parsed.holderLogin === 'string' && parsed.holderLogin) out.holderLogin = parsed.holderLogin;
     if (parsed.replaced && typeof parsed.replaced === 'object' && !Array.isArray(parsed.replaced)) {
       for (const [key, value] of Object.entries(parsed.replaced as Record<string, unknown>)) {
         if (SYNCED_SETTING_KEYS.includes(key as keyof PersistedSettings)) out.replaced[key] = value;
@@ -205,8 +223,11 @@ function localSettings(): LocalSetting[] {
 export function settingsSyncAccount(): string | null {
   const { accounts } = useAccountStore.getState();
   const picked = useSettingsStore.getState().settingsSyncAccountId;
-  if (picked) return accounts.some((account) => account.id === picked) ? picked : null;
-  return accounts[0]?.id ?? null;
+  if (!picked) return accounts[0]?.id ?? null;
+  if (accounts.some((account) => account.id === picked)) return picked;
+  // The holder, signed in again under another id.
+  if (picked !== marks.holder || !marks.holderLogin) return null;
+  return accounts.find((account) => loginOf(account.id) === marks.holderLogin)?.id ?? null;
 }
 
 // The sync client and the registry account it serves.
@@ -384,8 +405,13 @@ async function round(): Promise<void> {
   if (settings.settingsSyncAccountId !== registryId) settings.updateSetting('settingsSyncAccountId', registryId);
   // Another account's copy has its own history: this device meets it as one
   // that never synced, and its stamps for the previous account don't count.
-  if (marks.holder !== registryId) {
-    marks = marks.holder === null ? { ...marks, holder: registryId } : noMarks(registryId);
+  const login = loginOf(registryId);
+  if (marks.holder !== registryId || marks.holderLogin !== login) {
+    // The first holder ever, and the same login under a new id, keep what
+    // this device knows; so does a holder whose login wasn't noted yet.
+    const same = marks.holder === null
+      || (marks.holderLogin !== null ? marks.holderLogin === login : marks.holder === registryId);
+    marks = same ? { ...marks, holder: registryId, holderLogin: login } : noMarks(registryId);
     persistMarks();
     store.setState({ replaced: replacedOrNull() });
   }
@@ -530,8 +556,9 @@ export function startSettingsSync(): () => void {
   });
   // An account signed in or out: the first one takes the settings, or the
   // one that held them is gone.
+  const ids = (accounts: readonly { id: string }[]) => accounts.map((account) => account.id).join('\n');
   const unsubscribeAccounts = useAccountStore.subscribe((state, prev) => {
-    if (state.accounts.length !== prev.accounts.length) requestSettingsSync(0);
+    if (state.accounts !== prev.accounts && ids(state.accounts) !== ids(prev.accounts)) requestSettingsSync(0);
   });
   // Rounds wait for the organisation policy of the active account.
   const unsubscribePolicy = usePolicyStore.subscribe((state, prev) => {

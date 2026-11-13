@@ -743,6 +743,32 @@ describe('several accounts', () => {
     expect(second.requests).toBe(0);
   });
 
+  it('knows the holder again when it signs back in under another id', async () => {
+    // An account signed in before ports were part of the id keeps its old one
+    // until it signs out; signed in again it gets the id with the port.
+    settings().updateSetting('density', 'compact');
+    await vi.advanceTimersByTimeAsync(2000);
+    const stamp = settingsSyncStampsForTests().density;
+
+    useAccountStore.setState({ accounts: [account('second')], activeAccountId: 'second' });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(sync().status).toBe('signed-out');
+
+    FakeSyncClient.servers = { 'first:8443': server, second };
+    useAccountStore.setState({ accounts: [account('second'), { ...account('first'), id: 'first:8443' }] });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(sync().status).toBe('synced');
+    expect(settings().settingsSyncAccountId).toBe('first:8443');
+    // What this device knew of the account's copy still counts.
+    expect(settingsSyncStampsForTests().density).toBe(stamp);
+    expect(second.requests).toBe(0);
+
+    // Another login that only shares the user name is not the holder.
+    useAccountStore.setState({ accounts: [account('second'), { ...account('first'), id: 'x', serverUrl: 'https://elsewhere.example.org' }] });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(sync().status).toBe('signed-out');
+  });
+
   it('does not hand the settings of a signed-out user to the next account signed in', async () => {
     settings().updateSetting('density', 'compact');
     await vi.advanceTimersByTimeAsync(2000);
