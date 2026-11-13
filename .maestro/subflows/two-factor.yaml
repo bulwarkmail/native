@@ -1,5 +1,10 @@
 # The two-factor field is showing (it focuses itself): type a fresh code from
 # the helper and sign in.
+#
+# Typed as in type.yaml: the first digit re-renders the form, and the
+# simulator once kept only that one ("7" of six), so type it alone, let the
+# form settle, then the rest. The code then shows as the field's text; if it
+# doesn't, erase (the cursor is at the end) and type it again.
 appId: org.bulwarkmail.mobile
 ---
 - extendedWaitUntil:
@@ -9,9 +14,26 @@ appId: org.bulwarkmail.mobile
     file: ../scripts/helper.js
     env:
       CALL: /totp
+- evalScript: ${output.totpHead = output.helper.code.slice(0, 1); output.totpTail = output.helper.code.slice(1)}
 - waitForAnimationToEnd:
     timeout: 3000
-- inputText: ${output.helper.code}
+- inputText: ${output.totpHead}
+- waitForAnimationToEnd:
+    timeout: 2000
+- inputText: ${output.totpTail}
+- runFlow:
+    when:
+      notVisible: ${output.helper.code}
+    commands:
+      - retry:
+          maxRetries: 2
+          commands:
+            - eraseText: 10
+            - inputText: ${output.totpHead}
+            - waitForAnimationToEnd:
+                timeout: 2000
+            - inputText: ${output.totpTail}
+            - assertVisible: ${output.helper.code}
 # The number pad has no return key.
 - runFlow:
     when:
