@@ -136,11 +136,13 @@ function makeStyles(c: ThemePalette) {
       end: spacing.sm,
       justifyContent: 'center',
     },
-    // Opaque, since it lies over the row's date and the end of its text.
+    // Opaque, since it lies over the row's date and the end of its text. The
+    // hovered row's colour: `muted`, which every theme keeps readable under
+    // text (theme-contrast.test.ts); `surfaceHover` is some themes' accent.
     strip: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: c.surfaceHover,
+      backgroundColor: c.muted,
       borderRadius: radius.md,
       paddingHorizontal: spacing.xs,
     },
@@ -151,6 +153,6 @@ function makeStyles(c: ThemePalette) {
       justifyContent: 'center',
       borderRadius: radius.sm,
     },
-    buttonPressed: { backgroundColor: c.surfaceActive },
+    buttonPressed: { opacity: 0.6 },
   });
 }

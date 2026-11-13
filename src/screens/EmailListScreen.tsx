@@ -2821,7 +2821,7 @@ function makeStyles(c: ThemePalette) {
   // its swipe actions.
   emailRowUnread: { backgroundColor: mix(c.accent, c.background, 0.3) },
   // Under a mouse pointer (webmail: hover:bg-muted).
-  emailRowHovered: { backgroundColor: c.surfaceHover },
+  emailRowHovered: { backgroundColor: c.muted },
   emailRowPressed: { backgroundColor: c.surface },
   emailRowSelected: { backgroundColor: c.selection },
   // The message open next to the list (webmail: bg-selection with a primary

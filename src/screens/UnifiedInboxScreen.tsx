@@ -765,7 +765,7 @@ function makeStyles(c: ThemePalette) {
       backgroundColor: c.background,
     },
     // Under a mouse pointer.
-    rowHovered: { backgroundColor: c.surfaceHover },
+    rowHovered: { backgroundColor: c.muted },
     rowPressed: { backgroundColor: c.surfaceHover },
     rowSelected: { backgroundColor: c.selection },
     // The message open in the pane, as in the folder list.
