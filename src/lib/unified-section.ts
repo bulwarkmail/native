@@ -45,3 +45,16 @@ export function visibleCrossViews(opts: {
   };
   return CROSS_VIEW_ORDER.filter((view) => enabled[view]);
 }
+
+/**
+ * Whether the drawer still lists the unified view the Mail tab shows: a
+ * cross view by `visibleCrossViews`, a per-role one with the unified section.
+ * When it does not (the other account removed, the setting turned off), the
+ * tab goes back to its folders rather than keep a view with no row to it.
+ */
+export function unifiedViewOffered(
+  target: { view?: CrossView },
+  opts: { showUnified: boolean; crossViews: CrossView[] },
+): boolean {
+  return target.view ? opts.crossViews.includes(target.view) : opts.showUnified;
+}
