@@ -34,3 +34,16 @@ appId: org.bulwarkmail.mobile
 - tapOn:
     id: tab-mail
 - runFlow: go-to-inbox.yaml
+# The "Get notified about new mail" card comes 1.5 s after each start until
+# it is answered, and floats over the compose button and the bottom of every
+# page. The sign-in answers it (inbox.yaml), but a sign-in cut short (a
+# driver that died, a retried flow) leaves it to every later flow.
+- extendedWaitUntil:
+    visible: "Not now"
+    timeout: 3000
+    optional: true
+- runFlow:
+    when:
+      visible: "Not now"
+    commands:
+      - tapOn: "Not now"
