@@ -43,7 +43,6 @@ import { useAccountStore } from '../stores/account-store';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { toast } from '../stores/toast-store';
 import { type EmailTemplate } from '../stores/templates-store';
-import type { AppIcon } from '../components/icons';
 import { getIdentities } from '../api/identity';
 import { loadComposerIdentities, readCachedIdentities } from '../lib/identity-cache';
 import {
@@ -324,7 +323,7 @@ function ToolbarButton({
 
 interface SheetOption {
   label: string;
-  icon?: AppIcon;
+  icon?: React.ReactNode;
   destructive?: boolean;
   onPress: () => void;
 }
@@ -362,7 +361,7 @@ function OptionsSheet({
               style={styles.scheduleRow}
               onPress={() => { onClose(); afterDismiss.run(opt.onPress); }}
             >
-              {opt.icon && <opt.icon size={18} color={opt.destructive ? c.error : c.textSecondary} />}
+              {opt.icon}
               <Text style={[styles.scheduleRowLabel, opt.destructive && { color: c.error }]}>{opt.label}</Text>
             </Pressable>
           ))}
@@ -2157,16 +2156,16 @@ export default function ComposeScreen({ route, navigation }: Props) {
       label: Platform.OS === 'ios'
         ? t('email_composer.attach_photos', 'Photos & Videos')
         : t('email_composer.attach_gallery', 'Gallery'),
-      icon: ImageIcon,
+      icon: <ImageIcon size={18} color={c.textSecondary} />,
       onPress: () => { void pickPhotoAttachments(); },
     },
-    { label: t('email_composer.attach_camera', 'Camera'), icon: Camera, onPress: () => { void takePhotoAttachment(); } },
+    { label: t('email_composer.attach_camera', 'Camera'), icon: <Camera size={18} color={c.textSecondary} />, onPress: () => { void takePhotoAttachment(); } },
     // "This device" and "Bulwark Files" keep the phone's files and the
     // server's Files apart.
-    { label: t('email_composer.attach_this_device', 'This device'), icon: Smartphone, onPress: () => { void pickFileAttachments(); } },
+    { label: t('email_composer.attach_this_device', 'This device'), icon: <Smartphone size={18} color={c.textSecondary} />, onPress: () => { void pickFileAttachments(); } },
     ...(hasServerFiles ? [{
       label: t('email_composer.attach_bulwark_files', 'Bulwark Files'),
-      icon: FolderOpen,
+      icon: <FolderOpen size={18} color={c.textSecondary} />,
       onPress: () => { if (!refuseAttachAfterSwitch()) setFilesPickerOpen(true); },
     }] : []),
   ];
@@ -3126,7 +3125,8 @@ export default function ComposeScreen({ route, navigation }: Props) {
 
   const composer = (
     <SafeAreaView style={styles.container} edges={isSplit ? [] : ['top', 'left', 'right']}>
-      <View style={[styles.header, typingInShortWindow && styles.headerCompact]}>
+      {/* The Maestro flows wait for this id: a new message has no title to wait for. */}
+      <View style={[styles.header, typingInShortWindow && styles.headerCompact]} testID="compose-header">
         <Pressable
           onPress={onClose}
           style={styles.headerBtn}

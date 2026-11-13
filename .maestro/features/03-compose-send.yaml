@@ -9,7 +9,8 @@ tags:
 - evalScript: ${output.subject = 'E2E compose ' + DEVICE + '-' + APPEARANCE + '-' + ORIENTATION + ' ' + Date.now()}
 - tapOn: "Compose"
 - extendedWaitUntil:
-    visible: "New Message"
+    visible:
+      id: "compose-header"
     timeout: 15000
 - tapOn: "Recipient email addresses"
 - inputText: "userb@example.org"
@@ -28,13 +29,13 @@ tags:
 # The attach sheet offers its options one by one (it used to be a single
 # accessibility element, and picking one opened no picker on iOS).
 - tapOn: "Attach"
+# iOS keeps "Photos & Videos"; Android names the same row "Gallery".
 - extendedWaitUntil:
     visible: "Photos & Videos"
     timeout: 10000
 - assertVisible: "Camera"
-# A server with Files offers "Upload from this device" and "Attach from
-# Files" instead of a plain "Files".
-- assertVisible: "Upload from this device|Files"
+# The phone's own files; a server with Files adds "Bulwark Files" below.
+- assertVisible: "This device"
 - takeScreenshot: compose-02-attach-sheet
 - evalScript: ${output.pickPhoto = ORIENTATION != 'landscape'}
 # The system photo picker runs in another process: XCTest sees none of its
@@ -52,7 +53,8 @@ tags:
     commands:
       - tapOn: "Photos & Videos"
       - extendedWaitUntil:
-          notVisible: "Draft saved|New Message"
+          notVisible:
+            id: "compose-header"
           timeout: 10000
           optional: true
       - waitForAnimationToEnd:
@@ -79,7 +81,8 @@ tags:
             - tapOn:
                 point: "90%,13%"
 - extendedWaitUntil:
-    visible: "New Message"
+    visible:
+      id: "compose-header"
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 5000
