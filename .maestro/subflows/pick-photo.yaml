@@ -1,0 +1,25 @@
+# In the system photo picker (opened from the composer's attach sheet): pick
+# the first photo (the app icon, added by boot-sim.sh) and confirm with the
+# check mark. The picker runs in another process: XCTest sees none of its
+# elements, but taps by position reach it. Such a tap can miss (a grid still
+# loading, or the check mark before a photo is picked, which leaves the
+# picker open), so pick once more if the composer hasn't come back.
+appId: org.bulwarkmail.mobile
+---
+- extendedWaitUntil:
+    notVisible: "Draft saved|New Message"
+    timeout: 10000
+    optional: true
+- waitForAnimationToEnd:
+    timeout: 5000
+- takeScreenshot: compose-03-photo-picker
+- runFlow: pick-photo-taps.yaml
+- extendedWaitUntil:
+    visible: "New Message"
+    timeout: 10000
+    optional: true
+- runFlow:
+    when:
+      notVisible: "New Message"
+    commands:
+      - runFlow: pick-photo-taps.yaml

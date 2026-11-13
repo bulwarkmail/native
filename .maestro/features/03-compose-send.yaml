@@ -37,10 +37,9 @@ tags:
 - assertVisible: "Upload from this device|Files"
 - takeScreenshot: compose-02-attach-sheet
 - evalScript: ${output.pickPhoto = ORIENTATION != 'landscape'}
-# The system photo picker runs in another process: XCTest sees none of its
-# elements, but taps by position reach it. Pick the first photo (the app
-# icon, added by boot-sim.sh) and confirm with the check mark. The iPad in
-# landscape lays the picker out differently, so it only closes the sheet.
+# Pick a photo in the system picker (subflows/pick-photo.yaml). The iPad in
+# landscape lays the picker out differently, so there the flow only closes
+# the sheet.
 - runFlow:
     when:
       true: ${!output.pickPhoto}
@@ -51,38 +50,34 @@ tags:
       true: ${output.pickPhoto}
     commands:
       - tapOn: "Photos & Videos"
-      - extendedWaitUntil:
-          notVisible: "Draft saved|New Message"
-          timeout: 10000
-          optional: true
-      - waitForAnimationToEnd:
-          timeout: 5000
-      - takeScreenshot: compose-03-photo-picker
-      - runFlow:
-          when:
-            true: ${DEVICE == 'tablet'}
-          commands:
-            - tapOn:
-                point: "44%,33%"
-            - waitForAnimationToEnd:
-                timeout: 2000
-            - tapOn:
-                point: "90%,26%"
-      - runFlow:
-          when:
-            true: ${DEVICE != 'tablet'}
-          commands:
-            - tapOn:
-                point: "16%,25%"
-            - waitForAnimationToEnd:
-                timeout: 2000
-            - tapOn:
-                point: "90%,13%"
+      - runFlow: ../subflows/pick-photo.yaml
 - extendedWaitUntil:
     visible: "New Message"
     timeout: 20000
 - waitForAnimationToEnd:
     timeout: 5000
+# The picker can also close without a photo (seen on the iPad): pick again
+# from the attach sheet. The photo must be on the message before it goes out.
+- runFlow:
+    when:
+      true: ${output.pickPhoto}
+    commands:
+      - runFlow:
+          when:
+            notVisible: "icon.png"
+          commands:
+            - tapOn: "Attach"
+            - extendedWaitUntil:
+                visible: "Photos & Videos"
+                timeout: 10000
+            - tapOn: "Photos & Videos"
+            - runFlow: ../subflows/pick-photo.yaml
+            - extendedWaitUntil:
+                visible: "New Message"
+                timeout: 20000
+            - waitForAnimationToEnd:
+                timeout: 5000
+      - assertVisible: "icon.png"
 - takeScreenshot: compose-04-with-photo
 
 - tapOn: "Send"

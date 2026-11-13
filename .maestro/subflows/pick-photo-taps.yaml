@@ -1,0 +1,23 @@
+# The taps of pick-photo.yaml: the first photo, then the check mark.
+appId: org.bulwarkmail.mobile
+---
+- runFlow:
+    when:
+      true: ${DEVICE == 'tablet'}
+    commands:
+      - tapOn:
+          point: "44%,33%"
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - tapOn:
+          point: "90%,26%"
+- runFlow:
+    when:
+      true: ${DEVICE != 'tablet'}
+    commands:
+      - tapOn:
+          point: "16%,25%"
+      - waitForAnimationToEnd:
+          timeout: 2000
+      - tapOn:
+          point: "90%,13%"
