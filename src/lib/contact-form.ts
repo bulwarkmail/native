@@ -9,6 +9,7 @@ import {
   partialDateToString, stringToPartialDate, deriveFullName, getCustomFullName,
 } from './contact-utils';
 import type { PhotoEdit } from './contact-media';
+import { linksToPatch } from './contact-wire';
 
 // A row read from a card carries the `key` of the entry it came from (and an
 // organization row the key of its title), so a save can put back what the
@@ -596,19 +597,6 @@ export function formToPatch(
     if (value && Object.keys(value).length > 0) return same(value, stored) ? {} : { [key]: value };
     return isEdit && stored !== undefined ? { [key]: null } : {};
   };
-  const scalar = (key: keyof ContactCard, value: string, always = false): Record<string, unknown> => {
-    if (value) return value === existing?.[key] && !always ? {} : { [key]: value };
-    if (isEdit && existing?.[key] !== undefined) return { [key]: null };
-    return {};
-  };
-  // The calendar and free/busy links are one property on the wire
-  // (contactToWire rebuilds `calendars` from both), so they go together or
-  // not at all: one sent alone would delete the other.
-  const calendarUri = form.calendarUri.trim();
-  const freeBusyUri = form.freeBusyUri.trim();
-  const calendarLinks = calendarUri === (existing?.calendarUri ?? '') && freeBusyUri === (existing?.freeBusyUri ?? '')
-    ? {}
-    : { ...scalar('calendarUri', calendarUri, true), ...scalar('freeBusyUri', freeBusyUri, true) };
 
   // Only send `kind` when this form owns the answer: switching a card between
   // person and organization. Leave other kinds (group, location, ...) untouched.
@@ -633,8 +621,11 @@ export function formToPatch(
     ...property('notes', notes),
     ...property('keywords', keywords),
     ...property('speakToAs', speakToAs),
-    ...calendarLinks,
-    ...scalar('schedulingUri', form.schedulingUri.trim()),
+    ...linksToPatch(existing, {
+      calendarUri: form.calendarUri.trim(),
+      freeBusyUri: form.freeBusyUri.trim(),
+      schedulingUri: form.schedulingUri.trim(),
+    }),
     // No `media`: an update without it keeps every entry on the server, and
     // the form adds one only when the photo changed (mediaForPhotoEdit). A
     // map built here from the card's copy deleted a photo stored as a blob

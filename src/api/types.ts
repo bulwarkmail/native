@@ -342,6 +342,24 @@ export interface ContactDirectory {
   pref?: number;
 }
 
+export interface ContactCalendar {
+  '@type'?: 'Calendar';
+  uri: string;
+  kind?: 'calendar' | 'freeBusy' | string;
+  mediaType?: string;
+  contexts?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
+export interface ContactSchedulingAddress {
+  '@type'?: 'SchedulingAddress';
+  uri: string;
+  contexts?: Record<string, boolean>;
+  label?: string;
+  pref?: number;
+}
+
 export interface ContactPronouns {
   pronouns: string;
   pref?: number;
@@ -377,6 +395,8 @@ export interface ContactCard {
   links?: Record<string, ContactLink>;
   cryptoKeys?: Record<string, ContactCryptoKey>;
   directories?: Record<string, ContactDirectory>;
+  calendars?: Record<string, ContactCalendar>;
+  schedulingAddresses?: Record<string, ContactSchedulingAddress>;
   keywords?: Record<string, boolean>;
   members?: Record<string, boolean>;
   speakToAs?: ContactSpeakToAs;
