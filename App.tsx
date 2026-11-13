@@ -940,7 +940,6 @@ export default function App() {
         />
         <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
         <Stack.Screen name="Scheduled" getComponent={() => require('./src/screens/ScheduledScreen').default} />
-        <Stack.Screen name="UnifiedInbox" getComponent={() => require('./src/screens/UnifiedInboxScreen').default} />
         <Stack.Screen
           name="AddAccount"
           options={{

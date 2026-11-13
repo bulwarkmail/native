@@ -5,6 +5,7 @@ import { usePendingSignInLinkStore } from '../pending-sign-in-link';
 import { usePendingSettingsTab } from '../pending-settings-tab';
 import { usePendingCalendarOpen } from '../pending-calendar-open';
 import { usePendingMailSearch } from '../pending-mail-search';
+import { useUnifiedView } from '../unified-view';
 import { links } from '../../widgets/clicks';
 
 describe('parseDeepLink', () => {
@@ -275,13 +276,17 @@ describe('handleDeepLink', () => {
     const deps = { navigation: navigation as never, resolveThreadId: async () => 'T', openDraft };
     expect(await handleDeepLink({ kind: 'draft', emailId: 'D1' }, deps)).toBe(true);
     expect(openDraft).toHaveBeenCalledWith('D1', undefined);
+    // A unified view is a list of the Mail tab (#119), not a screen on top.
     await handleDeepLink({ kind: 'unified', view: 'starred' }, deps);
-    expect(navigation.navigate).toHaveBeenCalledWith('UnifiedInbox', { view: 'starred' });
+    expect(useUnifiedView.getState().target).toEqual({ view: 'starred' });
+    expect(navigation.navigate).toHaveBeenLastCalledWith('MainTabs', { screen: 'Mail' });
     await handleDeepLink({ kind: 'scheduled' }, deps);
     expect(navigation.navigate).toHaveBeenCalledWith('Scheduled');
     await handleDeepLink({ kind: 'search', query: 'from:ada' }, deps);
     expect(usePendingMailSearch.getState().consume()).toBe('from:ada');
     expect(navigation.navigate).toHaveBeenCalledWith('MainTabs', { screen: 'Mail' });
+    // The search runs in the folder list, so the unified view gives way.
+    expect(useUnifiedView.getState().target).toBeNull();
   });
 
   it('refuses when the linked account is not signed in', async () => {

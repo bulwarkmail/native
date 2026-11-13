@@ -3,9 +3,11 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import EmailListScreen from './EmailListScreen';
+import UnifiedInboxScreen from './UnifiedInboxScreen';
 import MessagePane from '../components/MessagePane';
 import SidebarDrawer from '../components/SidebarDrawer';
 import type { RootStackParamList } from '../navigation/types';
+import { showMailFolders, useUnifiedView } from '../navigation/unified-view';
 import type { Email } from '../api/types';
 import { useEmailStore, viewerParamsForRow } from '../stores/email-store';
 import { useSettingsStore } from '../stores/settings-store';
@@ -43,6 +45,8 @@ function visibleRows(): Email[] {
  * Where the tab has room (`mailLayoutFor`) the message opens in a pane next
  * to the list, and with more room the folder list is a permanent sidebar; the
  * same viewer screen runs in the pane with a navigation that keeps it there.
+ * A unified view (All inboxes, All mail, ...) takes the place of the list and
+ * its pane, between the folder list and the tab bar like any folder (#119).
  */
 export default function MailTab({ navigation }: { navigation: RootNav }) {
   const c = useColors();
@@ -72,9 +76,13 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
 
   // Another folder: its list has nothing to do with the message on show.
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
+  const unified = useUnifiedView((s) => s.target);
   React.useEffect(() => {
     close();
-  }, [currentMailboxId, close]);
+  }, [currentMailboxId, unified, close]);
+
+  // Signed out, the next sign-in starts on its folders.
+  React.useEffect(() => showMailFolders, []);
 
   // A message that moved out of the list (deleted, archived, moved, marked
   // spam) leaves the pane to the row that took its place, as Apple Mail does.
@@ -98,16 +106,32 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
       activeRowKey={layout.isSplit ? pane.activeKey : null}
       split={layout.isSplit}
       sidebarDocked={layout.hasSidebar}
+      covered={!!unified}
     />
   );
-  const listWidth = listPaneWidth(width - (layout.hasSidebar ? DOCKED_WIDTH : 0));
+  const roomWidth = width - (layout.hasSidebar ? DOCKED_WIDTH : 0);
+  const listWidth = listPaneWidth(roomWidth);
   // One tree for both layouts, so the list keeps its place (scroll, search)
-  // when the split comes or goes.
+  // when the split comes or goes. Under a unified view the folder list stays
+  // mounted too, as it did under the screen the view used to be.
   return (
     <View style={styles.row} onLayout={(e) => setTabWidth(Math.round(e.nativeEvent.layout.width))}>
       {layout.hasSidebar && <SidebarDrawer docked visible onClose={noop} />}
-      <View style={layout.isSplit ? [styles.listPane, { width: listWidth }] : styles.fill}>{list}</View>
-      {layout.isSplit && (
+      {unified && (
+        <View style={styles.fill}>
+          <UnifiedInboxScreen
+            // Each view starts as a list of its own: no search or selection carried over.
+            key={`${unified.view ?? ''}/${unified.role ?? 'inbox'}`}
+            navigation={navigation}
+            role={unified.role}
+            view={unified.view}
+            width={roomWidth}
+            sidebarDocked={layout.hasSidebar}
+          />
+        </View>
+      )}
+      <View style={[layout.isSplit ? [styles.listPane, { width: listWidth }] : styles.fill, unified && styles.hidden]}>{list}</View>
+      {layout.isSplit && !unified && (
         <View style={styles.fill}>
           <MessagePane
             message={pane.open}
@@ -129,5 +153,6 @@ function makeStyles(c: ThemePalette) {
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
     fill: { flex: 1 },
+    hidden: { display: 'none' },
   });
 }

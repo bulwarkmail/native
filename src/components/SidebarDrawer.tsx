@@ -27,7 +27,7 @@ import {
   buildMailboxTree, flattenVisible, mailboxSubtreeIds, ownMailboxes, type MailboxNode,
 } from '../lib/mailbox-tree';
 import { localizeMailboxName } from '../lib/mailbox-label';
-import { showUnifiedSection, visibleCrossViews } from '../lib/unified-section';
+import { showUnifiedSection, unifiedViewOffered, visibleCrossViews } from '../lib/unified-section';
 import { generateAvatarColor, getAccountInitials } from '../lib/avatar-utils';
 import { jmapClient } from '../api/jmap-client';
 import {
@@ -47,6 +47,9 @@ import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import { SafeAreaModal } from './SafeAreaModal';
 import { setPendingSettingsTab } from '../navigation/pending-settings-tab';
+import {
+  isUnifiedViewShown, showMailFolders, showUnifiedView, useUnifiedView, type UnifiedViewTarget,
+} from '../navigation/unified-view';
 import {
   isAccountMuted, isMailboxMuted, mailboxOverridesForAccount, resetMailboxMutes, setAccountMuted, setMailboxMuted,
   type NotificationMutes,
@@ -468,15 +471,26 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     });
   };
 
+  // The unified view the Mail tab shows in place of the folder list, if any:
+  // its row is the selected one then, and no folder or tag is.
+  const unifiedShown = useUnifiedView((s) => s.target);
+  const allInboxesShown = isUnifiedViewShown(unifiedShown, { role: 'inbox' });
+  const openUnified = (target: UnifiedViewTarget) => {
+    onClose();
+    showUnifiedView(target);
+  };
+
   const handleSelect = React.useCallback((id: string) => {
     // A tag view was open: leave it so the folder shows its own mail.
     if (filters.keyword) clearSearchAndFilters();
+    showMailFolders();
     void selectMailbox(id);
     onClose();
   }, [selectMailbox, onClose, filters.keyword, clearSearchAndFilters]);
 
   // Tap the unread count → the folder filtered to unread (webmail sidebar).
   const handleSelectUnread = React.useCallback((id: string) => {
+    showMailFolders();
     void selectMailbox(id).then(() => setFilters({ isUnread: true }));
     onClose();
   }, [selectMailbox, setFilters, onClose]);
@@ -492,6 +506,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
 
   // Tag view (#175): every folder, messages carrying the tag.
   const selectTag = React.useCallback((id: string) => {
+    showMailFolders();
     setFilters({ keyword: keywordToken(id) });
     onClose();
   }, [setFilters, onClose]);
@@ -512,7 +527,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
 
   // The tag rows: nested under their parents with "Nested tags" on, and
   // without the tags whose visibility hides them (webmail sidebar).
-  const selectedTagId = filters.keyword ? tagIdFromKeyword(filters.keyword) : null;
+  const selectedTagId = filters.keyword && !unifiedShown ? tagIdFromKeyword(filters.keyword) : null;
   const tagRows = React.useMemo(
     () => sidebarTagRows(keywordDefs, nestedTags, tagCounts, {
       showAll: showAllTags, selectedId: selectedTagId, collapsed: collapsedTags,
@@ -777,6 +792,13 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const crossViews = visibleCrossViews({
     showUnified, enableCrossUnreadView, enableCrossStarredView, enableCrossAllView,
   });
+  // Judged once the accounts and folders are known: at start and during an
+  // account switch the lists are briefly empty.
+  const unifiedGone = !!unifiedShown && accounts.length > 0 && mailboxes.length > 0
+    && !unifiedViewOffered(unifiedShown, { showUnified, crossViews });
+  React.useEffect(() => {
+    if (unifiedGone) showMailFolders();
+  }, [unifiedGone]);
   const unifiedCounts = React.useMemo(() => {
     const pools: Mailbox[][] = [mailboxes];
     if (unifiedCrossAccount) {
@@ -944,6 +966,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                       if (isActive) return;
                       setAccountMenuOpen(false);
                       onClose();
+                      // The account's own mail, not a unified view left open.
+                      showMailFolders();
                       void switchAccount(acc.id);
                     }}
                     onLongPress={isActive ? undefined : () => confirmRemoveAccount(acc)}
@@ -1096,11 +1120,16 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
           {/* Quick views */}
           {showUnified && (
             <Pressable
-              style={({ pressed }) => [styles.quickRow, pressed && styles.rowPressed]}
-              onPress={() => { onClose(); navigation.navigate('UnifiedInbox', { role: 'inbox' }); }}
+              style={({ pressed }) => [
+                styles.quickRow,
+                allInboxesShown && styles.rowSelected,
+                pressed && !allInboxesShown && styles.rowPressed,
+              ]}
+              onPress={() => openUnified({ role: 'inbox' })}
               // A name of its own, like a folder row: else TalkBack read its
               // texts one by one ("All inboxes, /, 9").
               accessibilityRole="button"
+              accessibilityState={{ selected: allInboxesShown }}
               accessibilityLabel={unreadRowLabel(unifiedInboxLabel, unifiedCounts.inbox.unread, t)}
             >
               <Layers size={16} color={c.textSecondary} />
@@ -1140,13 +1169,13 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                       icon={<row.Icon size={16} color={c.textSecondary} />}
                       label={row.label}
                       depth={0}
-                      isSelected={false}
+                      isSelected={isUnifiedViewShown(unifiedShown, { view: row.view })}
                       unread={row.unread}
                       total={0}
                       showTotal={false}
                       hasChildren={false}
                       isExpanded={false}
-                      onPress={() => { onClose(); navigation.navigate('UnifiedInbox', { view: row.view }); }}
+                      onPress={() => openUnified({ view: row.view })}
                       onToggleExpand={() => {}}
                     />
                   ))}
@@ -1158,13 +1187,13 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                         icon={<Icon size={16} color={iconColor(c, r.role, false)} />}
                         label={t(`sidebar.unified_${r.role}`, `All ${r.role}`)}
                         depth={0}
-                        isSelected={false}
+                        isSelected={isUnifiedViewShown(unifiedShown, { role: r.role })}
                         unread={r.unread}
                         total={r.total}
                         showTotal={showFolderTotalCount}
                         hasChildren={false}
                         isExpanded={false}
-                        onPress={() => { onClose(); navigation.navigate('UnifiedInbox', { role: r.role }); }}
+                        onPress={() => openUnified({ role: r.role })}
                         onToggleExpand={() => {}}
                       />
                     );
@@ -1219,7 +1248,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
                 const Icon = node.isAccountNode
                   ? Users
                   : iconFor(node.role, hasChildren, isExpanded);
-                const isSelected = !node.isAccountNode && !tagViewActive && node.id === currentMailboxId;
+                const isSelected = !node.isAccountNode && !tagViewActive && !unifiedShown && node.id === currentMailboxId;
                 return (
                   <SidebarRow
                     key={node.id}

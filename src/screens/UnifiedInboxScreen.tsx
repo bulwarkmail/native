@@ -1,18 +1,19 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState, useWindowDimensions,
+  View, Text, StyleSheet, FlatList, ActivityIndicator, Pressable, TextInput, Alert, AppState,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDensity, useTypography } from '../theme/dynamic';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  ArrowLeft, Star, Paperclip, AlertTriangle, Search, X, Square, SquareCheck,
+  Menu, Star, Paperclip, AlertTriangle, Search, X, Square, SquareCheck,
   Mail as MailIcon, MailOpen, Archive, Trash2, ShieldAlert, ShieldCheck, Folder,
 } from '../components/icons';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import SenderAvatar from '../components/SenderAvatar';
 import MessagePane from '../components/MessagePane';
+import SidebarDrawer from '../components/SidebarDrawer';
 import { SwipeableRow } from '../components/SwipeableRow';
 import {
   fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash,
@@ -39,11 +40,24 @@ import { describeSenderVerification, senderWarningOf } from '../lib/email-header
 import { brandIndicatorDomain } from '../lib/avatar-bimi';
 import { createUnifiedReloadTracker } from '../lib/unified-reload';
 import { listPaneWidth, mailLayoutFor, useLayout } from '../lib/use-layout';
+import { listBackStep } from '../lib/list-back';
+import { useBackWhileFocused } from '../lib/use-back-while-focused';
+import { showMailFolders } from '../navigation/unified-view';
 import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'UnifiedInbox'>;
+interface Props {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'MainTabs'>;
+  /** Per-role unified view ("All Sent", ...); the inbox when no `view` is set. */
+  role?: UnifiedRole;
+  /** Cross-folder view: every included folder, unread only, starred only. */
+  view?: CrossView;
+  /** Room for the list and the reading pane: the Mail tab less a docked folder list. */
+  width: number;
+  /** The folder list is docked next to this one, so there is no drawer to open. */
+  sidebarDocked: boolean;
+}
 
 const PAGE_SIZE = 25;
 
@@ -65,16 +79,17 @@ function rowKey(e: UnifiedEmail): string {
   return `${e.sourceAccountId}:${e.jmapAccountId}:${e.id}`;
 }
 
-export default function UnifiedInboxScreen({ navigation, route }: Props) {
+/**
+ * A unified view, shown by the Mail tab in place of the folder list (#119):
+ * the tab bar stays, and the menu button opens the same folder drawer.
+ */
+export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, width, sidebarDocked }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const insets = useSafeAreaInsets();
   const dyn = useTypography();
   const density = useDensity();
   const showPreview = useSettingsStore((s) => s.showPreview);
-  const role: UnifiedRole = route.params?.role ?? 'inbox';
-  const view: CrossView | undefined = route.params?.view;
   const accounts = useAccountStore((s) => s.accounts);
   const activeAccountId = useAuthStore((s) => s.activeAccountId);
   const switchAccount = useAuthStore((s) => s.switchAccount);
@@ -92,8 +107,6 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const showAvatarsInJunk = useSettingsStore((s) => s.showAvatarsInJunk);
   const locale = useLocaleStore((s) => s.locale);
   const readingPane = useSettingsStore((s) => s.readingPane);
-  // A full-window screen, no tab rail: the window is its width.
-  const { width } = useWindowDimensions();
   const layout = mailLayoutFor(useLayout(), readingPane, width);
   // Where there is room a message opens next to the list, as in the Mail tab (#97).
   const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
@@ -109,6 +122,7 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
   const [searchInput, setSearchInput] = React.useState('');
   const [query, setQuery] = React.useState('');
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
   const positionsRef = React.useRef<Record<string, number>>({});
   const hasMoreRef = React.useRef(false);
   const loadSeq = React.useRef(0);
@@ -403,7 +417,21 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
       return next;
     });
   };
-  const clearSelection = () => setSelected(new Set());
+  const clearSelection = React.useCallback(() => setSelected(new Set()), []);
+  // Back first leaves the selection, then the search, as in the folder list;
+  // then it leads to the folder this view was opened over.
+  const backStep = listBackStep({ selecting: selected.size > 0, searching: searchInput.length > 0 || query.length > 0 });
+  const handleBack = React.useCallback(() => {
+    if (backStep === 'clear-selection') {
+      clearSelection();
+    } else if (backStep === 'clear-search') {
+      setSearchInput('');
+      setQuery('');
+    } else {
+      showMailFolders();
+    }
+  }, [backStep, clearSelection]);
+  useBackWhileFocused(true, handleBack);
   const allRead = selectedEmails.length > 0 && selectedEmails.every((e) => !!e.keywords?.$seen);
   const allStarred = selectedEmails.length > 0 && selectedEmails.every((e) => !!e.keywords?.$flagged);
 
@@ -581,15 +609,17 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
         </View>
       ) : (
         <View style={styles.header}>
-          <Pressable
-            onPress={() => navigation.goBack()}
-            style={styles.headerBtn}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', 'Back')}
-          >
-            <ArrowLeft size={22} color={c.text} />
-          </Pressable>
+          {!sidebarDocked && (
+            <Pressable
+              onPress={() => setDrawerOpen(true)}
+              style={styles.headerBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
+            >
+              <Menu size={20} color={c.textMuted} />
+            </Pressable>
+          )}
           <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
           <View style={styles.headerBtn}>
             {opening ? <ActivityIndicator size="small" color={c.primary} /> : null}
@@ -659,10 +689,10 @@ export default function UnifiedInboxScreen({ navigation, route }: Props) {
           onEndReached={() => { void loadMore(); }}
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: spacing.md }} color={c.primary} /> : null}
-          // A stack screen has no tab bar: the list ends clear of the gesture bar.
-          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          contentContainerStyle={styles.listContent}
         />
       )}
+      {!sidebarDocked && <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
     </>
   );
 
@@ -737,6 +767,7 @@ function makeStyles(c: ThemePalette) {
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
     loadingText: { ...typography.body, color: c.textSecondary },
     separator: { height: StyleSheet.hairlineWidth, backgroundColor: c.border },
+    listContent: { paddingBottom: 40 },
     row: {
       flexDirection: 'row',
       gap: spacing.md,

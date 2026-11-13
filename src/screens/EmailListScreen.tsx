@@ -470,6 +470,8 @@ interface EmailListScreenProps {
   split?: boolean;
   /** The folder list is a permanent sidebar: no menu button, no drawer. */
   sidebarDocked?: boolean;
+  /** A unified view is shown in this list's place: Back is that view's. */
+  covered?: boolean;
 }
 
 export default function EmailListScreen({
@@ -478,6 +480,7 @@ export default function EmailListScreen({
   activeRowKey = null,
   split: isSplit = false,
   sidebarDocked = false,
+  covered = false,
 }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -1192,7 +1195,7 @@ export default function EmailListScreen({
       clearSearchAndFilters();
     }
   }, [backStep, clearSelection, clearSearchAndFilters]);
-  useBackWhileFocused(backStep !== 'leave', handleBack);
+  useBackWhileFocused(backStep !== 'leave' && !covered, handleBack);
   const openRole = currentMailbox?.role;
   const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole);
   // The default search scope leaves Spam and Trash out; "All folders" doesn't.

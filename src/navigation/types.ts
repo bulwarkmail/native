@@ -101,14 +101,6 @@ export type RootStackParamList = {
   GroupDetail: { groupId: string };
   AddAccount: undefined;
   Scheduled: undefined;
-  UnifiedInbox:
-    | {
-        /** Per-role unified view ("All Sent", …); defaults to the inbox. */
-        role?: 'inbox' | 'sent' | 'drafts' | 'junk' | 'archive' | 'trash';
-        /** Cross-folder views: every included folder, unread only, starred only. */
-        view?: 'all' | 'unread' | 'starred';
-      }
-    | undefined;
 };
 
 export type MainTabsParamList = {
