@@ -1148,7 +1148,7 @@
       },
       "reading_pane": {
         "auto": "Ved siden af listen, når der er plads",
-        "description": "På en tablet eller en åben foldbar telefon vises den åbne besked ved siden af maillisten. Kun denne enhed.",
+        "description": "På en tablet eller en udfoldet foldbar telefon vises den åbne besked ved siden af maillisten. Kun på denne enhed.",
         "label": "Læserude",
         "off": "Fra: beskeder åbnes i fuld skærm"
       },

@@ -4,8 +4,8 @@ vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 411, heigh
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 import {
-  DETAIL_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth, mailLayoutFor,
-  mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets,
+  DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
+  mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets,
 } from '../use-layout';
 
 const NO_INSETS = { left: 0, right: 0 };
@@ -50,23 +50,62 @@ describe('layoutFor', () => {
 });
 
 describe('mailLayoutFor', () => {
-  it('leaves the window\'s layout alone on auto', () => {
+  // The Mail tab's width is the window less the tab rail: 86 dp with the
+  // English labels, measured on the emulator.
+  const RAIL = 86;
+  const mail = (w: number, h: number) => mailLayoutFor(layoutFor(w, h), 'auto', w - RAIL);
+
+  it('keeps the split and the sidebar on a tablet in landscape', () => {
     const tablet = layoutFor(1280, 800);
-    expect(mailLayoutFor(tablet, 'auto', 1194)).toMatchObject(tablet);
+    expect(mail(1280, 800)).toMatchObject(tablet);
+  });
+
+  it('keeps the split without a sidebar on a tablet in portrait', () => {
+    expect(mail(800, 1280)).toMatchObject(layoutFor(800, 1280));
+  });
+
+  it('drops the docked sidebar where it would leave the reader too narrow (#104)', () => {
+    // Pixel 11 Pro Fold, inner screen: 852 dp, so "expanded", but rail,
+    // sidebar and list left the message 174 dp.
+    const l = mail(852, 883);
+    expect(l.isSplit).toBe(true);
+    expect(l.hasSidebar).toBe(false);
+  });
+
+  it('keeps one pane where the reader would be too narrow beside the list (#104)', () => {
+    // Galaxy Z Fold 8, inner screen upright: 616 dp left the message 211 dp.
+    expect(mail(616, 816).isSplit).toBe(false);
+    // In landscape (816 dp) it keeps the split: 410 dp for the message.
+    expect(mail(816, 616).isSplit).toBe(true);
+  });
+
+  it('splits from READING_PANE_MIN beside the list, and docks the sidebar from that plus its width', () => {
+    const wide = layoutFor(1400, 900);
+    expect(READING_PANE_MIN).toBe(360);
+    // The list gives way down to 280 dp before the split goes (paneLayoutFor).
+    expect(mailLayoutFor(wide, 'auto', 640).isSplit).toBe(true); // 280 + 360
+    expect(mailLayoutFor(wide, 'auto', 639).isSplit).toBe(false);
+    expect(mailLayoutFor(wide, 'auto', 640 + DOCKED_WIDTH).hasSidebar).toBe(true);
+    expect(mailLayoutFor(wide, 'auto', 639 + DOCKED_WIDTH).hasSidebar).toBe(false);
+  });
+
+  it('never docks the sidebar on a medium window, whatever the room', () => {
+    expect(mailLayoutFor(layoutFor(839, 900), 'auto', 2000).hasSidebar).toBe(false);
   });
 
   it('keeps the single pane and the folder drawer with the reading pane off (#93)', () => {
-    // A wide window: the split and the docked sidebar.
-    const tablet = layoutFor(1280, 800);
-    expect(tablet.isSplit).toBe(true);
-    expect(tablet.hasSidebar).toBe(true);
-    expect(mailLayoutFor(tablet, 'off', 1194)).toEqual({
-      ...tablet, isSplit: false, hasSidebar: false, listWidth: 1194, detailWidth: 0,
+    // A wide portrait window, as on an open foldable: the split and the docked sidebar.
+    const fold = layoutFor(1280, 1104);
+    expect(fold.isSplit).toBe(true);
+    expect(fold.hasSidebar).toBe(true);
+    expect(mailLayoutFor(fold, 'off', 1280 - RAIL)).toEqual({
+      ...fold, isSplit: false, hasSidebar: false, listWidth: 1280 - RAIL, detailWidth: 0,
     });
   });
 
   it('changes nothing on a phone', () => {
     const phone = layoutFor(411, 914);
+    expect(mailLayoutFor(phone, 'auto', 411)).toEqual({ ...phone, listWidth: 411, detailWidth: 0 });
     expect(mailLayoutFor(phone, 'off', 411)).toEqual({ ...phone, listWidth: 411, detailWidth: 0 });
   });
 });
@@ -102,14 +141,14 @@ describe('reading pane width (#104)', () => {
 
   it('shrinks the list towards 280 dp before giving up the split', () => {
     const medium = layoutFor(700, 1000);
-    expect(paneLayoutFor(medium, 650)).toMatchObject({ isSplit: true, listWidth: 290, detailWidth: DETAIL_PANE_MIN });
-    expect(paneLayoutFor(medium, 640)).toMatchObject({ isSplit: true, listWidth: 280, detailWidth: DETAIL_PANE_MIN });
+    expect(paneLayoutFor(medium, 650)).toMatchObject({ isSplit: true, listWidth: 290, detailWidth: READING_PANE_MIN });
+    expect(paneLayoutFor(medium, 640)).toMatchObject({ isSplit: true, listWidth: 280, detailWidth: READING_PANE_MIN });
     expect(paneLayoutFor(medium, 639)).toMatchObject({ isSplit: false, listWidth: 639, detailWidth: 0 });
   });
 
   it('shrinks the list next to the docked folder list before undocking it', () => {
     const wide = layoutFor(1000, 800);
-    expect(paneLayoutFor(wide, 914)).toMatchObject({ hasSidebar: true, listWidth: 282, detailWidth: DETAIL_PANE_MIN });
+    expect(paneLayoutFor(wide, 914)).toMatchObject({ hasSidebar: true, listWidth: 282, detailWidth: READING_PANE_MIN });
     expect(paneLayoutFor(wide, 911)).toMatchObject({ hasSidebar: false, listWidth: 320, detailWidth: 591 });
   });
 
@@ -125,8 +164,8 @@ describe('mailScreenLayoutFor', () => {
   it('waits for the stored reading pane setting on a split window (#93)', () => {
     // Before the settings are read the store holds the default, auto.
     expect(mailScreenLayoutFor(tablet, 1194, 'auto', false)).toMatchObject({ ready: false });
-    expect(mailScreenLayoutFor(tablet, 1194, 'off', true)).toMatchObject({ ready: true, isSplit: false, windowIsSplit: true });
-    expect(mailScreenLayoutFor(tablet, 1194, 'auto', true)).toMatchObject({ ready: true, isSplit: true, windowIsSplit: true });
+    expect(mailScreenLayoutFor(tablet, 1194, 'off', true)).toMatchObject({ ready: true, isSplit: false });
+    expect(mailScreenLayoutFor(tablet, 1194, 'auto', true)).toMatchObject({ ready: true, isSplit: true });
   });
 
   it('never waits where the split does not fit', () => {

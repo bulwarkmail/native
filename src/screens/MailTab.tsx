@@ -40,18 +40,19 @@ function visibleRows(): Email[] {
 
 /**
  * The Mail tab. On a phone it is the list, and a message opens on the stack.
- * With room for a reader next to the list (`useMailLayout`) the message opens
- * in a pane beside it, and with room for the folder list too that is a
- * permanent sidebar; the same viewer screen runs in the pane with a
- * navigation that keeps it there.
+ * Where the tab has room (`useMailLayout`) the message opens in a pane next
+ * to the list, and with more room the folder list is a permanent sidebar; the
+ * same viewer screen runs in the pane with a navigation that keeps it there.
  */
 export default function MailTab({ navigation }: { navigation: RootNav }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-  // Sized from the room next to the tab rail, and one pane when the reader
-  // would get less than its minimum (#104).
+  const readingPane = useSettingsStore((s) => s.readingPane);
+  // Sized from the tab's own room, right of the tab rail (whose width follows
+  // its labels), and one pane when the reader would get less than its
+  // minimum (#104).
   const layout = useMailLayout(true);
-  const pane = useMessagePane(navigation, layout.isSplit, layout.windowIsSplit);
+  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
   const { show, close, openRef, setActiveKey } = pane;
 
   const openEmail = React.useCallback((email: Email) => {
@@ -93,8 +94,8 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
       onComposePress={() => navigation.navigate('Compose')}
       onEmailPress={openEmail}
       activeRowKey={layout.isSplit ? pane.activeKey : null}
-      sidebarDocked={layout.hasSidebar}
       split={layout.isSplit}
+      sidebarDocked={layout.hasSidebar}
     />
   );
 
@@ -102,14 +103,15 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
   // for it, so the list mounts once and the split never flashes up (#93).
   if (!layout.ready) return <View style={styles.row} onLayout={layout.onLayout} />;
 
-  // One tree for both layouts: the list stays mounted when the split comes
-  // or goes (a rotation, a fold), and the row measures the room it has.
+  // One tree for both layouts, so the list keeps its place (scroll, search)
+  // when the split comes or goes (a rotation, a fold); the row measures the
+  // room it has.
   return (
     <View style={styles.row} onLayout={layout.onLayout}>
       {layout.hasSidebar && <SidebarDrawer docked visible onClose={noop} />}
-      <View style={layout.isSplit ? [styles.listPane, { width: layout.listWidth }] : styles.singlePane}>{list}</View>
+      <View style={layout.isSplit ? [styles.listPane, { width: layout.listWidth }] : styles.fill}>{list}</View>
       {layout.isSplit && (
-        <View style={styles.detailPane}>
+        <View style={styles.fill}>
           <MessagePane
             message={pane.open}
             navigation={navigation}
@@ -129,7 +131,6 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
-    singlePane: { flex: 1 },
-    detailPane: { flex: 1 },
+    fill: { flex: 1 },
   });
 }

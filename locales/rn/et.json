@@ -887,7 +887,7 @@
       },
       "reading_pane": {
         "auto": "Loendi kõrval, kui ruumi on",
-        "description": "Tahvelarvutis või lahti volditud kokkupandavas telefonis näidatakse avatud kirja kirjade loendi kõrval. Ainult selles seadmes.",
+        "description": "Tahvelarvutis või avatud volditavas telefonis näidatakse avatud kirja kirjade loendi kõrval. Ainult selles seadmes.",
         "label": "Lugemispaan",
         "off": "Väljas: kirjad avanevad täisekraanil"
       },

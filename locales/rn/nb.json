@@ -1148,7 +1148,7 @@
       },
       "reading_pane": {
         "auto": "Ved siden av listen når det er plass",
-        "description": "På et nettbrett eller en åpen sammenleggbar telefon vises den åpne meldingen ved siden av e-postlisten. Bare denne enheten.",
+        "description": "På et nettbrett eller en utbrettet sammenleggbar telefon vises den åpne meldingen ved siden av e-postlisten. Bare på denne enheten.",
         "label": "Leserute",
         "off": "Av: meldinger åpnes i fullskjerm"
       },

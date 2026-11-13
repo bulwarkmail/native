@@ -244,6 +244,19 @@ describe('contacts operations', () => {
       const patch = mockRequest.mock.calls[0][0][0][1].update.c1;
       expect(patch).toEqual({ calendars: null, schedulingAddresses: null });
     });
+
+    // The contact form sends the stored entries with its edit applied, and
+    // the flat link beside them for the store (#110).
+    it('updates with the entries a patch carries, not ones built from its flat links', async () => {
+      mockRequest.mockResolvedValue({ methodResponses: [['ContactCard/set', { updated: { c1: null } }, '0']] });
+      const calendars = {
+        'work-cal': { kind: 'calendar', uri: 'https://moved', label: 'Work', pref: 1 },
+        'home-cal': { kind: 'calendar', uri: 'https://home' },
+      };
+      await updateContact('c1', { calendars, calendarUri: 'https://moved' });
+      const patch = mockRequest.mock.calls[0][0][0][1].update.c1;
+      expect(patch).toEqual({ calendars });
+    });
   });
 
   describe('getAllContacts', () => {

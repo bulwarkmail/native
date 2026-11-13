@@ -1151,7 +1151,7 @@
       },
       "reading_pane": {
         "auto": "Obok listy, gdy jest miejsce",
-        "description": "Na tablecie lub rozłożonym składanym telefonie otwarta wiadomość pojawia się obok listy poczty. Tylko na tym urządzeniu.",
+        "description": "Na tablecie lub rozłożonym składanym telefonie pokazuje otwartą wiadomość obok listy poczty. Tylko na tym urządzeniu.",
         "label": "Okienko odczytu",
         "off": "Wyłączone: wiadomości otwierają się na pełnym ekranie"
       },

@@ -1151,7 +1151,7 @@
       },
       "reading_pane": {
         "auto": "Vedle seznamu, když je místo",
-        "description": "Na tabletu nebo rozevřeném skládacím telefonu zobrazit otevřenou zprávu vedle seznamu pošty. Jen na tomto zařízení.",
+        "description": "Na tabletu nebo rozloženém skládacím telefonu zobrazí otevřenou zprávu vedle seznamu pošty. Jen na tomto zařízení.",
         "label": "Podokno čtení",
         "off": "Vypnuto: zprávy se otevírají na celou obrazovku"
       },

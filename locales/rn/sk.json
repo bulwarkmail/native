@@ -1150,7 +1150,7 @@
       },
       "reading_pane": {
         "auto": "Vedľa zoznamu, keď je miesto",
-        "description": "Na tablete alebo rozloženom skladacom telefóne zobraziť otvorenú správu vedľa zoznamu pošty. Len v tomto zariadení.",
+        "description": "Na tablete alebo rozloženom skladacom telefóne zobrazí otvorenú správu vedľa zoznamu pošty. Len na tomto zariadení.",
         "label": "Tabla na čítanie",
         "off": "Vypnuté: správy sa otvárajú na celú obrazovku"
       },

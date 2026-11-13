@@ -1152,7 +1152,7 @@
       },
       "reading_pane": {
         "auto": "Yer olduğunda listenin yanında",
-        "description": "Tablette veya açık katlanabilir telefonda açık iletiyi posta listesinin yanında gösterir. Yalnızca bu cihaz.",
+        "description": "Tablette veya açık katlanabilir telefonda açık iletiyi posta listesinin yanında gösterir. Yalnızca bu cihazda.",
         "label": "Okuma bölmesi",
         "off": "Kapalı: iletiler tam ekran açılır"
       },

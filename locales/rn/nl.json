@@ -1151,7 +1151,7 @@
       },
       "reading_pane": {
         "auto": "Naast de lijst als er ruimte is",
-        "description": "Op een tablet of opengeklapte vouwbare telefoon het geopende bericht naast de e-maillijst tonen. Alleen op dit apparaat.",
+        "description": "Op een tablet of een opengevouwen vouwbare telefoon staat het geopende bericht naast de e-maillijst. Alleen op dit apparaat.",
         "label": "Leesvenster",
         "off": "Uit: berichten openen schermvullend"
       },

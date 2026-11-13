@@ -492,18 +492,18 @@ interface EmailListScreenProps {
   onComposePress?: () => void;
   /** Row key (`rowKeyOf`) of the message open in a split view's detail pane. */
   activeRowKey?: string | null;
+  /** A message opens in a pane beside the list (MailTab decides, by the room it has). */
+  split?: boolean;
   /** The folder list is a permanent sidebar: no menu button, no drawer. */
   sidebarDocked?: boolean;
-  /** A reader pane next to the list (MailTab's useMailLayout). */
-  split?: boolean;
 }
 
 export default function EmailListScreen({
   onEmailPress,
   onComposePress,
   activeRowKey = null,
-  sidebarDocked = false,
   split: isSplit = false,
+  sidebarDocked = false,
 }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -519,7 +519,8 @@ export default function EmailListScreen({
   const { shortHeight, widthClass } = windowLayout;
   // In a split view the push prompt floats in this column, not over the
   // reader's quick reply (lib/push-prompt-frame). The prompt goes by the
-  // window, so the column is reported with the reading pane off too (#93).
+  // window, so the column is reported on a single pane in a wide window too
+  // (reading pane off, #93, or no room for it, #104).
   const isFocused = useIsFocused();
   const rootRef = React.useRef<View>(null);
   const reportListColumn = React.useCallback(() => {

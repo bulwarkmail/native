@@ -1151,7 +1151,7 @@
       },
       "reading_pane": {
         "auto": "Lângă listă când este loc",
-        "description": "Pe o tabletă sau pe un telefon pliabil deschis, mesajul deschis apare lângă lista de e-mailuri. Doar pe acest dispozitiv.",
+        "description": "Pe o tabletă sau un telefon pliabil deschis, afișează mesajul deschis lângă lista de e-mailuri. Doar pe acest dispozitiv.",
         "label": "Panoul de citire",
         "off": "Dezactivat: mesajele se deschid pe tot ecranul"
       },

@@ -1161,7 +1161,7 @@
       },
       "reading_pane": {
         "auto": "Neben der Liste, wenn Platz ist",
-        "description": "Auf einem Tablet oder aufgeklappten Foldable die geöffnete Nachricht neben der E-Mail-Liste zeigen. Nur auf diesem Gerät.",
+        "description": "Auf einem Tablet oder einem aufgeklappten Foldable die geöffnete Nachricht neben der Nachrichtenliste anzeigen. Nur auf diesem Gerät.",
         "label": "Lesebereich",
         "off": "Aus: Nachrichten öffnen im Vollbild"
       },

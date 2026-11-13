@@ -1153,7 +1153,7 @@
         "auto": "Al costat de la llista quan hi ha espai",
         "description": "En una tauleta o un plegable obert, mostra el missatge obert al costat de la llista de correu. Només en aquest dispositiu.",
         "label": "Panell de lectura",
-        "off": "Desactivat: els missatges s'obren a pantalla completa"
+        "off": "Desactivat: els missatges s’obren a pantalla completa"
       },
       "show_avatars_in_junk": "Mostra els avatars dels remitents al correu brossa",
       "show_avatars_in_junk_description": "Carrega els logotips dels remitents dels missatges de la carpeta de correu brossa. Desactivat, evita que es contacti amb els remitents de correu brossa.",

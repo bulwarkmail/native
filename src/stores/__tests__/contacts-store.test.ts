@@ -292,6 +292,27 @@ describe('contacts-store', () => {
       expect(useContactsStore.getState().contacts[0].phones).toBeUndefined();
     });
 
+    // What the contact form sends after the first calendar link is emptied:
+    // the entries that are left, and the link now read from them (#110).
+    it('keeps the calendar entries and the links read from them in step', async () => {
+      useContactsStore.setState({ contacts: [card('c1', {
+        calendars: { a: { kind: 'calendar', uri: 'https://a' }, b: { kind: 'calendar', uri: 'https://b' } },
+        schedulingAddresses: { s: { uri: 'mailto:s@x' } },
+        calendarUri: 'https://a',
+        schedulingUri: 'mailto:s@x',
+      })] });
+      mockUpdateContact.mockResolvedValue(undefined);
+      await useContactsStore.getState().updateContact('c1', {
+        calendars: { b: { kind: 'calendar', uri: 'https://b' } }, calendarUri: 'https://b',
+        schedulingAddresses: null, schedulingUri: null,
+      } as never);
+      const stored = useContactsStore.getState().contacts[0];
+      expect(stored.calendars).toEqual({ b: { kind: 'calendar', uri: 'https://b' } });
+      expect(stored.calendarUri).toBe('https://b');
+      expect(stored).not.toHaveProperty('schedulingAddresses');
+      expect(stored).not.toHaveProperty('schedulingUri');
+    });
+
     it('does not apply changes the server refused', async () => {
       useContactsStore.setState({ contacts: [card('c1', { kind: 'individual' })] });
       mockUpdateContact.mockRejectedValue(new Error('read-only'));

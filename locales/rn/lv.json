@@ -1150,9 +1150,9 @@
       },
       "reading_pane": {
         "auto": "Blakus sarakstam, ja ir vieta",
-        "description": "Planšetdatorā vai atvērtā salokāmā tālrunī rādīt atvērto vēstuli blakus pasta sarakstam. Tikai šajā ierīcē.",
+        "description": "Planšetdatorā vai atvērtā salokāmā tālrunī atvērto ziņojumu rāda blakus pasta sarakstam. Tikai šajā ierīcē.",
         "label": "Lasīšanas rūts",
-        "off": "Izslēgts: vēstules atveras pilnekrāna režīmā"
+        "off": "Izslēgta: ziņojumi atveras pilnekrānā"
       },
       "show_avatars_in_junk": "Rādīt sūtītāju avatarus mēstuļu mapē",
       "show_avatars_in_junk_description": "Ielādēt sūtītāju logotipus vēstulēm mēstuļu mapē. Ja izslēgts, ar mēstuļu sūtītājiem netiek veidots savienojums.",

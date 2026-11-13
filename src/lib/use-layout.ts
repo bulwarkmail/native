@@ -52,10 +52,14 @@ export function listPaneWidth(windowWidth: number): number {
  * one measured on a device (#104).
  */
 export const TAB_RAIL_WIDTH = 86;
-/** The folder list docked next to the mail list (SidebarDrawer; the webmail's default sidebar is 256 px). */
-export const DOCKED_SIDEBAR_WIDTH = 272;
-/** Below this the message or contact next to the list is too narrow to read: one pane instead. */
-export const DETAIL_PANE_MIN = 360;
+/** Width of the permanent folder sidebar (SidebarDrawer; the webmail's default sidebar is 256 px). */
+export const DOCKED_WIDTH = 272;
+/**
+ * Narrowest reading pane beside the list: a 360 dp phone, the narrowest
+ * screen the reader is laid out for. Below it the message (or the contact
+ * in Contacts) is too narrow to read, and the screen keeps one pane.
+ */
+export const READING_PANE_MIN = 360;
 /** The list gives way to the detail pane down to this width. */
 export const LIST_PANE_MIN = 280;
 
@@ -96,22 +100,22 @@ export interface PaneLayout extends Layout {
 }
 
 function listWidthBeside(available: number): number {
-  return Math.max(LIST_PANE_MIN, Math.min(listPaneWidth(available), available - DETAIL_PANE_MIN));
+  return Math.max(LIST_PANE_MIN, Math.min(listPaneWidth(available), available - READING_PANE_MIN));
 }
 
 /**
  * List and detail for a content area `contentWidth` wide (#104). The window
  * class only allows the split and the docked sidebar; they are used when the
- * detail pane keeps DETAIL_PANE_MIN. The list shrinks towards LIST_PANE_MIN
+ * detail pane keeps READING_PANE_MIN. The list shrinks towards LIST_PANE_MIN
  * first, as the Files list does (lib/files-split), then the sidebar goes back
  * into its drawer, and below that the screen keeps one pane, as on a phone.
  */
 export function paneLayoutFor(layout: Layout, contentWidth: number): PaneLayout {
   if (layout.isSplit) {
     for (const sidebar of layout.hasSidebar ? [true, false] : [false]) {
-      const available = contentWidth - (sidebar ? DOCKED_SIDEBAR_WIDTH : 0);
+      const available = contentWidth - (sidebar ? DOCKED_WIDTH : 0);
       const listWidth = listWidthBeside(available);
-      if (available - listWidth >= DETAIL_PANE_MIN) {
+      if (available - listWidth >= READING_PANE_MIN) {
         return { ...layout, hasSidebar: sidebar, listWidth, detailWidth: available - listWidth };
       }
     }
@@ -120,9 +124,13 @@ export function paneLayoutFor(layout: Layout, contentWidth: number): PaneLayout 
 }
 
 /**
- * The layout of the mail list and reader: with the reading pane off (#93)
+ * The layout of the mail list and reader, `contentWidth` dp wide (the window
+ * less the tab rail and the side insets). With the reading pane off (#93)
  * they keep the phone's single pane, and the folder list its drawer, at any
- * width. The rest of the app (tab rail, contacts, files) follows the window.
+ * width. Otherwise the folder list docks, and the list splits, only while
+ * the reader keeps READING_PANE_MIN beside them (#104): by the window alone,
+ * an 852 dp foldable got the docked sidebar and left the message 174 dp.
+ * The rest of the app (tab rail, contacts, files) follows the window.
  */
 export function mailLayoutFor(layout: Layout, readingPane: ReadingPane, contentWidth: number): PaneLayout {
   return paneLayoutFor(readingPane === 'off' ? { ...layout, isSplit: false, hasSidebar: false } : layout, contentWidth);
@@ -130,11 +138,6 @@ export function mailLayoutFor(layout: Layout, readingPane: ReadingPane, contentW
 
 /** The mail screens' layout. */
 export interface MailScreenLayout extends PaneLayout {
-  /**
-   * Whether the screen splits by its room alone: false when the window got
-   * narrow, true when only the reading pane setting turned the split off.
-   */
-  windowIsSplit: boolean;
   /**
    * False while the stored reading pane setting is unknown and decides the
    * layout (a split window): the screen draws its background only. Drawing
@@ -153,7 +156,7 @@ export function mailScreenLayoutFor(
 ): MailScreenLayout {
   const auto = mailLayoutFor(window, 'auto', contentWidth);
   const layout = readingPane === 'auto' ? auto : mailLayoutFor(window, readingPane, contentWidth);
-  return { ...layout, windowIsSplit: auto.isSplit, ready: settingsHydrated || !auto.isSplit };
+  return { ...layout, ready: settingsHydrated || !auto.isSplit };
 }
 
 /** The window's layout and the width a list-detail screen has for its panes. */

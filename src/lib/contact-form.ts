@@ -9,10 +9,11 @@ import {
   partialDateToString, stringToPartialDate, deriveFullName, getCustomFullName,
 } from './contact-utils';
 import type { PhotoEdit } from './contact-media';
+import { linksToPatch } from './contact-wire';
 
-// Each row of a list field keeps the `key` of the card's entry it was read
-// from, so a save can send an entry the user didn't touch back unchanged and
-// build an edited one on the card's entry (#1515).
+// A row read from a card carries the `key` of the entry it came from (and an
+// organization row the key of its title), so a save can put back what the
+// form doesn't show. A row the user added has none.
 //
 // `context` is "work", "private", "" or a context the form has no option
 // for, as the card has it (a vCard TYPE such as "car" from an Android phone).
@@ -29,11 +30,12 @@ export interface AddressDraft {
   country: string;
   context: string;
 }
-export interface OrgDraft { name: string; department: string; jobTitle: string; role: string }
+export interface OrgDraft { key?: string; titleKey?: string; name: string; department: string; jobTitle: string; role: string }
 export interface AnniversaryDraft { key?: string; kind: string; date: string }
 export interface OnlineDraft { key?: string; uri: string; service: string; label: string }
 export interface PersonalInfoDraft { key?: string; kind: string; level: string; value: string }
 export interface NoteDraft { key?: string; note: string }
+export interface NicknameDraft { key?: string; name: string }
 
 /** The phone type a row shows for a phone with its own label. No feature starts with "#". */
 export const PHONE_LABEL = '#label';
@@ -50,7 +52,7 @@ function phoneTypeOf(phone: ContactPhone): string {
   if (phone.label?.trim()) return PHONE_LABEL;
   const features = phone.features ?? {};
   // RFC 9553 calls it "mobile"; cards saved by older versions of the app
-  // (and of the webmail) say "cell".
+  // (and of the webmail) say "cell", which a save turns into "mobile".
   if (features.mobile || features.cell) return 'mobile';
   return ['fax', 'pager', 'video', 'text', 'voice'].find((k) => features[k])
     ?? Object.keys(features).find((k) => features[k])
@@ -65,7 +67,7 @@ export interface FormState {
   surname: string;
   suffix: string;
   full: string;
-  nicknames: string[];
+  nicknames: NicknameDraft[];
   emails: EmailDraft[];
   phones: PhoneDraft[];
   addresses: AddressDraft[];
@@ -100,7 +102,7 @@ export function blankForm(): FormState {
     surname: '',
     suffix: '',
     full: '',
-    nicknames: [''],
+    nicknames: [{ name: '' }],
     emails: [{ address: '', context: '' }],
     phones: [],
     addresses: [],
@@ -127,13 +129,12 @@ function findNameComponent(contact: ContactCard | undefined, ...kinds: string[])
   return found?.value || '';
 }
 
-function addressToFlat(key: string, a: ContactAddress): AddressDraft {
+function addressToFlat(a: ContactAddress): AddressDraft {
   if (a.components && a.components.length > 0) {
     const collect = (kind: string) => a.components!.filter((c) => c.kind === kind).map((c) => c.value).join(' ');
     const number = collect('number');
     const name = collect('name');
     return {
-      key,
       street: [number, name].filter(Boolean).join(' ') || a.street || '',
       locality: collect('locality') || a.locality || '',
       region: collect('region') || a.region || '',
@@ -143,7 +144,6 @@ function addressToFlat(key: string, a: ContactAddress): AddressDraft {
     };
   }
   return {
-    key,
     street: a.street || '',
     locality: a.locality || '',
     region: a.region || '',
@@ -161,16 +161,16 @@ export function contactToForm(contact: ContactCard, memberIds: string[]): FormSt
   const suffix = findNameComponent(contact, 'generation', 'suffix');
 
   const nicknames = contact.nicknames
-    ? Object.values(contact.nicknames).map((n) => n.name || '').filter(Boolean)
+    ? Object.entries(contact.nicknames).filter(([, n]) => !!n.name).map(([key, n]) => ({ key, name: n.name }))
     : [];
 
-  const emails: EmailDraft[] = contact.emails ? Object.entries(contact.emails).map(([key, e]) => ({
+  const emails = contact.emails ? Object.entries(contact.emails).map(([key, e]) => ({
     key,
     address: e.address,
     context: contextOf(e.contexts),
   })) : [];
 
-  const phones: PhoneDraft[] = contact.phones ? Object.entries(contact.phones).map(([key, p]) => ({
+  const phones = contact.phones ? Object.entries(contact.phones).map(([key, p]) => ({
     key,
     number: p.number,
     context: contextOf(p.contexts),
@@ -178,18 +178,21 @@ export function contactToForm(contact: ContactCard, memberIds: string[]): FormSt
   })) : [];
 
   const addresses = contact.addresses
-    ? Object.entries(contact.addresses).map(([key, a]) => addressToFlat(key, a))
+    ? Object.entries(contact.addresses).map(([key, a]) => ({ key, ...addressToFlat(a) }))
     : [];
 
   // Pair organization and titles into a single "work" record per index.
-  const rawOrgs = contact.organizations ? Object.values(contact.organizations) : [];
-  const titles = contact.titles ? Object.values(contact.titles) : [];
+  const orgEntries = contact.organizations ? Object.entries(contact.organizations) : [];
+  const titleEntries = contact.titles ? Object.entries(contact.titles) : [];
+  const rawOrgs = orgEntries.map(([, o]) => o);
   const orgs: OrgDraft[] = [];
-  const maxLen = Math.max(rawOrgs.length, titles.length);
+  const maxLen = Math.max(orgEntries.length, titleEntries.length);
   for (let i = 0; i < maxLen; i++) {
     const o = rawOrgs[i];
-    const t = titles[i];
+    const t = titleEntries[i]?.[1];
     orgs.push({
+      ...(orgEntries[i] ? { key: orgEntries[i][0] } : {}),
+      ...(titleEntries[i] ? { titleKey: titleEntries[i][0] } : {}),
       name: o?.name || '',
       department: o?.units?.[0]?.name || '',
       jobTitle: t?.kind !== 'role' ? t?.name || '' : '',
@@ -243,7 +246,7 @@ export function contactToForm(contact: ContactCard, memberIds: string[]): FormSt
 
   return {
     isOrg, prefix, given, middle, surname, suffix, full,
-    nicknames: nicknames.length > 0 ? nicknames : [''],
+    nicknames: nicknames.length > 0 ? nicknames : [{ name: '' }],
     emails: emails.length > 0 ? emails : [{ address: '', context: '' }],
     phones, addresses, orgs, anniversaries, online,
     personalInfo, notes, keywords, addressBookId,
@@ -269,55 +272,14 @@ function memberKeyMatches(key: string, contact: ContactCard): boolean {
     || (!!contact.uid && (key === contact.uid || bare === bareUid));
 }
 
-/**
- * The map to save for a list field (emails, phones, addresses...). A row the
- * user didn't touch goes back exactly as the card had it, under its key. An
- * edited row is built on the card's entry (`previous`), so properties the
- * form doesn't show stay; a new row gets a key no other entry uses.
- */
-function entriesToSave<E extends { key?: string }, V>(
-  rows: E[],
-  initialRows: E[],
-  original: Record<string, V> | undefined,
-  prefix: string,
-  build: (row: E, previous: V | undefined, before: E | undefined) => V,
-): Record<string, V> {
-  const out: Record<string, V> = {};
-  const taken = new Set(rows.map((r) => r.key).filter((k): k is string => !!k && !!original?.[k]));
-  let n = 1;
-  const freshKey = () => {
-    let key = `${prefix}${n++}`;
-    while (taken.has(key)) key = `${prefix}${n++}`;
-    taken.add(key);
-    return key;
-  };
-  for (const row of rows) {
-    const previous = row.key ? original?.[row.key] : undefined;
-    const before = previous !== undefined ? initialRows.find((r) => r.key === row.key) : undefined;
-    if (previous !== undefined && before && JSON.stringify(before) === JSON.stringify(row)) {
-      out[row.key!] = previous;
-    } else {
-      out[previous !== undefined ? row.key! : freshKey()] = build(row, previous, before);
-    }
-  }
-  return out;
-}
-
-/** A row the card had and the user left as it was. */
-function isUntouchedRow<E extends { key?: string }>(
-  row: E, initialRows: E[], original: Record<string, unknown> | undefined,
-): boolean {
-  if (!row.key || original?.[row.key] === undefined) return false;
-  const before = initialRows.find((r) => r.key === row.key);
-  return !!before && JSON.stringify(before) === JSON.stringify(row);
-}
-
-/** `contexts` for a row: the card's own when the context wasn't changed. */
-function contextsToSave(
-  context: string, previous: Record<string, boolean> | undefined, before: { context: string } | undefined,
-): Record<string, boolean> | undefined {
-  if (before && before.context === context) return previous;
-  return context ? { [context]: true } : undefined;
+/** Deep equality that ignores the order of object keys. */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length
+    && keys.every((k) => same((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
 /** Drops keys whose value is undefined, so a built entry has no empty properties. */
@@ -325,74 +287,108 @@ function compact<T extends object>(obj: T): T {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as T;
 }
 
-type AddressField = 'street' | 'locality' | 'region' | 'postcode' | 'country';
-const ADDRESS_FIELDS: AddressField[] = ['street', 'locality', 'region', 'postcode', 'country'];
-/** The component kinds each address field is read from. */
-const ADDRESS_FIELD_KINDS: Record<AddressField, string[]> = {
-  street: ['name', 'number'],
-  locality: ['locality'],
-  region: ['region'],
-  postcode: ['postcode'],
-  country: ['country'],
-};
-const ADDRESS_FORM_KINDS = new Set(['name', 'number', 'locality', 'region', 'postcode', 'country', 'separator']);
+/** Hands out `prefix1`, `prefix2`, ... skipping the keys already in use. */
+function keyMaker(prefix: string, used: Iterable<string>): () => string {
+  const taken = new Set(used);
+  let n = 1;
+  return () => {
+    let key = `${prefix}${n++}`;
+    while (taken.has(key)) key = `${prefix}${n++}`;
+    taken.add(key);
+    return key;
+  };
+}
 
-function freshAddressComponents(a: AddressDraft, extras: AddressComponent[]): AddressComponent[] {
-  const comps: AddressComponent[] = [];
-  if (a.street.trim()) comps.push({ kind: 'name', value: a.street.trim() });
-  comps.push(...extras);
-  if (a.locality.trim()) comps.push({ kind: 'locality', value: a.locality.trim() });
-  if (a.region.trim()) comps.push({ kind: 'region', value: a.region.trim() });
-  if (a.postcode.trim()) comps.push({ kind: 'postcode', value: a.postcode.trim() });
-  if (a.country.trim()) comps.push({ kind: 'country', value: a.country.trim() });
-  return comps;
+/** `contexts` for a row: the card's own when the pills weren't changed. */
+function contextsToSave(
+  context: string,
+  previous: Record<string, boolean> | undefined,
+  before: { context: string } | undefined,
+): Record<string, boolean> | undefined {
+  if (before && before.context === context) return previous;
+  return context ? { [context]: true } : undefined;
 }
 
 /**
- * The components of an edited address: the card's own, with only the parts
- * of the fields the user changed replaced. Parts the form doesn't show
- * (apartment, district, PO box...) stay where they were.
+ * One of the card's maps (emails, phones, ...) rebuilt from the form's rows
+ * without losing what the form doesn't show (webmail #1515). A row the user
+ * didn't touch goes back exactly as the card had it, under its key. An edited
+ * row is built on the card's entry (`previous`), so its other properties
+ * stay; a new row gets a key no kept entry uses. `filled` says whether a row
+ * holds anything worth saving; `build` may return undefined to drop the row.
+ */
+function entriesToSave<E extends { key?: string }, V>(
+  rows: E[],
+  initialRows: E[],
+  original: Record<string, V> | undefined,
+  prefix: string,
+  filled: (row: E) => boolean,
+  build: (row: E, previous: V | undefined, before: E | undefined) => V | undefined,
+): Record<string, V> {
+  const out: Record<string, V> = {};
+  const stored = (row: E) => (row.key ? original?.[row.key] : undefined);
+  const freshKey = keyMaker(prefix, rows.filter((r) => stored(r) !== undefined).map((r) => r.key!));
+  for (const row of rows) {
+    const previous = stored(row);
+    const before = previous !== undefined ? initialRows.find((r) => r.key === row.key) : undefined;
+    if (previous !== undefined && before && same(before, row)) {
+      out[row.key!] = previous;
+    } else if (filled(row) || (before !== undefined && !filled(before))) {
+      // (An entry the form shows no value for, say an address with only
+      // `full` text, is not dropped for looking empty.)
+      const built = build(row, previous, before);
+      if (built !== undefined) out[previous !== undefined ? row.key! : freshKey()] = built;
+    }
+  }
+  return out;
+}
+
+// The address fields of the form, each with the component kinds it shows and
+// the kind it writes.
+const ADDRESS_FIELDS: Array<{ field: 'street' | 'locality' | 'region' | 'postcode' | 'country'; shows: string[]; kind: string }> = [
+  { field: 'street', shows: ['number', 'name'], kind: 'name' },
+  { field: 'locality', shows: ['locality'], kind: 'locality' },
+  { field: 'region', shows: ['region'], kind: 'region' },
+  { field: 'postcode', shows: ['postcode'], kind: 'postcode' },
+  { field: 'country', shows: ['country'], kind: 'country' },
+];
+
+/**
+ * An edited address's components. A field the user left alone keeps the
+ * card's components for it, and so do the parts the form has no field for
+ * (apartment, floor, PO box); a changed field replaces its own, in place.
  */
 function addressComponentsToSave(
-  row: AddressDraft, previous: AddressComponent[] | undefined, before: AddressDraft | undefined,
+  row: AddressDraft,
+  before: AddressDraft | undefined,
+  previous: AddressComponent[] | undefined,
 ): AddressComponent[] {
-  const prev = previous ?? [];
-  if (!before || prev.length === 0) {
-    return freshAddressComponents(row, prev.filter((c) => !ADDRESS_FORM_KINDS.has(c.kind) && c.value?.trim()));
-  }
-  let comps = [...prev];
-  ADDRESS_FIELDS.forEach((field, fieldIndex) => {
-    if (row[field] === before[field]) return;
-    const kinds = ADDRESS_FIELD_KINDS[field];
-    const value = row[field].trim();
-    const replacement: AddressComponent[] = value ? [{ kind: field === 'street' ? 'name' : field, value }] : [];
-    const at = comps.map((c, i) => (kinds.includes(c.kind) ? i : -1)).filter((i) => i >= 0);
-    if (at.length > 0) {
-      const first = at[0];
-      const last = at[at.length - 1];
-      // The field's parts go, with the separators between them ("Hauptstraße" " " "1").
-      const kept = comps.filter((c, i) => !(i >= first && i <= last && (kinds.includes(c.kind) || c.kind === 'separator')));
-      comps = [...kept.slice(0, first), ...replacement, ...kept.slice(first)];
-      return;
+  const kept = before && previous && previous.length > 0;
+  let out: AddressComponent[] = kept ? [...previous] : [];
+  ADDRESS_FIELDS.forEach(({ field, shows, kind }, i) => {
+    if (kept && before[field] === row[field]) return;
+    let at = out.findIndex((c) => shows.includes(c.kind));
+    out = out.filter((c) => !shows.includes(c.kind));
+    if (!row[field].trim()) return;
+    if (at < 0) {
+      // A part the address didn't have goes before the first later field's.
+      const later = ADDRESS_FIELDS.slice(i + 1).flatMap((f) => f.shows);
+      at = out.findIndex((c) => later.includes(c.kind));
     }
-    // A field the card didn't have goes before the next field's parts.
-    const laterKinds = ADDRESS_FIELDS.slice(fieldIndex + 1).flatMap((f) => ADDRESS_FIELD_KINDS[f]);
-    const next = comps.findIndex((c) => laterKinds.includes(c.kind));
-    comps = next >= 0 ? [...comps.slice(0, next), ...replacement, ...comps.slice(next)] : [...comps, ...replacement];
+    out.splice(at < 0 ? out.length : at, 0, { kind, value: row[field].trim() });
   });
-  // No separator at either end or two in a row once parts are gone.
-  return comps.filter((c, i, all) => c.kind !== 'separator'
-    || (i > 0 && i < all.length - 1 && all[i - 1].kind !== 'separator'));
+  // A removed part leaves its separator behind: keep one between two parts
+  // and none at either end.
+  return out.filter((c, i) => c.kind !== 'separator'
+    || (i > 0 && i < out.length - 1 && out[i + 1].kind !== 'separator'));
 }
 
 /**
  * Build the JMAP patch. In edit mode every collection the form owns that ended
  * up empty is sent as `null` so the server clears it - omitting the key would
  * mean "unchanged" and the removed phone/address/note would come right back.
- * A property whose fields the user didn't change is left out, so it stays on
- * the server exactly as stored, and list entries the user didn't touch go
- * back as the card had them (`initial` is the form as it was opened; it
- * defaults to the form read from `existing`).
+ * A property that comes out as the card already has it is left out, so a save
+ * changes only what the user edited.
  * `media` is not part of it: see mediaForPhotoEdit.
  */
 export function formToPatch(
@@ -400,10 +396,13 @@ export function formToPatch(
   existing: ContactCard | undefined,
   asGroup: boolean,
   allContacts: ContactCard[],
-  initial?: FormState,
+  filledForm?: FormState,
 ): Partial<ContactCard> {
   const isEdit = !!existing;
-  const start = existing ? initial ?? contactToForm(existing, []) : undefined;
+  // The form as it was filled from the card: what a row is compared with to
+  // tell whether the user touched it. The screen passes the one it filled,
+  // since `existing` may be a newer copy of the card than the form shows.
+  const initial = existing ? filledForm ?? contactToForm(existing, []) : undefined;
   const orgName = form.orgs[0]?.name.trim() || '';
 
   // Organization cards carry no personal name components; the org name goes
@@ -421,18 +420,26 @@ export function formToPatch(
   // (#430). Without personal name components, carry the organization name
   // so servers and other clients have something to display.
   const full = form.full.trim() || (form.isOrg ? orgName : deriveFullName(components));
+  const nameFields = (f: FormState) => [
+    f.isOrg, f.prefix, f.given, f.middle, f.surname, f.suffix, f.full, f.isOrg ? f.orgs[0]?.name ?? '' : '',
+  ];
+  // An untouched name keeps what the form doesn't show (sort order, phonetics).
   const name: ContactCard['name'] | undefined =
-    components.length > 0 || full
-      ? { ...(components.length > 0 ? { components, isOrdered: true } : {}), ...(full ? { full } : {}) }
-      : undefined;
+    initial && existing?.name && same(nameFields(form), nameFields(initial))
+      ? { ...existing.name, ...(full ? { full } : {}) }
+      : components.length > 0 || full
+        ? { ...(components.length > 0 ? { components, isOrdered: true } : {}), ...(full ? { full } : {}) }
+        : undefined;
 
-  const nicknames: Record<string, ContactNickname> = {};
-  form.nicknames.map((n) => n.trim()).filter(Boolean).forEach((n, i) => {
-    nicknames[`n${i}`] = { name: n };
-  });
+  const nicknames = entriesToSave<NicknameDraft, ContactNickname>(
+    form.nicknames, initial?.nicknames ?? [], existing?.nicknames, 'n',
+    (n) => !!n.name.trim(),
+    (row, previous) => ({ ...previous, name: row.name.trim() }),
+  );
 
   const emails = entriesToSave<EmailDraft, ContactEmail>(
-    form.emails.filter((e) => e.address.trim()), start?.emails ?? [], existing?.emails, 'e',
+    form.emails, initial?.emails ?? [], existing?.emails, 'e',
+    (row) => !!row.address.trim(),
     (row, previous, before) => compact({
       ...previous,
       address: row.address.trim(),
@@ -442,7 +449,8 @@ export function formToPatch(
 
   // A phone's features and label stay as stored until another type is picked.
   const phones = entriesToSave<PhoneDraft, ContactPhone>(
-    form.phones.filter((p) => p.number.trim()), start?.phones ?? [], existing?.phones, 'p',
+    form.phones, initial?.phones ?? [], existing?.phones, 'p',
+    (row) => !!row.number.trim(),
     (row, previous, before) => {
       const typeKept = !!before && before.feature === row.feature;
       return compact({
@@ -456,71 +464,117 @@ export function formToPatch(
       });
     },
   );
+  // RFC 9553 calls it "mobile"; a "cell" written by an older version of the
+  // app or the webmail becomes "mobile" on any save.
+  for (const [key, phone] of Object.entries(phones)) {
+    if (!phone.features?.cell) continue;
+    const features: Record<string, boolean> = { ...phone.features, mobile: true };
+    delete features.cell;
+    phones[key] = { ...phone, features };
+  }
 
-  // An address the form can't show (only `full` text, a PO box) has empty
-  // fields here; untouched, it stays.
+  // An address the form can't show (only `full` text) has empty fields; it is
+  // kept as long as its row is untouched.
   const addresses = entriesToSave<AddressDraft, ContactAddress>(
-    form.addresses.filter((a) => a.street.trim() || a.locality.trim() || a.country.trim() || a.region.trim()
-      || a.postcode.trim() || isUntouchedRow(a, start?.addresses ?? [], existing?.addresses)),
-    start?.addresses ?? [], existing?.addresses, 'a',
+    form.addresses, initial?.addresses ?? [], existing?.addresses, 'a',
+    (a) => !!(a.street.trim() || a.locality.trim() || a.country.trim() || a.region.trim() || a.postcode.trim()),
     (row, previous, before) => {
-      const {
-        components: previousComponents, full: _full, fullAddress: _fullAddress,
-        street: _s, locality: _l, region: _r, postcode: _p, country: _c, ...kept
-      } = previous ?? {};
-      void _full; void _fullAddress; void _s; void _l; void _r; void _p; void _c;
+      const contexts = contextsToSave(row.context, previous?.contexts, before);
+      if (previous && before && ADDRESS_FIELDS.every(({ field }) => before[field] === row[field])) {
+        return compact({ ...previous, contexts });
+      }
+      // The text copies of the address go: they would contradict the edit.
+      const kept = { ...previous };
+      for (const stale of ['components', 'full', 'fullAddress', 'street', 'locality', 'region', 'postcode', 'country'] as const) {
+        delete kept[stale];
+      }
       return compact({
         ...kept,
-        components: addressComponentsToSave(row, previousComponents, before),
+        components: addressComponentsToSave(row, before, previous?.components),
         isOrdered: true,
         defaultSeparator: previous?.defaultSeparator ?? ', ',
         countryCode: before && before.country === row.country ? previous?.countryCode : undefined,
-        contexts: contextsToSave(row.context, previous?.contexts, before),
+        contexts,
       });
     },
   );
 
+  // One form row is an organization and, by position, a title or a role.
+  type Title = NonNullable<ContactCard['titles']>[string];
   const organizations: Record<string, ContactOrganization> = {};
-  const titles: Record<string, { name: string; kind?: 'title' | 'role' }> = {};
-  form.orgs.forEach((o, i) => {
-    if (o.name.trim() || o.department.trim()) {
-      const units = o.department.trim() ? [{ name: o.department.trim() }] : undefined;
-      organizations[`o${i + 1}`] = {
-        ...(o.name.trim() ? { name: o.name.trim() } : {}),
-        ...(units ? { units } : {}),
-      };
+  const titles: Record<string, Title> = {};
+  const storedOrgs = existing?.organizations ?? {};
+  const storedTitles: Record<string, Title> = existing?.titles ?? {};
+  // Stored keys are never handed out again: a title may still point at one.
+  const orgKey = keyMaker('o', Object.keys(storedOrgs));
+  const titleKey = keyMaker('t', Object.keys(storedTitles));
+  const roleKey = keyMaker('r', Object.keys(storedTitles));
+  form.orgs.forEach((o) => {
+    const before = o.key || o.titleKey
+      ? initial?.orgs.find((r) => r.key === o.key && r.titleKey === o.titleKey)
+      : undefined;
+    const previousOrg = o.key ? storedOrgs[o.key] : undefined;
+    const name = o.name.trim();
+    const department = o.department.trim();
+    if (before && previousOrg && before.name === o.name && before.department === o.department) {
+      organizations[o.key!] = previousOrg;
+    } else if (name || department) {
+      // Further units stay until the department, the first one, is edited.
+      const unitsKept = !!before && before.department === o.department;
+      organizations[previousOrg ? o.key! : orgKey()] = compact({
+        ...previousOrg,
+        name: name || undefined,
+        units: unitsKept ? previousOrg?.units : department ? [{ name: department }] : undefined,
+      });
     }
+
+    const previousTitle = o.titleKey ? storedTitles[o.titleKey] : undefined;
+    const previousJob = previousTitle && previousTitle.kind !== 'role' ? previousTitle : undefined;
+    const previousRole = previousTitle && previousTitle.kind === 'role' ? previousTitle : undefined;
     if (o.jobTitle.trim()) {
-      titles[`t${i + 1}`] = { name: o.jobTitle.trim(), kind: 'title' };
+      titles[previousJob ? o.titleKey! : titleKey()] = previousJob && before?.jobTitle === o.jobTitle
+        ? previousJob
+        : { ...previousJob, name: o.jobTitle.trim(), kind: 'title' };
     }
     if (o.role.trim()) {
-      titles[`r${i + 1}`] = { name: o.role.trim(), kind: 'role' };
+      titles[previousRole ? o.titleKey! : roleKey()] = previousRole && before?.role === o.role
+        ? previousRole
+        : { ...previousRole, name: o.role.trim(), kind: 'role' };
     }
   });
+  // A title must not point at an organization that was removed.
+  for (const [key, title] of Object.entries(titles)) {
+    const linked = (title as { organizationId?: string }).organizationId;
+    if (linked === undefined || organizations[linked]) continue;
+    const unlinked = { ...title } as Title & { organizationId?: string };
+    delete unlinked.organizationId;
+    titles[key] = unlinked;
+  }
 
   const anniversaries = entriesToSave<AnniversaryDraft, ContactAnniversary>(
-    form.anniversaries.filter((a) => isUntouchedRow(a, start?.anniversaries ?? [], existing?.anniversaries)
-      || !!stringToPartialDate(a.date)),
-    start?.anniversaries ?? [], existing?.anniversaries, 'an',
-    (row, previous) => ({
-      ...previous,
-      kind: row.kind as ContactAnniversary['kind'],
-      date: stringToPartialDate(row.date)!,
-    }),
+    form.anniversaries, initial?.anniversaries ?? [], existing?.anniversaries, 'an',
+    () => true,
+    (row, previous, before) => {
+      // An unchanged date keeps its stored form (a timestamp, another calendar).
+      const date = previous && before?.date === row.date ? previous.date : stringToPartialDate(row.date);
+      return date ? { ...previous, kind: row.kind as ContactAnniversary['kind'], date } : undefined;
+    },
   );
 
   const onlineServices = entriesToSave<OnlineDraft, ContactOnlineService>(
-    form.online.filter((s) => s.uri.trim()), start?.online ?? [], existing?.onlineServices, 'os',
+    form.online, initial?.online ?? [], existing?.onlineServices, 'os',
+    (s) => !!s.uri.trim(),
     (row, previous) => compact({
       ...previous,
-      uri: row.uri.trim(),
+      uri: row.uri.trim() || previous?.uri || '',
       service: row.service.trim() || undefined,
       label: row.label.trim() || undefined,
     }),
   );
 
   const personalInfo = entriesToSave<PersonalInfoDraft, ContactPersonalInfo>(
-    form.personalInfo.filter((p) => p.value.trim()), start?.personalInfo ?? [], existing?.personalInfo, 'pi',
+    form.personalInfo, initial?.personalInfo ?? [], existing?.personalInfo, 'pi',
+    (p) => !!p.value.trim(),
     (row, previous) => compact({
       ...previous,
       kind: row.kind as ContactPersonalInfo['kind'],
@@ -530,7 +584,8 @@ export function formToPatch(
   );
 
   const notes = entriesToSave<NoteDraft, ContactNote>(
-    form.notes.filter((n) => n.note.trim()), start?.notes ?? [], existing?.notes, 'n',
+    form.notes, initial?.notes ?? [], existing?.notes, 'n',
+    (n) => !!n.note.trim(),
     (row, previous) => ({ ...previous, note: row.note.trim() }),
   );
 
@@ -539,27 +594,28 @@ export function formToPatch(
     if (k.trim()) keywords[k.trim()] = true;
   });
 
-  const speakToAs =
-    form.grammaticalGender || form.pronouns.trim()
-      ? {
-        ...(form.grammaticalGender ? { grammaticalGender: form.grammaticalGender } : {}),
-        ...(form.pronouns.trim()
-          ? { pronouns: { p0: { pronouns: form.pronouns.trim() } } }
-          : {}),
-      }
-      : undefined;
+  // The form edits the first pronouns entry and the card's others stay;
+  // emptying the field clears them all, or the next one would show up in it.
+  const storedPronouns = Object.entries(existing?.speakToAs?.pronouns ?? {});
+  const pronouns = form.pronouns.trim()
+    ? {
+      [storedPronouns[0]?.[0] ?? 'p0']: { ...storedPronouns[0]?.[1], pronouns: form.pronouns.trim() },
+      ...Object.fromEntries(storedPronouns.slice(1)),
+    }
+    : {};
+  const speakToAs = compact({
+    ...existing?.speakToAs,
+    grammaticalGender: form.grammaticalGender || undefined,
+    pronouns: Object.keys(pronouns).length > 0 ? pronouns : undefined,
+  });
 
-  // Collections: value when non-empty; `null` on edit when the card had one
-  // before (clears it server-side); omitted otherwise.
-  const collection = (key: keyof ContactCard, value: Record<string, unknown>): Record<string, unknown> => {
-    if (Object.keys(value).length > 0) return { [key]: value };
-    if (isEdit && existing?.[key] !== undefined) return { [key]: null };
-    return {};
-  };
-  const scalar = (key: keyof ContactCard, value: string): Record<string, unknown> => {
-    if (value) return { [key]: value };
-    if (isEdit && existing?.[key] !== undefined) return { [key]: null };
-    return {};
+  // A property: its value when it has one and the card's differs; `null` on
+  // edit when the form emptied one the card had (clears it server-side);
+  // left out otherwise.
+  const property = (key: keyof ContactCard, value: object | undefined): Record<string, unknown> => {
+    const stored = existing?.[key];
+    if (value && Object.keys(value).length > 0) return same(value, stored) ? {} : { [key]: value };
+    return isEdit && stored !== undefined ? { [key]: null } : {};
   };
 
   // Only send `kind` when this form owns the answer: switching a card between
@@ -572,55 +628,29 @@ export function formToPatch(
 
   const patch: Record<string, unknown> = {
     ...kind,
-    ...(name ? { name } : isEdit && existing?.name ? { name: null } : {}),
-    ...collection('nicknames', nicknames),
-    ...collection('emails', emails),
-    ...collection('phones', phones),
-    ...collection('addresses', addresses),
-    ...collection('organizations', organizations),
-    ...collection('titles', titles),
-    ...collection('anniversaries', anniversaries),
-    ...collection('onlineServices', onlineServices),
-    ...collection('personalInfo', personalInfo),
-    ...collection('notes', notes),
-    ...collection('keywords', keywords),
-    ...(speakToAs ? { speakToAs } : isEdit && existing?.speakToAs ? { speakToAs: null } : {}),
-    ...scalar('calendarUri', form.calendarUri.trim()),
-    ...scalar('schedulingUri', form.schedulingUri.trim()),
-    ...scalar('freeBusyUri', form.freeBusyUri.trim()),
+    ...property('name', name),
+    ...property('nicknames', nicknames),
+    ...property('emails', emails),
+    ...property('phones', phones),
+    ...property('addresses', addresses),
+    ...property('organizations', organizations),
+    ...property('titles', titles),
+    ...property('anniversaries', anniversaries),
+    ...property('onlineServices', onlineServices),
+    ...property('personalInfo', personalInfo),
+    ...property('notes', notes),
+    ...property('keywords', keywords),
+    ...property('speakToAs', speakToAs),
+    ...linksToPatch(existing, {
+      calendarUri: form.calendarUri.trim(),
+      freeBusyUri: form.freeBusyUri.trim(),
+      schedulingUri: form.schedulingUri.trim(),
+    }),
     // No `media`: an update without it keeps every entry on the server, and
     // the form adds one only when the photo changed (mediaForPhotoEdit). A
     // map built here from the card's copy deleted a photo stored as a blob
     // (Stalwart 1.0) on every save.
   };
-
-  // An existing card gets only what changed: every property left out stays
-  // on the server exactly as it is.
-  if (start) {
-    const sources = (f: FormState): Record<string, unknown> => ({
-      name: [f.isOrg, f.prefix, f.given, f.middle, f.surname, f.suffix, f.full, f.isOrg ? f.orgs[0]?.name : ''],
-      nicknames: f.nicknames.map((n) => n.trim()).filter(Boolean),
-      emails: f.emails,
-      phones: f.phones,
-      addresses: f.addresses,
-      organizations: f.orgs.map((o) => [o.name, o.department]),
-      titles: f.orgs.map((o) => [o.jobTitle, o.role]),
-      anniversaries: f.anniversaries,
-      onlineServices: f.online,
-      personalInfo: f.personalInfo,
-      notes: f.notes,
-      keywords: f.keywords,
-      speakToAs: [f.grammaticalGender, f.pronouns],
-      calendarUri: f.calendarUri,
-      schedulingUri: f.schedulingUri,
-      freeBusyUri: f.freeBusyUri,
-    });
-    const now = sources(form);
-    const before = sources(start);
-    for (const property of Object.keys(now)) {
-      if (JSON.stringify(now[property]) === JSON.stringify(before[property])) delete patch[property];
-    }
-  }
 
   if (asGroup) {
     // Start from the stored map so members we cannot resolve locally survive;

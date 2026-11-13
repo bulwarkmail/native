@@ -62,7 +62,7 @@ import { gateFolderActions, unreadInTree } from '../lib/folder-sheet-actions';
 import { compactSharedTree, type CompactMailboxNode } from '../lib/compact-shared-mailbox';
 import { useNetworkStore } from '../stores/network-store';
 import { unreadRowLabel } from '../lib/unread-row-label';
-import { DOCKED_SIDEBAR_WIDTH } from '../lib/use-layout';
+import { DOCKED_WIDTH } from '../lib/use-layout';
 
 const CHEVRON_SLOT = 20;
 const INDENT_STEP = 12;
@@ -1486,7 +1486,7 @@ function makeStyles(c: ThemePalette) {
   },
   drawerSafe: { flex: 1 },
   docked: {
-    width: DOCKED_SIDEBAR_WIDTH,
+    width: DOCKED_WIDTH,
     backgroundColor: c.secondary,
     borderRightWidth: 1,
     borderRightColor: c.border,

@@ -533,7 +533,7 @@ split-screen, freeform windows and foldables work too:
 | Class | Width | Typical |
 |---|---|---|
 | compact | < 600 dp | phones in portrait, narrow split-screen |
-| medium | 600–839 dp | tablet portrait, unfolded foldables |
+| medium | 600–839 dp | tablet portrait, unfolded foldables (some are wider: a Pixel 11 Pro Fold is 852 dp) |
 | expanded | ≥ 840 dp | tablet landscape |
 
 A second flag, `shortHeight` (window height < 480 dp), covers phone landscape (914x411 dp). By
@@ -559,7 +559,7 @@ navigator:
 
 | Area | compact | medium | expanded |
 |---|---|---|---|
-| Mail | list → push thread | list (360 dp) + thread pane | persistent folder sidebar (280 dp) + list + thread |
+| Mail | list → push thread | list (320–420 dp) + thread pane, while the thread keeps 360 dp (else as compact) | persistent folder sidebar (272 dp) + list + thread, while the thread keeps 360 dp (else as medium) |
 | Calendar | as today | wider grid, 3-day shows 5 days | week shows 7 wide columns, 3-day shows 7, day shows 2 |
 | Contacts | list → push detail | list + detail pane | list + detail pane |
 | Files | list / grid | grid columns from width (about 140 dp each) | grid columns from width + preview pane when a file is selected |
