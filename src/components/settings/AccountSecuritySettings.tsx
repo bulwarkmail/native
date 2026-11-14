@@ -50,6 +50,7 @@ import {
   type PublicKeyInfo,
 } from '../../api/account-security';
 import { generateTotpEnrolment, type TotpEnrolment } from '../../lib/totp';
+import { MaskedAddressesSection } from './MaskedAddressesSection';
 
 // ── TLS client certificate (mobile-only) ──────────────────
 // Picks an installed Android cert (iOS: imports a .p12 file) for mTLS handshakes. Independent of the
@@ -1075,6 +1076,8 @@ export function AccountSecuritySettings() {
           </View>
         </SettingsSection>
       )}
+
+      {supported && !restricted && <MaskedAddressesSection />}
     </View>
   );
 }
