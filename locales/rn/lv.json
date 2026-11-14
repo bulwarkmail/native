@@ -859,7 +859,7 @@
         "system_default": "Sistēmas noklusējums"
       },
       "toolbar_labels": {
-        "description_mobile": "Rādīt teksta aprakstus blakus rīkjoslas ikonām."
+        "description_mobile": "Rādīt teksta aprakstus blakus rīkjoslas un navigācijas ikonām."
       },
       "accessibility_link": {
         "description_mobile": "Teksta lielums, samazināta kustība un pieejamības sagataves ir lapā Pieejamība."

@@ -859,7 +859,7 @@
         "system_default": "系统默认"
       },
       "toolbar_labels": {
-        "description_mobile": "在工具栏图标旁显示文字标签。"
+        "description_mobile": "在工具栏和导航图标旁显示文字标签。"
       },
       "accessibility_link": {
         "description_mobile": "文字大小、减少动效和无障碍预设都在“无障碍”页面中。"

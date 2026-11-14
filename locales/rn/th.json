@@ -966,7 +966,7 @@
         "system_default": "ค่าเริ่มต้นของระบบ"
       },
       "toolbar_labels": {
-        "description_mobile": "แสดงข้อความข้างไอคอนบนแถบเครื่องมือ"
+        "description_mobile": "แสดงข้อความข้างไอคอนบนแถบเครื่องมือและแถบนำทาง"
       }
     },
     "backup": {

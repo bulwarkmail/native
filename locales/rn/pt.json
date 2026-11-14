@@ -863,7 +863,7 @@
         "system_default": "Padrão do sistema"
       },
       "toolbar_labels": {
-        "description_mobile": "Exibir etiquetas de texto ao lado dos ícones da barra de ferramentas."
+        "description_mobile": "Exibir etiquetas de texto ao lado dos ícones da barra de ferramentas e de navegação."
       },
       "accessibility_link": {
         "description_mobile": "Tamanho do texto, movimento reduzido e as predefinições de acessibilidade estão na página Acessibilidade."

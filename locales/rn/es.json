@@ -866,7 +866,7 @@
         "system_default": "Predeterminado del sistema"
       },
       "toolbar_labels": {
-        "description_mobile": "Mostrar etiquetas de texto junto a los iconos de la barra de herramientas."
+        "description_mobile": "Mostrar etiquetas de texto junto a los iconos de la barra de herramientas y de navegación."
       },
       "accessibility_link": {
         "description_mobile": "El tamaño del texto, la reducción de movimiento y los ajustes predefinidos de accesibilidad están en la página Accesibilidad."

@@ -859,7 +859,7 @@
         "system_default": "系統預設"
       },
       "toolbar_labels": {
-        "description_mobile": "在工具列圖示旁顯示文字標籤。"
+        "description_mobile": "在工具列和導覽圖示旁顯示文字標籤。"
       },
       "accessibility_link": {
         "description_mobile": "文字大小、減少動態效果和無障礙預設組合都在「無障礙」頁面中。"

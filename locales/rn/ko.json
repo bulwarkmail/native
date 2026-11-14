@@ -858,7 +858,7 @@
         "system_default": "시스템 기본값"
       },
       "toolbar_labels": {
-        "description_mobile": "도구 모음 아이콘 옆에 텍스트 설명을 보여줘요."
+        "description_mobile": "도구 모음과 탐색 아이콘 옆에 텍스트 설명을 보여줘요."
       },
       "accessibility_link": {
         "description_mobile": "글자 크기, 움직임 줄이기, 접근성 프리셋은 접근성 페이지에 있어요."

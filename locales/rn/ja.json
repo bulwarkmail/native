@@ -860,7 +860,7 @@
         "system_default": "システムのデフォルト"
       },
       "toolbar_labels": {
-        "description_mobile": "ツールバーアイコンの横にテキストラベルを表示します。"
+        "description_mobile": "ツールバーとナビゲーションのアイコンの横にテキストラベルを表示します。"
       },
       "accessibility_link": {
         "description_mobile": "文字サイズ、動きを減らす設定、アクセシビリティのプリセットは「アクセシビリティ」ページにあります。"

@@ -684,7 +684,7 @@
         "system_default": "Süsteemi vaikeseade"
       },
       "toolbar_labels": {
-        "description_mobile": "Kuva tekstisildid tööriistariba ikoonide kõrval."
+        "description_mobile": "Kuva tekstisildid tööriistariba ja navigeerimise ikoonide kõrval."
       }
     },
     "backup": {

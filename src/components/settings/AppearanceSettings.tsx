@@ -144,7 +144,7 @@ export function AppearanceSettings() {
         </View>
       )}
 
-      <SettingItem label={t('settings.appearance.toolbar_labels.label', "Show Toolbar Labels")} description={t('settings.appearance.toolbar_labels.description_mobile', "Display text labels next to toolbar icons.")}>
+      <SettingItem label={t('settings.appearance.toolbar_labels.label', "Show Toolbar Labels")} description={t('settings.appearance.toolbar_labels.description_mobile', "Display text labels next to toolbar and navigation icons.")}>
         <ToggleSwitch checked={showToolbarLabels} onChange={setShowToolbarLabels} />
       </SettingItem>
 

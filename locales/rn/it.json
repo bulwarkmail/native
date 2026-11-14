@@ -862,7 +862,7 @@
         "system_default": "Predefinita di sistema"
       },
       "toolbar_labels": {
-        "description_mobile": "Mostra le etichette di testo accanto alle icone della barra degli strumenti."
+        "description_mobile": "Mostra le etichette di testo accanto alle icone della barra degli strumenti e di navigazione."
       },
       "accessibility_link": {
         "description_mobile": "Dimensione del testo, movimento ridotto e i preset di accessibilità si trovano nella pagina Accessibilità."

@@ -864,7 +864,7 @@
         "system_default": "Par défaut du système"
       },
       "toolbar_labels": {
-        "description_mobile": "Afficher les libellés à côté des icônes de la barre d'outils."
+        "description_mobile": "Afficher les libellés à côté des icônes de la barre d'outils et de navigation."
       },
       "accessibility_link": {
         "description_mobile": "La taille du texte, la réduction des mouvements et les préréglages d'accessibilité se trouvent sur la page Accessibilité."
