@@ -578,12 +578,16 @@ export class JMAPClient {
     if (expiresAt == null) return;
     if (expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
     // Another process may have refreshed already (the iOS notification
-    // extension); use its tokens rather than spend a refresh token the
-    // server has replaced.
-    if (await this.adoptStoredTokens()) {
-      current = this.currentOAuthTokens();
-      if (!current || (current.tokens.expiresAt != null && current.tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS)) return;
-    }
+    // extension, the Android push handler); use its tokens rather than spend
+    // a refresh token the server has replaced.
+    await this.adoptStoredTokens();
+    // Read again whatever that returned: another caller may have taken the
+    // stored tokens while this one waited, and the copy read above is then
+    // spent. Stalwart revokes the whole sign-in when a refresh token two
+    // rotations old comes back.
+    current = this.currentOAuthTokens();
+    if (!current || current.tokens.expiresAt == null) return;
+    if (current.tokens.expiresAt - Date.now() > TOKEN_REFRESH_LEEWAY_MS) return;
     try {
       const next = await refreshOAuthAccessToken(current.tokens);
       await this.persistRefreshedTokens(current.credentials, next);
@@ -599,12 +603,15 @@ export class JMAPClient {
   // the account instead of evicting it (webmail 1.7.6 "keep the session when
   // the auth server is briefly unreachable").
   async forceRefreshToken(): Promise<boolean> {
-    if (!this.currentOAuthTokens()) return false;
+    const refused = this.currentOAuthTokens();
+    if (!refused) return false;
     // A newer token in storage (refreshed by the iOS notification extension)
     // is worth a retry before refreshing again.
     if (await this.adoptStoredTokens()) return true;
     const current = this.currentOAuthTokens();
     if (!current) return false;
+    // Another caller took newer tokens while this one waited: retry with them.
+    if (current.tokens.accessToken !== refused.tokens.accessToken) return true;
     try {
       const next = await refreshOAuthAccessToken(current.tokens);
       await this.persistRefreshedTokens(current.credentials, next);

@@ -520,6 +520,78 @@ describe('JMAPClient hardening', () => {
     (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockReset();
   });
 
+  // The app comes back after the Android push handler refreshed twice while
+  // it was frozen: its token in memory is two rotations old, and Stalwart
+  // revokes the whole sign-in if that one is spent. Several requests find the
+  // token due at once; the first to read storage takes the stored bundle,
+  // and the others must use that, not the copy they read before waiting.
+  it('lets no caller spend the old token after another took the stored one', async () => {
+    const SecureStore = await import('expo-secure-store');
+    const client = new JMAPClient();
+    mockFetch([{ status: 200, json: SESSION }]);
+    await client.connectWithOAuth('https://mail.example.com', {
+      accessToken: 'old',
+      refreshToken: 'r1',
+      expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    });
+    (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify({
+      serverUrl: 'https://mail.example.com',
+      username: 'user@example.com',
+      password: '',
+      accessToken: 'from-push',
+      refreshToken: 'r3',
+      expiresAt: Date.now() + 9_000_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    }));
+    try {
+      // Two hours frozen in the background.
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 7_200_000);
+      await Promise.all(Array.from({ length: 7 }, () => client.ensureFreshToken()));
+      expect(mockRefresh).not.toHaveBeenCalled();
+      expect(client.authHeader).toBe('Bearer from-push');
+    } finally {
+      (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockReset();
+    }
+  });
+
+  // Two requests refused with the same expired token: the first takes the
+  // stored bundle, and the second retries with it instead of refreshing a
+  // token that is good.
+  it('retries concurrent 401s with tokens another caller took, without refreshing', async () => {
+    const SecureStore = await import('expo-secure-store');
+    const client = new JMAPClient();
+    mockFetch([{ status: 200, json: SESSION }]);
+    await client.connectWithOAuth('https://mail.example.com', {
+      accessToken: 'old',
+      refreshToken: 'r1',
+      expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    });
+    (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify({
+      serverUrl: 'https://mail.example.com',
+      username: 'user@example.com',
+      password: '',
+      accessToken: 'from-push',
+      refreshToken: 'r2',
+      expiresAt: Date.now() + 7_200_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    }));
+    try {
+      const results = await Promise.all([client.forceRefreshToken(), client.forceRefreshToken()]);
+      expect(results).toEqual([true, true]);
+      expect(mockRefresh).not.toHaveBeenCalled();
+      expect(client.authHeader).toBe('Bearer from-push');
+    } finally {
+      (SecureStore.getItemAsync as ReturnType<typeof vi.fn>).mockReset();
+    }
+  });
+
   // The Android push handler refreshes in the background too (#94) and may
   // spend the refresh token a moment before the app does: the server then
   // refuses the app's refresh, and the new bundle lands in storage right
