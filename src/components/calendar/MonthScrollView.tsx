@@ -62,6 +62,8 @@ interface MonthScrollViewProps {
   onExtendEnd?: () => void;
   /** Reports a day of the month in view whenever that month changes. */
   onVisibleDateChange?: (date: Date) => void;
+  /** Reports the rows in view, first day to last, as the top row changes. */
+  onVisibleRowsChange?: (rows: DayRange) => void;
   onSelectDate: (date: Date) => void;
   onLongPressDate?: (date: Date) => void;
 }
@@ -90,6 +92,7 @@ function MonthScrollViewInner({
   onExtendStart,
   onExtendEnd,
   onVisibleDateChange,
+  onVisibleRowsChange,
   onSelectDate,
   onLongPressDate,
 }: MonthScrollViewProps) {
@@ -143,6 +146,9 @@ function MonthScrollViewInner({
   }
   const onVisibleRef = React.useRef(onVisibleDateChange);
   onVisibleRef.current = onVisibleDateChange;
+  const onRowsRef = React.useRef(onVisibleRowsChange);
+  onRowsRef.current = onVisibleRowsChange;
+  const reportedRowsRef = React.useRef<string | null>(null);
   const offsetRef = React.useRef(0);
   // Week at the top of the viewport; a change of row height (the "show time"
   // setting, a rotation) remounts the list there. Kept as the week, not its
@@ -164,8 +170,15 @@ function MonthScrollViewInner({
       }
       offsetRef.current = offset;
       const list = weeksRef.current;
-      const top = list[Math.max(0, Math.min(list.length - 1, Math.round(offset / rowHeight)))];
+      const topRow = Math.max(0, Math.min(list.length - 1, Math.round(offset / rowHeight)));
+      const top = list[topRow];
       if (top) topWeekRef.current = dayKey(top[0]);
+      const rowsKey = `${topRow}:${visibleRows}:${list.length}`;
+      if (top && rowsKey !== reportedRowsRef.current) {
+        reportedRowsRef.current = rowsKey;
+        const bottom = list[Math.min(list.length - 1, topRow + visibleRows - 1)];
+        onRowsRef.current?.({ start: top[0], end: bottom[6] });
+      }
       const row = sampledRow(offset, viewportHeight, rowHeight, list.length);
       const days = list[row];
       if (!days) return;
@@ -177,7 +190,7 @@ function MonthScrollViewInner({
       setActiveMonth(key);
       onVisibleRef.current?.(mid);
     },
-    [viewportHeight, rowHeight],
+    [viewportHeight, rowHeight, visibleRows],
   );
 
   const markSettled = React.useCallback(() => { settledRef.current = true; }, []);

@@ -75,11 +75,13 @@ import {
   scrollWindowLoadRange,
   windowStateForJump,
   type CalendarFocus,
+  type DayRange,
   type ScrollViewMode,
   type ScrollWindowOptions,
   type ScrollWindowState,
 } from '../lib/calendar-scroll-window';
 import { coversRange, createRangeLoader } from '../lib/calendar-range-cache';
+import { newEventStart, shownDays } from '../lib/calendar-new-event';
 import {
   addDaysToLocalDateTime,
   applySharedCalendarColors,
@@ -641,6 +643,28 @@ export default function CalendarScreen() {
     setDetailEvent(event);
   }, []);
 
+  // The "+" button starts on a day the view shows (#139): swiping the grid
+  // moves what is on screen, not the selection.
+  const monthRowsRef = React.useRef<DayRange | null>(null);
+  const handleMonthRows = React.useCallback((rows: DayRange) => {
+    monthRowsRef.current = rows;
+  }, []);
+  const openCreateOnShownDay = React.useCallback(() => {
+    // Only the scrolling views report a day; one left over from before
+    // free scrolling was turned off is not on screen.
+    const scrolledTo = freeScroll ? visibleDate : null;
+    const shown = shownDays(viewMode, scrolledTo ?? focus.date, scrolledTo !== null, {
+      multiDays,
+      weekStartsOn: calendarFirstDayOfWeek,
+      calendarSystem: system,
+      monthRows: freeScroll ? monthRowsRef.current : null,
+    });
+    openCreate(newEventStart(selectedDate, shown, displayNow()));
+  }, [
+    viewMode, freeScroll, visibleDate, focus.date, multiDays, calendarFirstDayOfWeek, system, selectedDate,
+    openCreate,
+  ]);
+
   const openEditDirect = React.useCallback((event: CalendarEvent) => {
     setModalEvent(event);
     setModalDate(undefined);
@@ -1139,6 +1163,7 @@ export default function CalendarScreen() {
             onExtendStart={scrollWindow.canExtendStart ? extendWindowStart : undefined}
             onExtendEnd={scrollWindow.canExtendEnd ? extendWindowEnd : undefined}
             onVisibleDateChange={setVisibleDate}
+            onVisibleRowsChange={handleMonthRows}
             selectedDate={selectedDate}
             events={events}
             eventsByDay={eventsByDay}
@@ -1237,7 +1262,7 @@ export default function CalendarScreen() {
       </View>
 
       <CalendarFab
-        onNewEvent={() => openCreate(selectedDate)}
+        onNewEvent={openCreateOnShownDay}
         onNewTask={enableCalendarTasks ? openNewTask : undefined}
       />
 
