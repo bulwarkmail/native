@@ -2,7 +2,6 @@ import React from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Animated, Dimensions, Easing, TextInput, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
@@ -21,6 +20,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
+import { DrawerPanel } from '../DrawerPanel';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -197,7 +197,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
       </Animated.View>
 
       <Animated.View style={[styles.drawer, { transform: [{ translateX: slideX }] }]}>
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <DrawerPanel style={styles.drawerSafe}>
           <View style={styles.header}>
             <Pressable
               onPress={onClose}
@@ -347,7 +347,7 @@ export default function ContactsSidebarDrawer({ visible, onClose }: Props) {
               <Text style={styles.hint}>{t('contacts.rename_tag_hint_mobile', 'Long-press a tag to rename it')}</Text>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </DrawerPanel>
       </Animated.View>
     </SafeAreaModal>
   );

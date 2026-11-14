@@ -9,7 +9,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
  * insets: the view starts off screen. On iPhones with a notch or Dynamic
  * Island headers (and their close buttons) ended up under the status bar,
  * where taps don't reach them, and bottom rows on the home indicator. Use
- * this for any Modal with a SafeAreaView inside.
+ * this for any Modal with a SafeAreaView inside, or with content that reads
+ * the insets of the Modal's window (the side drawers' DrawerPanel).
  */
 export function SafeAreaModal({ children, ...props }: ModalProps) {
   return (

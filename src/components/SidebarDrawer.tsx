@@ -4,7 +4,6 @@ import {
   Animated, Dimensions, Easing, ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Inbox, Send, File as FileIcon, Trash2, Ban, Archive, Star,
   Folder, FolderOpen, ChevronDown, ChevronRight, X, Settings, LogOut, Check, Plus,
@@ -46,6 +45,7 @@ import type { Mailbox } from '../api/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import { SafeAreaModal } from './SafeAreaModal';
+import { DrawerPanel } from './DrawerPanel';
 import { setPendingSettingsTab } from '../navigation/pending-settings-tab';
 import {
   isAccountMuted, isMailboxMuted, mailboxOverridesForAccount, resetMailboxMutes, setAccountMuted, setMailboxMuted,
@@ -881,7 +881,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
   const tagViewActive = !!filters.keyword;
 
   const panel = (
-      <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+      <DrawerPanel style={styles.drawerSafe}>
         {/* Header: close + account switcher */}
         <View style={styles.header}>
           {!docked && (
@@ -1311,7 +1311,7 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
             </>
           )}
         </ScrollView>
-      </SafeAreaView>
+      </DrawerPanel>
   );
 
   // On a wide screen the drawer is a permanent sidebar next to the list.
@@ -1335,9 +1335,8 @@ export default function SidebarDrawer({ visible, onClose, docked = false }: Side
     );
   }
 
-  // Its own safe-area provider: the panel's SafeAreaView starts off screen
-  // (it slides in), and without one it measured no insets on iOS, so the
-  // account header sat under the status bar.
+  // The Modal is its own window, with its own safe-area provider; the panel
+  // (DrawerPanel) pads itself from that provider's insets.
   return (
     <SafeAreaModal supportedOrientations={MODAL_ORIENTATIONS}
       visible={visible}

@@ -66,8 +66,8 @@ describe('modals that slide in with a SafeAreaView', () => {
     expect(offenders).toEqual([]);
   });
 
-  // The mail drawer builds its panel (with the SafeAreaView) outside the
-  // modal's tags, so the check above can't see it there.
+  // The drawers' panels read their insets from the modal's own provider
+  // (DrawerPanel, below), so they need SafeAreaModal as well.
   it('include the side drawers', () => {
     const drawers = sourceFiles(SRC).filter((file) => /SidebarDrawer\.tsx$/.test(file));
     expect(drawers.length).toBeGreaterThanOrEqual(3);
@@ -76,6 +76,23 @@ describe('modals that slide in with a SafeAreaView', () => {
       expect(modalTags(source).filter((tag) => /animationType="none"/.test(tag)), path.relative(SRC, file)).toEqual([]);
       expect(source).toContain('<SafeAreaModal');
     }
+  });
+
+  // #130: inside the provider the native SafeAreaView still learned the
+  // insets a few frames late, each time a drawer opened, so its header jumped
+  // down while the drawer slid in. DrawerPanel pads from the provider's
+  // insets, which are there on the first render.
+  it('pad the side drawers from the insets, not with a native SafeAreaView', () => {
+    const drawers = sourceFiles(SRC).filter((file) => /SidebarDrawer\.tsx$/.test(file));
+    for (const file of drawers) {
+      const source = fs.readFileSync(file, 'utf8');
+      expect(source, path.relative(SRC, file)).not.toContain('<SafeAreaView');
+      expect(source, path.relative(SRC, file)).toContain('<DrawerPanel style={styles.drawerSafe}>');
+    }
+    const panel = fs.readFileSync(path.join(SRC, 'components/DrawerPanel.tsx'), 'utf8');
+    expect(panel).toContain('const insets = useSafeAreaInsets();');
+    expect(panel).toContain('paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left');
+    expect(panel).not.toContain('<SafeAreaView');
   });
 
   it('finds the tags it is looking for', () => {
