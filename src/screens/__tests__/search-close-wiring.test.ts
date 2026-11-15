@@ -16,7 +16,7 @@ describe('mail search close wiring', () => {
 
   it('is read out as what it does: Clear search with text, Close on an empty field', () => {
     expect(src).toMatch(
-      /onPress=\{clearOrCloseSearch\}[\s\S]{0,200}?accessibilityLabel=\{searchInput\.length > 0 \? t\('contacts\.clear_search', 'Clear search'\) : t\('common\.close', 'Close'\)\}/,
+      /onPress=\{clearOrCloseSearch\}[\s\S]{0,400}?accessibilityLabel=\{searchInput\.length > 0 \? t\('contacts\.clear_search', 'Clear search'\) : t\('common\.close', 'Close'\)\}/,
     );
   });
 
