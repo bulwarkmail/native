@@ -750,8 +750,9 @@ export default function EmailListScreen({
     () => findArchiveMailbox(scopedMailboxes)?.id ?? null,
     [scopedMailboxes],
   );
+  // As the Archive swipe: without an Archive folder the store makes one (#1176).
   const hoverActions = React.useMemo(
-    () => rowHoverActions(archiveEnabled && !!archiveMailboxId && currentMailboxId !== archiveMailboxId),
+    () => rowHoverActions(archiveEnabled && currentMailboxId !== archiveMailboxId),
     [archiveEnabled, archiveMailboxId, currentMailboxId],
   );
   const trashMailboxId = React.useMemo(

@@ -17,8 +17,9 @@ describe('archive gate wiring', () => {
     expect(src).toMatch(/const swipeLeftAction = swipeActionShown\(useSettingsStore\(\(s\) => s\.swipeLeftAction\), archiveEnabled\);/);
     expect(src).toMatch(/const swipeRightAction = swipeActionShown\(useSettingsStore\(\(s\) => s\.swipeRightAction\), archiveEnabled\);/);
     expect(src).toMatch(/const canArchiveSelection =\s+archiveEnabled && /);
-    // The Archive button a row shows under a mouse pointer.
-    expect(src).toMatch(/rowHoverActions\(archiveEnabled && /);
+    // The Archive button a row shows under a mouse pointer, also offered
+    // without an Archive folder, as the swipe is (#1176).
+    expect(src).toMatch(/rowHoverActions\(archiveEnabled && currentMailboxId !== archiveMailboxId\)/);
   });
 
   it('drops them in the unified inbox', () => {
