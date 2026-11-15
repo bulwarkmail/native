@@ -279,6 +279,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
       <PushOnboardingPrompt />
       <AppIconBadge />
       <SessionTimeoutGuard />
+    <View style={{ flex: 1 }}>
     <Tab.Navigator
       tabBar={statusColumn ? (props) => <SideColumnTabBar {...props} /> : undefined}
       screenListeners={perfMarksEnabled() ? ({ route }) => ({
@@ -409,6 +410,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
     </Tab.Navigator>
       {/* An iPhone Duo standing on a desk as a tent shows the inbox in large rows. */}
       {tent && <DeskInbox navigation={navigation} />}
+    </View>
     </View>
   );
 }

@@ -38,7 +38,7 @@ export default function StatusColumnBar({ back, top, bottom }: { back: BarItem; 
     </Pressable>
   );
   return (
-    <View style={[styles.column, { width: insets.right, paddingBottom: insets.bottom + 8 }]}>
+    <View accessibilityRole="toolbar" style={[styles.column, { width: insets.right, paddingBottom: insets.bottom + 8 }]}>
       {button(back, c.text)}
       {top.map((item) => button(item, c.textSecondary))}
       <View style={styles.gap} />

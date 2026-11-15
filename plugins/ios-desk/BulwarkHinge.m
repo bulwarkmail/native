@@ -39,7 +39,15 @@ RCT_EXPORT_MODULE()
 
 - (void)stopObserving
 {
+  [[NSNotificationCenter defaultCenter] removeObserver:self name:UIWindowDidBecomeKeyNotification object:nil];
   [self detach];
+}
+
+// Listening before the app's window is up: attach once it is.
+- (void)windowBecameKey:(NSNotification *)note
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self name:UIWindowDidBecomeKeyNotification object:nil];
+  [self attach];
 }
 
 - (void)attach
@@ -47,23 +55,36 @@ RCT_EXPORT_MODULE()
   if (_interaction) return;
   Class interactionClass = NSClassFromString(@"UIHingeInteraction");
   SEL init = NSSelectorFromString(@"initWithUpdateHandler:");
-  UIView *root = RCTKeyWindow().rootViewController.view;
-  if (!interactionClass || ![interactionClass instancesRespondToSelector:init] || !root) {
+  if (!interactionClass || ![interactionClass instancesRespondToSelector:init]) {
     [self report:@{ @"status": [NSNull null] }];
     return;
   }
+  UIView *root = RCTKeyWindow().rootViewController.view;
+  if (!root) {
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(windowBecameKey:)
+                                                 name:UIWindowDidBecomeKeyNotification object:nil];
+    return;
+  }
   __weak BulwarkHinge *weakSelf = self;
+  // The update and the hinge are read by key, as the classes are not in the
+  // SDK the app is built with; a key UIKit ever renamed reads as no hinge
+  // rather than taking the app down.
   void (^handler)(id, id) = ^(id interaction, id update) {
-    id hinge = [update valueForKey:@"hinge"];
-    if (!hinge) {
-      [weakSelf report:@{ @"status": [NSNull null] }];
-      return;
+    NSDictionary *state = @{ @"status": [NSNull null] };
+    @try {
+      id hinge = [update valueForKey:@"hinge"];
+      if (hinge) {
+        double radians = [[hinge valueForKey:@"angle"] doubleValue];
+        state = @{
+          @"status": [hinge valueForKey:@"status"] ?: [NSNull null],
+          // Whole degrees: finer than that is noise to the app, and each change crosses the bridge.
+          @"angle": @(round(radians * 180.0 / M_PI)),
+        };
+      }
+    } @catch (NSException *e) {
+      state = @{ @"status": [NSNull null] };
     }
-    double radians = [[hinge valueForKey:@"angle"] doubleValue];
-    [weakSelf report:@{
-      @"status": [hinge valueForKey:@"status"] ?: [NSNull null],
-      @"angle": @(radians * 180.0 / M_PI),
-    }];
+    [weakSelf report:state];
   };
   id interaction = ((id (*)(id, SEL, id))objc_msgSend)([interactionClass alloc], init, handler);
   if (!interaction) return;

@@ -1,7 +1,7 @@
 import { useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettingsStore } from '../stores/settings-store';
-import { HINGE_PARTIALLY_OPEN, useHinge } from './device-hinge';
+import { useHalfOpen } from './device-hinge';
 import {
   DOCKED_WIDTH, TAB_RAIL_WIDTH, foldAlignedPanes, mailScreenLayoutFor, tabBarPositionFor, usePaneArea,
   type MailScreenLayout,
@@ -20,11 +20,11 @@ export function useMailLayout(tabScreen: boolean): MailScreenLayout & {
   const { window, contentWidth, onLayout } = usePaneArea(tabScreen);
   const readingPane = useSettingsStore((s) => s.readingPane);
   const hydrated = useSettingsStore((s) => s.hydrated);
-  const hinge = useHinge();
+  const halfOpen = useHalfOpen();
   const { width, height } = useWindowDimensions();
   const { top, left, right } = useSafeAreaInsets();
   const layout = mailScreenLayoutFor(window, contentWidth, readingPane, hydrated);
-  if (!tabScreen || hinge?.status !== HINGE_PARTIALLY_OPEN || width <= height) return { ...layout, onLayout };
+  if (!tabScreen || !halfOpen || width <= height) return { ...layout, onLayout };
   const rail = tabBarPositionFor(window, width, { top, left, right }) === 'left' ? TAB_RAIL_WIDTH : 0;
   const listLeft = left + rail + (layout.hasSidebar ? DOCKED_WIDTH : 0);
   return { ...layout, ...foldAlignedPanes(layout, width, listLeft), onLayout };

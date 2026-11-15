@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { fetchUnifiedInbox, type UnifiedEmail } from '../api/unified-inbox';
 import { useAuthStore } from '../stores/auth-store';
+import { useEmailStore } from '../stores/email-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { formatListDate } from '../lib/date-format';
@@ -29,7 +30,8 @@ type Native = { setAwakeWhileCharging(enabled: boolean): void };
  * The inbox for an iPhone Duo standing on a desk as a tent (`useTent`), in
  * place of the tabs: the active account's inbox in large rows, readable from
  * a chair away, kept current as mail arrives. A row opens the message on the
- * stack; back returns here. The screen stays on while the phone charges
+ * stack; back returns here. It covers the tabs, not the banners above them
+ * (an update, offline mail). The screen stays on while the phone charges
  * (BulwarkScreenAwake); on battery it locks as usual.
  */
 export default function DeskInbox({ navigation }: { navigation: NativeStackNavigationProp<RootStackParamList, 'MainTabs'> }) {
@@ -43,22 +45,30 @@ export default function DeskInbox({ navigation }: { navigation: NativeStackNavig
   const formatAddress = useOwnDomainAddress();
   const accountId = useAuthStore((s) => s.activeAccountId);
   const username = useAuthStore((s) => s.username);
+  // The inbox's own count, as on the Mail tab's badge, not the rows on show.
+  const unread = useEmailStore((s) => s.mailboxes.find((m) => m.role === 'inbox')?.unreadEmails ?? 0);
   const [rows, setRows] = React.useState<UnifiedEmail[] | null>(null);
+  const [failed, setFailed] = React.useState(false);
   const loadSeq = React.useRef(0);
 
   const load = React.useCallback(async () => {
-    if (!accountId) return;
+    // A newer load (or none, signed out) wins over one still on its way.
     const seq = ++loadSeq.current;
+    if (!accountId) return;
     try {
       const result = await fetchUnifiedInbox([accountId], ROWS);
-      if (seq === loadSeq.current) setRows(result.emails);
+      if (seq !== loadSeq.current) return;
+      setRows(result.emails);
+      setFailed(false);
     } catch {
-      // Keep the rows on show; the next change or refresh tries again.
+      // Rows on show stay; the next change or refresh tries again.
+      if (seq === loadSeq.current) setFailed(true);
     }
   }, [accountId]);
 
   React.useEffect(() => {
     setRows(null);
+    setFailed(false);
     void load();
     const offEmail = onStateChangeType('Email', () => { void load(); });
     const appState = AppState.addEventListener('change', (next) => { if (next === 'active') void load(); });
@@ -92,7 +102,6 @@ export default function DeskInbox({ navigation }: { navigation: NativeStackNavig
   }, [navigation, rows]);
 
   const inbox = t('sidebar.mailboxes.inbox', 'Inbox');
-  const unread = (rows ?? []).filter((e) => !e.keywords?.$seen).length;
 
   return (
     <View
@@ -103,6 +112,8 @@ export default function DeskInbox({ navigation }: { navigation: NativeStackNavig
         paddingRight: insets.right + spacing.xl,
       }]}
       testID="desk-inbox"
+      // Over the tabs: VoiceOver stays in the desk inbox, as the eye does.
+      accessibilityViewIsModal
     >
       <View style={styles.header}>
         <Text style={styles.title} numberOfLines={1}>{inbox}</Text>
@@ -112,7 +123,11 @@ export default function DeskInbox({ navigation }: { navigation: NativeStackNavig
           <Text style={styles.count}>{`${unread} ${t('email_list.unread', 'unread')}`}</Text>
         )}
       </View>
-      {rows === null ? (
+      {rows === null && failed ? (
+        <View style={styles.center}>
+          <Text style={styles.empty}>{t('notifications.error_loading', 'Failed to load emails')}</Text>
+        </View>
+      ) : rows === null ? (
         <View style={styles.center}><ActivityIndicator color={c.primary} /></View>
       ) : rows.length === 0 ? (
         <View style={styles.center}>
