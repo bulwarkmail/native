@@ -234,19 +234,20 @@ describe('iPhone Duo', () => {
 
   it('puts the tabs in the status column where iOS keeps one on the right', () => {
     // The outer display: the status bar down the right edge, no top inset.
-    const column = { top: 0, left: 0, right: 80 };
+    const column = { top: 0, left: 0, right: 84 };
     expect(hasStatusColumn(column, 'ios')).toBe(true);
     expect(tabBarPositionFor(layoutFor(466, 678), 466, column, 'ios')).toBe('right');
     expect(tabBarPositionFor(layoutFor(951, 669), 951, column, 'ios')).toBe('right');
     // The column is the inset the screens keep clear of already: no rail to take off.
-    expect(contentWidthFor(466, layoutFor(466, 678), column, true)).toBe(386);
+    expect(contentWidthFor(466, layoutFor(466, 678), column, true)).toBe(382);
   });
 
   it('keeps an iPhone in landscape, an iPad and Android off the status column', () => {
     expect(hasStatusColumn({ top: 0, left: 59, right: 59 }, 'ios')).toBe(false);
     expect(hasStatusColumn({ top: 24, left: 0, right: 0 }, 'ios')).toBe(false);
     expect(hasStatusColumn({ top: 0, left: 0, right: 48 }, 'android')).toBe(false);
-    expect(hasStatusColumn({ top: 0, left: 0, right: 20 }, 'ios')).toBe(false);
+    // A narrow inset is a corner or a sensor housing, too narrow for the tabs.
+    expect(hasStatusColumn({ top: 0, left: 0, right: 48 }, 'ios')).toBe(false);
   });
 
   it('keeps one pane on the outer display', () => {
@@ -284,11 +285,13 @@ describe('floatingCardFrame', () => {
   });
 
   it('comes down to the margin where the tabs are not along the bottom', () => {
-    expect(floatingCardFrame(466, false, { left: 0, right: 80 }, 'right')).toEqual({ left: 12, right: 92, bottom: 12 });
+    expect(floatingCardFrame(466, false, { left: 0, right: 84 }, 'right')).toEqual({ left: 12, right: 96, bottom: 12 });
+    expect(floatingCardFrame(951, true, { left: 0, right: 84 }, 'right')).toEqual({ left: 487, right: 104, bottom: 20 });
   });
 
-  it('sits bottom right above a bottom tab bar on a split layout that keeps one', () => {
-    expect(floatingCardFrame(669, true, NO_INSETS, 'bottom')).toEqual({ left: 289, right: 20, bottom: 64 });
+  it('spans a split layout that keeps the bottom tab bar like a phone, above the bar', () => {
+    // The Duo's inner display upright: a 309 dp list has no room for a 360 dp card beside it.
+    expect(floatingCardFrame(669, true, NO_INSETS, 'bottom')).toEqual({ left: 12, right: 12, bottom: 64 });
   });
 
   it('sits bottom right at 360 dp on a split layout', () => {

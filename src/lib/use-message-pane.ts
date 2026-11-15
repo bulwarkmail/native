@@ -2,6 +2,7 @@ import React from 'react';
 import type { NavigationState } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
+import { stackViewerMessage } from './stack-viewer';
 
 export type ThreadParams = RootStackParamList['EmailThread'];
 
@@ -35,16 +36,19 @@ export function rowAfterRemoval<T>(
 
 /**
  * The viewer the list or the pane put on the stack (`handedOff`), if it is
- * still the screen on show, right over the tabs: its params, else null.
+ * still the screen on show, right over the tabs: its params and the message
+ * it shows now (`shownIn`: the viewer pages without changing its params).
  */
 export function handedOffViewer(
   state: Pick<NavigationState, 'index' | 'routes'>,
   handedOff: ThreadParams | null,
-): ThreadParams | null {
+  shownIn: (routeKey: string) => string | undefined,
+): { params: ThreadParams; emailId: string } | null {
   const top = state.routes[state.index];
   if (!handedOff || top?.name !== 'EmailThread' || state.routes[state.index - 1]?.name !== 'MainTabs') return null;
   const params = top.params as ThreadParams | undefined;
-  return params?.emailId === handedOff.emailId ? params : null;
+  if (params?.emailId !== handedOff.emailId) return null;
+  return { params, emailId: shownIn(top.key) ?? params.emailId };
 }
 
 /**
@@ -57,14 +61,19 @@ export function handedOffViewer(
  * goes into the pane beside the list: Apple's Mail on the iPhone Duo shows
  * the message when closed and the list beside it when opened. `turnedOff`: the reading pane setting turned the split off
  * (#93), from Settings, so the screen is not on show, and the message is let
- * go instead. `rowOf` finds a message's row (its key and place in the list);
- * a message no longer in the list keeps its own id as the key.
+ * go instead. `rowOf` gives a message's row as the pane shows it (params, key
+ * and place in the list; `openedWith`, the params the viewer was opened
+ * with), null when the list no longer has it.
+ *
+ * The screen under the viewer keeps rendering (native-stack on Fabric does
+ * not freeze the screen right below the focused one), which is what lets the
+ * pane notice the window widen while the viewer is on top.
  */
 export function useMessagePane(
-  navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate' | 'getState' | 'goBack'>,
+  navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate' | 'getState' | 'goBack' | 'addListener'>,
   isSplit: boolean,
   turnedOff: boolean,
-  rowOf: (params: ThreadParams) => { rowKey: string; index: number } | null = () => null,
+  rowOf: (emailId: string, openedWith: ThreadParams) => PaneMessage | null = () => null,
 ) {
   const [open, setOpen] = React.useState<PaneMessage | null>(null);
   // The pager in the pane can move to another message; the list follows it.
@@ -75,6 +84,9 @@ export function useMessagePane(
   const handedOffRef = React.useRef<ThreadParams | null>(null);
   const rowOfRef = React.useRef(rowOf);
   rowOfRef.current = rowOf;
+  // Back on the tabs, the viewer is gone: a later one opened from elsewhere
+  // (a notification, search) is not the list's to take.
+  React.useEffect(() => navigation.addListener('focus', () => { handedOffRef.current = null; }), [navigation]);
 
   const show = React.useCallback((message: PaneMessage) => {
     setOpen(message);
@@ -96,11 +108,12 @@ export function useMessagePane(
 
   React.useEffect(() => {
     if (isSplit) {
-      const params = handedOffViewer(navigation.getState(), handedOffRef.current);
+      const viewer = handedOffViewer(navigation.getState(), handedOffRef.current, stackViewerMessage);
       handedOffRef.current = null;
-      if (!params) return;
+      if (!viewer) return;
       navigation.goBack();
-      show({ params, rowKey: params.emailId, index: 0, ...rowOfRef.current(params) });
+      show(rowOfRef.current(viewer.emailId, viewer.params)
+        ?? { params: { ...viewer.params, emailId: viewer.emailId }, rowKey: viewer.emailId, index: 0 });
       return;
     }
     if (!openRef.current) return;

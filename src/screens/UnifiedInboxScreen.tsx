@@ -117,9 +117,13 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
   // has already docked the folder list or not (and waited for the reading
   // pane setting): `width` is the room right of it.
   const layout = mailLayoutFor({ ...useLayout(), hasSidebar: false }, readingPane, width);
-  const rowOf = React.useCallback((params: ThreadParams) => {
-    const index = emailsRef.current.findIndex((e) => e.id === params.emailId);
-    return index < 0 ? null : { rowKey: rowKey(emailsRef.current[index]), index };
+  // A message the viewer paged to keeps the params it was opened with (the
+  // pages and account of this view), under its own id.
+  const rowOf = React.useCallback((emailId: string, openedWith: ThreadParams) => {
+    const index = emailsRef.current.findIndex((e) => e.id === emailId);
+    if (index < 0) return null;
+    const row = emailsRef.current[index];
+    return { params: { ...openedWith, emailId, threadId: row.threadId }, rowKey: rowKey(row), index };
   }, []);
   const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
   const {

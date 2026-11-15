@@ -39,19 +39,27 @@ describe('handedOffViewer', () => {
   const tabs = { key: 'tabs', name: 'MainTabs' };
   const viewer = (emailId: string) => ({ key: `viewer-${emailId}`, name: 'EmailThread', params: { emailId, threadId: 't' } });
   const handed = { emailId: 'm1', threadId: 't' };
+  const notPaged = () => undefined;
 
-  it('takes back the message the pane moved to the stack', () => {
-    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m1')] }, handed)).toEqual({ emailId: 'm1', threadId: 't' });
+  it('takes back the message the list or the pane put on the stack', () => {
+    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m1')] }, handed, notPaged))
+      .toEqual({ params: { emailId: 'm1', threadId: 't' }, emailId: 'm1' });
   });
 
-  it('leaves a viewer the pane never handed over', () => {
-    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m2')] }, handed)).toBeNull();
-    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m1')] }, null)).toBeNull();
+  it('takes the message the viewer has paged to', () => {
+    const shown = (key: string) => (key === 'viewer-m1' ? 'm2' : undefined);
+    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m1')] }, handed, shown))
+      .toEqual({ params: { emailId: 'm1', threadId: 't' }, emailId: 'm2' });
+  });
+
+  it('leaves a viewer the list never put there', () => {
+    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m2')] }, handed, notPaged)).toBeNull();
+    expect(handedOffViewer({ index: 1, routes: [tabs, viewer('m1')] }, null, notPaged)).toBeNull();
   });
 
   it('leaves the viewer once another screen is over it, or it is not right over the tabs', () => {
     const compose = { key: 'compose', name: 'Compose' };
-    expect(handedOffViewer({ index: 2, routes: [tabs, viewer('m1'), compose] }, handed)).toBeNull();
-    expect(handedOffViewer({ index: 2, routes: [tabs, viewer('m0'), viewer('m1')] }, handed)).toBeNull();
+    expect(handedOffViewer({ index: 2, routes: [tabs, viewer('m1'), compose] }, handed, notPaged)).toBeNull();
+    expect(handedOffViewer({ index: 2, routes: [tabs, viewer('m0'), viewer('m1')] }, handed, notPaged)).toBeNull();
   });
 });

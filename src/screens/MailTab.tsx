@@ -56,10 +56,10 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
   // its labels), and one pane when the reader would get less than its
   // minimum (#104).
   const layout = useMailLayout(true);
-  const rowOf = React.useCallback((params: ThreadParams) => {
+  const rowOf = React.useCallback((emailId: string) => {
     const rows = visibleRows();
-    const index = rows.findIndex((e) => e.id === params.emailId);
-    return index < 0 ? null : { rowKey: rowKeyOf(rows[index]), index };
+    const index = rows.findIndex((e) => e.id === emailId);
+    return index < 0 ? null : { params: threadParamsFor(rows[index]), rowKey: rowKeyOf(rows[index]), index };
   }, []);
   const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
   const { show, close, openRef, setActiveKey, openOnStack } = pane;

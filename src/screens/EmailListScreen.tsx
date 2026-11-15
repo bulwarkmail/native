@@ -54,7 +54,7 @@ import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
-import { useLayout } from '../lib/use-layout';
+import { useLayout, useTabBarPosition } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
@@ -534,9 +534,12 @@ export default function EmailListScreen({
   const rightInset = isSplit ? 0 : insets.right;
   const { t } = useLocaleStore();
   const resolvedTheme = useResolvedTheme();
-  // The undo bar floats over the list's bottom right on a phone (on a split
-  // layout it sits over the reading pane instead).
+  // The undo bar floats over the list's bottom right on a phone, and on a
+  // split layout that keeps the bottom tab bar (lib/use-layout
+  // floatingCardFrame); on any other split layout it sits over the reading
+  // pane instead.
   const windowLayout = useLayout();
+  const tabBarAtBottom = useTabBarPosition() === 'bottom';
   const { shortHeight, widthClass } = windowLayout;
   // In a split view the push prompt floats in this column, not over the
   // reader's quick reply (lib/push-prompt-frame). The prompt goes by the
@@ -558,7 +561,7 @@ export default function EmailListScreen({
   const selectionCountOnly = isSplit || widthClass === 'compact';
   const listUndo = useEmailStore((s) => s.pendingUndo != null);
   const sendUndo = useSendUndoStore((s) => s.pending != null);
-  const undoBarUp = !isSplit && (listUndo || sendUndo);
+  const undoBarUp = (!isSplit || tabBarAtBottom) && (listUndo || sendUndo);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const emails = useEmailStore((s) => s.emails);

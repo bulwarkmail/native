@@ -68,6 +68,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import { setStackViewerMessage } from '../lib/stack-viewer';
 import { Watermark } from '../components/Watermark';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
@@ -126,6 +127,13 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const onActiveChangeRef = React.useRef(onActiveChange);
   onActiveChangeRef.current = onActiveChange;
   React.useEffect(() => { onActiveChangeRef.current?.(activeEmailId); }, [activeEmailId]);
+  // On the stack, the Mail tab may take the message into its pane when the
+  // window widens (lib/use-message-pane): it needs the page on show.
+  React.useEffect(() => {
+    if (embedded) return;
+    setStackViewerMessage(route.key, activeEmailId);
+    return () => setStackViewerMessage(route.key, null);
+  }, [embedded, route.key, activeEmailId]);
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   // Pages are as wide as the pager itself, which is the window on a phone

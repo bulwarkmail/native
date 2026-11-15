@@ -131,8 +131,12 @@ export type TabBarPosition = 'bottom' | 'left' | 'right';
 
 type Insets = { top: number; left: number; right: number };
 
-/** Narrowest right inset that is a status column, not a rounded corner or a sensor housing. */
-const STATUS_COLUMN_MIN = 44;
+/**
+ * Narrowest right inset that is a status column (the Duo's is 84 pt), not a
+ * rounded corner or a sensor housing; also the least the column's tabs
+ * (SideColumnTabBar) are laid out for.
+ */
+const STATUS_COLUMN_MIN = 64;
 
 /**
  * Whether iOS keeps the status bar in a column down the right edge of the
@@ -281,9 +285,11 @@ const TAB_BAR_CLEARANCE = 64;
 
 /**
  * Where toasts, the undo bar and the push prompt float. A phone gets the full
- * width; a split layout gets the webmail's desktop placement, bottom right.
- * Either keeps above the tab bar where the tabs are along the bottom
- * (`tabBarPositionFor`).
+ * width, above the tab bar where the tabs are along the bottom
+ * (`tabBarPositionFor`); a split layout with the tabs on the side gets the
+ * webmail's desktop placement, bottom right. A split layout that keeps the
+ * bottom bar is laid out like a phone: its list is too narrow for a 360 dp
+ * card beside it.
  */
 export function floatingCardFrame(
   width: number,
@@ -291,11 +297,11 @@ export function floatingCardFrame(
   insets: { left: number; right: number },
   tabBar: TabBarPosition = split ? 'left' : 'bottom',
 ): { left: number; right: number; bottom: number } {
-  if (split) {
+  if (split && tabBar !== 'bottom') {
     return {
       left: Math.max(FLOATING_CARD_MARGIN, width - FLOATING_CARD_WIDTH - FLOATING_CARD_MARGIN - insets.right),
       right: FLOATING_CARD_MARGIN + insets.right,
-      bottom: tabBar === 'bottom' ? TAB_BAR_CLEARANCE : FLOATING_CARD_MARGIN,
+      bottom: FLOATING_CARD_MARGIN,
     };
   }
   return {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,16 +14,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  * so the bar is drawn over it and takes no room from the screens.
  *
  * Rendered by the tab navigator in place of its bottom bar; it reads the same
- * tab options (icon, title, badge, label setting, test id, hidden and
- * unavailable tabs) and emits the same tabPress event.
+ * tab options (icon, title, badge, label setting, accessibility label, test
+ * id, hidden and unavailable tabs) and emits the same tabPress event. The
+ * navigator's container already keeps clear of the bottom inset (App.tsx).
  */
 export default function SideColumnTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const shown = state.routes.filter(
+    (route) => StyleSheet.flatten(descriptors[route.key].options.tabBarItemStyle)?.display !== 'none',
+  );
   return (
-    <View
-      role="tablist"
-      style={[styles.column, { width: insets.right, paddingBottom: insets.bottom + COLUMN_PADDING }]}
-    >
+    <View role="tablist" style={[styles.column, { width: insets.right }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const itemStyle = StyleSheet.flatten(options.tabBarItemStyle);
@@ -31,14 +32,22 @@ export default function SideColumnTabBar({ state, descriptors, navigation }: Bot
         const focused = index === state.index;
         const color = (focused ? options.tabBarActiveTintColor : options.tabBarInactiveTintColor) ?? undefined;
         const label = typeof options.title === 'string' ? options.title : route.name;
+        const badge = options.tabBarBadge;
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) {
-            navigation.dispatch({ ...CommonActions.navigate(route), target: state.key });
+            navigation.dispatch({
+              ...CommonActions.navigate({ name: route.name, params: route.params, merge: true }),
+              target: state.key,
+            });
           }
         };
+        // As the stock iOS tab bar reads it ("Mail, tab, 1 of 5"), with the
+        // unread count, which the badge inside the button would not give.
+        const a11yLabel = options.tabBarAccessibilityLabel ?? (Platform.OS === 'ios'
+          ? `${label}${badge != null ? `, ${badge}` : ''}, tab, ${shown.indexOf(route) + 1} of ${shown.length}`
+          : label);
         const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
-        const badge = options.tabBarBadge;
         return (
           <Pressable
             key={route.key}
@@ -46,7 +55,7 @@ export default function SideColumnTabBar({ state, descriptors, navigation }: Bot
             onLongPress={onLongPress}
             role="tab"
             accessibilityState={{ selected: focused }}
-            accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+            accessibilityLabel={a11yLabel}
             testID={options.tabBarButtonTestID}
             style={[styles.item, itemStyle]}
           >
@@ -60,7 +69,13 @@ export default function SideColumnTabBar({ state, descriptors, navigation }: Bot
               )}
             </View>
             {options.tabBarShowLabel !== false && (
-              <Text style={[styles.label, { color }, options.tabBarLabelStyle]} numberOfLines={1}>
+              // Longer names (Einstellungen, Paramètres) shrink to fit the column.
+              <Text
+                style={[styles.label, { color }, options.tabBarLabelStyle]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
                 {label}
               </Text>
             )}
@@ -82,12 +97,13 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
+    paddingBottom: COLUMN_PADDING,
     justifyContent: 'flex-end',
     alignItems: 'center',
     gap: 4,
   },
   item: { alignItems: 'center', justifyContent: 'center', minHeight: 52, alignSelf: 'stretch', paddingHorizontal: 2 },
-  icon: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 2, borderRadius: 14 },
+  icon: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 14 },
   badge: { position: 'absolute', overflow: 'hidden', textAlign: 'center', paddingHorizontal: 4 },
   label: { marginTop: 2 },
 });
