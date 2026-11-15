@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { BUILTIN_THEMES } from '../theme/builtin-themes';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Identity } from '../api/types';
 import { getIdentities as fetchIdentities } from '../api/identity';
@@ -1061,10 +1062,32 @@ function currentPolicyPatch(state: PersistedSettings): Partial<PersistedSettings
  */
 export function acceptSyncedValue(key: keyof PersistedSettings, value: unknown): unknown {
   if (value === null) return DEFAULT_PERSISTED[key] === null ? null : undefined;
+  const check = SYNCED_VALUE_CHECKS[key];
+  if (check && !check(value)) return undefined;
   const adopted = adoptValue(key, value);
   if (adopted === undefined || !policyAllowsValue(key, adopted, policyRules)) return undefined;
   return adopted;
 }
+
+const isWebLink = (url: unknown): boolean => {
+  if (typeof url !== 'string') return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Checks on top of VALIDATORS for values that arrive from another device
+ * without the user picking them here: a sidebar app opens its link in the
+ * system browser, so only web links; a theme this build has; a colour.
+ */
+const SYNCED_VALUE_CHECKS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolean>> = {
+  sidebarApps: (v) => Array.isArray(v) && v.every((app) => !!app && typeof app === 'object' && isWebLink((app as SidebarApp).url)),
+  activeThemeId: (v) => BUILTIN_THEMES.some((theme) => theme.id === v),
+  birthdayCalendarColor: (v) => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v),
+};
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...DEFAULT_PERSISTED,

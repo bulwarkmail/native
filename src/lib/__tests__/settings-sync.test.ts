@@ -147,7 +147,7 @@ describe('sameJson', () => {
 describe('planning a round', () => {
   it('does nothing for settings neither side has changed', () => {
     const plan = planSettingsSync([local({ name: 'showPreview', value: true, defaultValue: true })], remoteOf({}));
-    expect(plan).toEqual({ take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {} });
+    expect(plan).toEqual({ take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {}, seen: {} });
   });
 
   it('takes a value the account holds and this device has no stamp for', () => {
@@ -318,7 +318,8 @@ describe('planning a round', () => {
       ],
       remoteOf({ timeFormat: { at: 500, value: '12h' } }),
     );
-    expect(plan).toEqual({ take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {} });
+    // The account's newer stamp is noted, so a change made here once the lock goes beats it.
+    expect(plan).toEqual({ take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {}, seen: { timeFormat: 500 } });
   });
 
   it('leaves a value this device cannot use where it is, and never writes over it', () => {
@@ -330,7 +331,20 @@ describe('planning a round', () => {
       ],
       remoteOf({ density: { at: 500, value: 'spacious' }, timeFormat: { at: 500, value: 'swatch' } }),
     );
-    expect(plan).toEqual({ take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {} });
+    expect(plan).toEqual({
+      take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {}, seen: { density: 500, timeFormat: 500 },
+    });
+  });
+
+  it('keeps a value nobody chose here that it sent up as the default itself', () => {
+    // An imported file set density without marking it chosen: the round sent
+    // "the default" with the import's stamp. The next round reads that back.
+    const plan = planSettingsSync(
+      [local({ name: 'density', value: 'compact', defaultValue: 'regular', at: 700, chosen: false })],
+      remoteOf({ density: { at: 700 } }),
+    );
+    expect(plan.reset).toEqual([]);
+    expect(plan.push).toEqual([]);
   });
 
   it('uses the value as the device would store it', () => {

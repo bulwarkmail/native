@@ -29,6 +29,8 @@ export class FakeMetadataServer {
   privateSupported = true;
   /** Runs before each request; throwing fails it. */
   beforeRequest: null | ((calls: Call[]) => void | Promise<void>) = null;
+  /** A refusal for a Mailbox/set patch, as a server rule this fake doesn't have would give one. */
+  refuse: null | ((patch: Record<string, unknown>) => { type: string; description: string } | null) = null;
 
   constructor(readonly accountId = 'acct', readonly inboxId = 'inbox') {}
 
@@ -86,6 +88,8 @@ export class FakeMetadataServer {
     this.patches.push(structuredClone(patch));
     const next = structuredClone(this.metadata);
     const refuse = (type: string, description: string) => ({ notUpdated: { [this.inboxId]: { type, description } } });
+    const forced = this.refuse?.(patch);
+    if (forced) return refuse(forced.type, forced.description);
     for (const [path, value] of Object.entries(patch)) {
       const [property, namespace, ...rest] = path.split('/');
       if (property !== 'privateMetadata') return refuse('invalidProperties', `The settings belong in privateMetadata, not ${property}.`);

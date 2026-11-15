@@ -1,8 +1,10 @@
 # Settings sync
 
 The app keeps its settings in the private Inbox metadata of one account, so every device signed in to
-that account has the same ones (#117). This page is the format, for any client that wants to read and
-write the same entries, and the rules the app follows.
+that account has the same ones (#117). The webmail reads and writes the same entries for the settings
+both have (its `lib/settings-metadata-sync.ts`), so a change in either shows up in the other. This page
+is the format, for any client that wants to read and write the same entries, and the rules the app
+follows.
 
 Code: `src/lib/settings-sync.ts` (format and merge, pure), `src/stores/settings-sync-store.ts`
 (rounds and requests), `src/api/bulwark-metadata.ts` (the metadata requests).
@@ -88,16 +90,25 @@ merged item by item.
   file names without it ever having been chosen on the device) is written without `v`.
 - **Same `at`, different value:** take the account's. Two devices that fill the same gap at once
   then agree on whichever write landed last.
+- **Same `at`, the account says "the default", and the device's value is not a choice** (an
+  organisation default, or a value an imported file set without marking it chosen): keep it. That is
+  what the device sent itself.
 - A value the device cannot use (an option a newer client added) is neither taken nor written over.
-- A setting the organisation policy pins is neither taken nor sent.
+- A setting the organisation policy pins is neither taken nor sent, and a reset or an import doesn't
+  stamp it: the pinned value was not the user's change.
 - A change made on a device is stamped `max(now, previous stamp + 1)`, so it beats the value it
-  replaces even if that came from a device whose clock runs ahead.
+  replaces even if that came from a device whose clock runs ahead. The previous stamp counts the
+  account's stamps the device saw but didn't take (a value it cannot use, a pinned setting) too.
 
 Writes: one `Mailbox/set` update carries all plain settings of a round, as members of the shards
 that exist and as whole entries for shards that do not yet. Each list or map goes in an update of
-its own, so one that the server refuses for its size stops only itself; it stays on the device and
-is offered again once it changes. When the plain settings themselves are refused (the 16 KB are
-used up), the page says the account has no room, and they are sent again in a later round.
+its own, so one that the server refuses stops only itself; it stays on the device and is offered
+again once it changes. The lists together take at most 12 KB of the 16, so the plain settings always
+have room: a list that would go over stays on the device the same way. When the plain settings
+themselves are refused (the 16 KB are used up by something else), the page says the account has no
+room, and they are sent again in a later round. A member written into a shard that another client
+removed meanwhile is refused (`invalidPatch`); the round reads again once and writes the shard
+whole.
 
 ## What syncs
 
@@ -128,9 +139,10 @@ synced. Two devices sync with each other only if they use the same holder; the p
 The requests go through a JMAP client of their own, never the one that follows the active account.
 
 A round runs when the app starts, returns to the foreground or comes back online, 1.5 s after a
-change on the device, and when the account's mailboxes change on the server (at most every 30 s,
-since new mail changes them too; only the active account's changes are pushed to the app). A round
-waits for the organisation policy of the active account, so that pinned settings are known. After
+change on the device, when the organisation policy changes, and when the account's mailboxes change
+on the server (at most every 30 s, since new mail changes them too; only the active account's
+changes are pushed to the app). A round waits for the organisation policy of the active account, and
+on a device that has no copy of it yet for the webmail's answer, so that pinned settings are known. After
 a failed round the next try is ten minutes later, or sooner on any of the above or "Sync now".
 
 While sync is switched off, changes are not stamped, and a setting changed meanwhile loses the stamp
@@ -141,10 +153,12 @@ On a server without Metadata nothing is asked and the section is hidden.
 
 ## Not done
 
-- The webmail still syncs through its own `/api/settings`; until it reads these entries, the app
-  syncs with other installs of the app only.
-- A list longer than 8 KB, or one the 16 KB have no room for, stays on the device, as does a text
-  longer than 1 KB among the plain settings. They are offered again once they change.
+- The webmail syncs these entries only while its own settings sync is on (the admin's
+  `settingsSyncEnabled` and the user's switch), next to its `/api/settings`. It syncs with the active
+  account, where the app syncs with the account that holds the settings: with several accounts, the
+  two meet only when they are the same one.
+- A list longer than 8 KB, or one the 12 KB for lists have no room for, stays on the device, as does
+  a text longer than 1 KB among the plain settings. They are offered again once they change.
 - The offer to take a replaced value back is all that protects the choices of a device that syncs
   second after an upgrade; it is kept until taken or closed.
 - The app's switch does not follow the webmail's `settingsSyncEnabled` server option: the app has no

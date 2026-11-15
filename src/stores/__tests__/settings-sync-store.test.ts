@@ -58,7 +58,7 @@ beforeEach(async () => {
   useNetworkStore.setState({ online: true });
   // The organisation policy of the active account has been applied.
   await usePolicyStore.persist.rehydrate();
-  usePolicyStore.setState({ accountId: 'first' });
+  usePolicyStore.setState({ accountId: 'first', configPending: false });
   useToastStore.setState({ toasts: [] });
   useSettingsStore.getState().resetToDefaults();
   useSettingsStore.setState({ hydrated: true, settingsSyncEnabled: true, settingsSyncAccountId: null });
@@ -73,6 +73,13 @@ afterEach(() => {
 });
 
 describe('the first round of a device', () => {
+  it('does not take sidebar apps that open anything but a web page', async () => {
+    const apps = [{ id: 'app-1', name: 'Dialer', url: 'tel:+4930123456' }];
+    server.put('settings.value.sidebar-apps', { k: 'sidebarApps', v: apps, at: 500 });
+    await settle();
+    expect(settings().sidebarApps).toEqual([]);
+  });
+
   it('takes what the account holds, and counts it as chosen', async () => {
     otherDeviceSets('showPreview', { v: false, at: 500 });
     otherDeviceSets('firstDayOfWeek', { v: 6, at: 500 });
@@ -351,6 +358,9 @@ describe('a change made on another device', () => {
 
   it('arrives when the mailboxes of the account change, not more than once in thirty seconds', async () => {
     const { dispatchStateChange } = await import('../../lib/state-change-bus');
+    // The active account is the one that holds the settings.
+    const serverUrl = vi.spyOn(jmapClient, 'serverUrl', 'get').mockReturnValue('https://acct.example.org');
+    vi.spyOn(jmapClient, 'username', 'get').mockReturnValue('user');
     await vi.advanceTimersByTimeAsync(60_000);
     otherDeviceSets('density', { v: 'compact', at: Date.now() });
     dispatchStateChange({ changed: { acct: { Mailbox: 's2' } } } as never);
@@ -369,6 +379,13 @@ describe('a change made on another device', () => {
     dispatchStateChange({ changed: { other: { Mailbox: 's9' } } } as never);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(server.requests).toBe(requests + 1);
+
+    // Nor is an account with the same id on another server.
+    serverUrl.mockReturnValue('https://elsewhere.example.org');
+    dispatchStateChange({ changed: { acct: { Mailbox: 's10' } } } as never);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(server.requests).toBe(requests + 1);
+    vi.restoreAllMocks();
   });
 
   it('is not applied when this version does not know the value, and is not written over', async () => {
@@ -480,6 +497,32 @@ describe('the organisation policy', () => {
     expect(JSON.stringify(server.metadata)).not.toContain('density');
   });
 
+  it('stamps a change made here after an account value it saw but could not use', async () => {
+    // Another device, whose clock runs an hour ahead, stored a value this version does not know.
+    const ahead = Date.now() + 3_600_000;
+    otherDeviceSets('timeFormat', { v: 'swatch', at: ahead });
+    await settle();
+    expect(settings().timeFormat).not.toBe('swatch');
+
+    settings().updateSetting('timeFormat', '12h');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(plain('timeFormat')).toEqual({ v: '12h', at: ahead + 1 });
+  });
+
+  it('does not stamp pinned settings on a reset, so nothing is sent for them once the pin goes', async () => {
+    settings().applyPolicyRules({ ...EMPTY_SETTINGS_RULES, locks: { density: 'compact' } });
+    otherDeviceSets('density', { v: 'comfortable', at: Date.now() - 60_000 });
+    await settle();
+    settings().resetToDefaults();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    settings().applyPolicyRules(EMPTY_SETTINGS_RULES);
+    await settle();
+    // The other device's choice stands; the reset here never touched it.
+    expect(plain('density')).toEqual({ v: 'comfortable', at: expect.any(Number) });
+    expect(settings().density).toBe('comfortable');
+  });
+
   it('does not take a value the organisation does not allow here', async () => {
     settings().applyPolicyRules({ ...EMPTY_SETTINGS_RULES, blocked: { activeThemeId: ['builtin-nord'] } });
     otherDeviceSets('activeThemeId', { v: 'builtin-nord', at: Date.now() + 1000 });
@@ -510,6 +553,56 @@ describe('what the account cannot hold', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(server.entry('settings.value.attachment-reminder-keywords')).toMatchObject({ v: ['invoice'] });
     expect(sync().tooLarge).toEqual([]);
+  });
+
+  it('keeps room for the plain settings: lists together take at most 12 KB', async () => {
+    settings().setAttachmentReminderKeywords(Array.from({ length: 200 }, (_, i) => `a keyword to look for, ${i}`));
+    const apps = Array.from({ length: 60 }, (_, i) => ({
+      id: `app-${i}`, name: `App ${i}`, url: `https://app-${i}.example.org/start`, icon: 'Globe', openMode: 'tab', showOnMobile: true,
+    }));
+    settings().updateSetting('sidebarApps', apps as never);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(server.entry('settings.value.attachment-reminder-keywords')).toBeDefined();
+    expect(server.entry('settings.value.sidebar-apps')).toBeUndefined();
+    expect(sync().tooLarge).toEqual(['sidebarApps']);
+
+    settings().updateSetting('density', 'compact');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(plain('density')).toMatchObject({ v: 'compact' });
+    expect(sync().status).toBe('synced');
+  });
+
+  it('keeps a list the server refuses for another reason here and syncs the rest', async () => {
+    server.refuse = (patch) => (Object.keys(patch).some((path) => path.includes('sidebar-apps'))
+      ? { type: 'forbidden', description: 'Not today.' } : null);
+    settings().updateSetting('sidebarApps', [{ id: 'a', name: 'A', url: 'https://a.example.org', icon: 'Globe', openMode: 'tab', showOnMobile: true }] as never);
+    settings().updateSetting('density', 'compact');
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(plain('density')).toMatchObject({ v: 'compact' });
+    expect(sync().tooLarge).toEqual(['sidebarApps']);
+    expect(sync().status).toBe('synced');
+  });
+
+  it('reads again when a shard it was writing into was removed meanwhile', async () => {
+    otherDeviceSets('density', { v: 'regular', at: 5 });
+    await settle();
+    // Another client removes the shard between this device's read and write.
+    let removed = false;
+    server.beforeRequest = (calls) => {
+      if (!removed && calls.some(([name]) => name === 'Mailbox/set')) {
+        removed = true;
+        server.put(shardKey(shardOf('density')), null);
+      }
+    };
+    settings().updateSetting('density', 'compact');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(plain('density')).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(plain('density')).toMatchObject({ v: 'compact' });
+    expect(sync().status).toBe('synced');
   });
 
   it('says the account is full when its metadata has no room', async () => {
@@ -635,6 +728,21 @@ describe('where there is nothing to sync with', () => {
     expect(sync().replaced).toEqual({ showPreview: true });
   });
 
+  it('waits for the webmail to answer on a device that has no copy of the policy yet', async () => {
+    stop();
+    resetSettingsSyncForTests();
+    usePolicyStore.setState({ accountId: 'first', configPending: true });
+    const requests = server.requests;
+    stop = startSettingsSync();
+    settings().updateSetting('density', 'compact');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(server.requests).toBe(requests);
+
+    usePolicyStore.setState({ configPending: false });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(plain('density')).toMatchObject({ v: 'compact' });
+  });
+
   it('waits for the organisation policy of the active account before the first round', async () => {
     stop();
     resetSettingsSyncForTests();
@@ -645,7 +753,7 @@ describe('where there is nothing to sync with', () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(server.requests).toBe(requests);
 
-    usePolicyStore.setState({ accountId: 'first' });
+    usePolicyStore.setState({ accountId: 'first', configPending: false });
     await vi.advanceTimersByTimeAsync(100);
     expect(plain('density')).toMatchObject({ v: 'compact' });
   });

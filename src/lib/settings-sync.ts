@@ -170,6 +170,12 @@ export interface SettingsSyncPlan {
   push: SettingPush[];
   /** Values of this device's own choosing that `take` and `reset` replace: it never synced them. */
   replaced: Record<string, unknown>;
+  /**
+   * Newer stamps of the account that this device saw but didn't take (a
+   * value it can't use, a setting the organisation pins). A change made here
+   * later must be stamped after them, or the account's value would win.
+   */
+  seen: Record<string, number>;
 }
 
 /**
@@ -180,11 +186,15 @@ export interface SettingsSyncPlan {
  * and never overwritten from here.
  */
 export function planSettingsSync(local: LocalSetting[], remote: RemoteSettings): SettingsSyncPlan {
-  const plan: SettingsSyncPlan = { take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {} };
+  const plan: SettingsSyncPlan = { take: {}, reset: [], stamps: {}, resets: {}, push: [], replaced: {}, seen: {} };
   for (const setting of local) {
-    if (setting.locked || !isSettingName(setting.name)) continue;
-    const ownEntry = hasOwnEntry(setting.defaultValue);
+    if (!isSettingName(setting.name)) continue;
     const theirs = remote.settings.get(setting.name);
+    if (setting.locked) {
+      if (theirs && theirs.at > setting.at) plan.seen[setting.name] = theirs.at;
+      continue;
+    }
+    const ownEntry = hasOwnEntry(setting.defaultValue);
     // Only a chosen value is stored: one that is merely the default here (a
     // reset, an imported file that left it alone) goes up as "the default",
     // so an organisation default can still apply to it on every device.
@@ -214,7 +224,10 @@ export function planSettingsSync(local: LocalSetting[], remote: RemoteSettings):
     // A choice from before stamps existed gives way here: the device never synced it.
     const neverSynced = setting.chosen && (setting.at === 0 || (tie && setting.at === UNKNOWN_AGE));
     if (!theirs.hasValue) {
-      if (tie && setting.reset) continue;
+      // What this device sent itself: a reset, or a value nobody chose here
+      // (an organisation default, an imported value the file didn't mark),
+      // which goes up as "the default" too.
+      if (tie && (setting.reset || !setting.chosen)) continue;
       if (!sameJson(setting.value, setting.defaultValue) || setting.chosen) {
         plan.reset.push(setting.name);
         if (neverSynced) plan.replaced[setting.name] = setting.value;
@@ -224,7 +237,10 @@ export function planSettingsSync(local: LocalSetting[], remote: RemoteSettings):
       continue;
     }
     const value = setting.accept(theirs.value);
-    if (value === undefined) continue;
+    if (value === undefined) {
+      if (!tie) plan.seen[setting.name] = theirs.at;
+      continue;
+    }
     const same = sameJson(value, setting.value);
     if (tie && same && !setting.reset) continue;
     if (!same) {

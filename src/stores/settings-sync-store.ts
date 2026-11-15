@@ -20,9 +20,10 @@ import { AppState } from 'react-native';
 import { create } from 'zustand';
 import { AuthenticationError, JMAPClient, NetworkError } from '../api/jmap-client';
 import {
-  advertisesBulwarkMetadata, getBulwarkMetadata, metadataValueBytes, MetadataTooLargeError, patchBulwarkMetadata,
-  resumeBulwarkMetadata,
+  advertisesBulwarkMetadata, getBulwarkMetadata, metadataValueBytes, MetadataRefusedError, MetadataTooLargeError,
+  patchBulwarkMetadata, resumeBulwarkMetadata,
 } from '../api/bulwark-metadata';
+import { jmapClient } from '../api/jmap-client';
 import {
   MAX_PLAIN_VALUE_BYTES, nextStamp, planSettingsSync, readRemoteSettings, sameJson, settingsWrites,
   type LocalSetting, type SettingPush,
@@ -77,6 +78,12 @@ interface Marks {
   /** The settings whose last change here put them back to the default. */
   resets: Record<string, true>;
   /**
+   * Newer stamps of the account that this device didn't take (a value it
+   * can't use, a pinned setting), by webmail name: a change made here is
+   * stamped after them.
+   */
+  seen: Record<string, number>;
+  /**
    * Values this device had chosen for itself that a round replaced with the
    * account's, by settings key, until the user takes them back or lets go.
    */
@@ -106,7 +113,7 @@ interface SettingsSyncState {
 }
 
 const noMarks = (holder: string | null = null): Marks => ({
-  holder, holderLogin: holder ? loginOf(holder) : null, stamps: {}, resets: {}, replaced: {},
+  holder, holderLogin: holder ? loginOf(holder) : null, stamps: {}, resets: {}, replaced: {}, seen: {},
 });
 
 /** The login and server of a registry account, as one string; null when it isn't signed in. */
@@ -127,7 +134,7 @@ function readMarks(raw: string | null): Marks {
   if (!raw) return out;
   try {
     const parsed = JSON.parse(raw) as {
-      holder?: unknown; holderLogin?: unknown; stamps?: unknown; resets?: unknown; replaced?: unknown;
+      holder?: unknown; holderLogin?: unknown; stamps?: unknown; resets?: unknown; replaced?: unknown; seen?: unknown;
     };
     if (typeof parsed.holderLogin === 'string' && parsed.holderLogin) out.holderLogin = parsed.holderLogin;
     if (parsed.replaced && typeof parsed.replaced === 'object' && !Array.isArray(parsed.replaced)) {
@@ -139,6 +146,11 @@ function readMarks(raw: string | null): Marks {
     if (parsed.stamps && typeof parsed.stamps === 'object') {
       for (const [name, at] of Object.entries(parsed.stamps as Record<string, unknown>)) {
         if (typeof at === 'number' && Number.isFinite(at) && at > 0) out.stamps[name] = at;
+      }
+    }
+    if (parsed.seen && typeof parsed.seen === 'object') {
+      for (const [name, at] of Object.entries(parsed.seen as Record<string, unknown>)) {
+        if (typeof at === 'number' && Number.isFinite(at) && at > 0) out.seen[name] = at;
       }
     }
     if (parsed.resets && typeof parsed.resets === 'object') {
@@ -174,10 +186,13 @@ function onUserChange(change: SettingsUserChange): void {
   const now = Date.now();
   let touched = false;
   for (const key of change.keys) {
-    if (!SYNCED.has(key)) continue;
+    // A pinned setting keeps the organisation's value: nothing the user did
+    // (a reset, an import) changed it, and a stamp would later send it.
+    if (!SYNCED.has(key) || isSettingLockedByPolicy(key)) continue;
     const name = webName(key);
     if (enabled) {
-      marks.stamps[name] = nextStamp(marks.stamps[name], now);
+      marks.stamps[name] = nextStamp(Math.max(marks.stamps[name] ?? 0, marks.seen[name] ?? 0), now);
+      delete marks.seen[name];
       if (change.reset) marks.resets[name] = true;
       else delete marks.resets[name];
     } else {
@@ -357,8 +372,10 @@ async function round(): Promise<void> {
   if (!settings.hydrated || !store.getState().hydrated || !settings.settingsSyncEnabled) return;
   // The organisation's locks come with the active account's policy: before
   // it is applied, a pinned setting would be taken or sent like any other.
-  if (!usePolicyStore.persist.hasHydrated()
-    || usePolicyStore.getState().accountId !== useAccountStore.getState().activeAccountId) return;
+  // A device that has no copy of the policy yet waits for its webmail's answer.
+  const policy = usePolicyStore.getState();
+  if (!usePolicyStore.persist.hasHydrated() || policy.configPending
+    || policy.accountId !== useAccountStore.getState().activeAccountId) return;
   const registryId = settingsSyncAccount();
   if (!registryId) {
     if (settings.settingsSyncAccountId && useAccountStore.getState().accounts.length > 0) {
@@ -434,17 +451,36 @@ async function round(): Promise<void> {
     marks.stamps[name] = at;
     if (plan.resets[name]) marks.resets[name] = true;
     else delete marks.resets[name];
+    if ((marks.seen[name] ?? 0) <= at) delete marks.seen[name];
+  }
+  let seenChanged = false;
+  for (const [name, at] of Object.entries(plan.seen)) {
+    if ((marks.seen[name] ?? 0) >= at) continue;
+    marks.seen[name] = at;
+    seenChanged = true;
   }
   const replacedNames = Object.keys(plan.replaced);
   for (const name of replacedNames) marks.replaced[KEY_OF_NAME.get(name)!] = plan.replaced[name];
-  if (Object.keys(plan.stamps).length > 0 || replacedNames.length > 0) persistMarks();
+  if (Object.keys(plan.stamps).length > 0 || replacedNames.length > 0 || seenChanged) persistMarks();
   if (replacedNames.length > 0) {
     store.setState({ replaced: replacedOrNull() });
     void announceReplaced(Object.keys(marks.replaced).length);
   }
 
-  const outcome = await send(plan.push, remote.shards, accountId, client, registryId);
+  const outcome = await send(plan.push, remote.shards, entries, accountId, client, registryId);
   if (outcome === 'moved') return;
+  if (outcome === 'retry') {
+    // A shard another device removed meanwhile: read again, once.
+    if (retriedPatch) {
+      retriedPatch = false;
+      failed();
+    } else {
+      retriedPatch = true;
+      requestSettingsSync(CHANGE_DELAY_MS);
+    }
+    return;
+  }
+  retriedPatch = false;
   if (outcome === 'unreachable') {
     failed();
     return;
@@ -480,6 +516,14 @@ async function announceReplaced(count: number): Promise<void> {
 // Lists the account refused for their size, with the stamp refused: they
 // are offered again only once they change.
 const refusedAt = new Map<string, number>();
+let retriedPatch = false;
+
+/**
+ * The part of the account's 16 KB of private metadata the lists may take
+ * up. The rest stays for the plain settings, so a long list can't stop a
+ * switch from syncing.
+ */
+const LIST_BUDGET_BYTES = 12 * 1024;
 
 function tooLargeNow(): (keyof PersistedSettings)[] {
   return [...refusedAt.keys()].map((name) => KEY_OF_NAME.get(name)!).filter(Boolean);
@@ -488,10 +532,11 @@ function tooLargeNow(): (keyof PersistedSettings)[] {
 async function send(
   push: SettingPush[],
   existingShards: ReadonlySet<number>,
+  entries: Record<string, unknown>,
   accountId: string,
   client: JMAPClient,
   registryId: string,
-): Promise<'ok' | 'full' | 'unreachable' | 'moved'> {
+): Promise<'ok' | 'full' | 'unreachable' | 'moved' | 'retry'> {
   for (const name of [...refusedAt.keys()]) {
     const pending = push.find((item) => item.name === name);
     if (!pending || pending.at !== refusedAt.get(name)) refusedAt.delete(name);
@@ -511,18 +556,28 @@ async function send(
       try {
         await patchBulwarkMetadata(accountId, writes.shards, client, 'private');
       } catch (err) {
+        if (err instanceof MetadataRefusedError && err.type === 'invalidPatch') return 'retry';
         if (!(err instanceof MetadataTooLargeError)) throw err;
         full = true;
       }
     }
+    // What the account's private entries take now, as the round read them.
+    let used = metadataValueBytes(entries);
     for (const write of writes.values) {
       if (moved(registryId)) return 'moved';
+      const before = write.change.key in entries ? metadataValueBytes(entries[write.change.key]) : 0;
+      const after = metadataValueBytes(write.change.value);
+      if (after > before && used - before + after > LIST_BUDGET_BYTES) {
+        refusedAt.set(write.name, write.at);
+        continue;
+      }
       try {
         await patchBulwarkMetadata(accountId, [write.change], client, 'private');
+        used += after - before;
       } catch (err) {
-        if (!(err instanceof MetadataTooLargeError)) throw err;
-        // Over 8 KB on its own, or more than the 16 KB the account has
-        // left: either way this list stays here until it changes.
+        if (!(err instanceof MetadataTooLargeError) && !(err instanceof MetadataRefusedError)) throw err;
+        // Over 8 KB on its own, more than the account has left, or refused
+        // for another reason: this list stays here until it changes.
         refusedAt.set(write.name, write.at);
       }
     }
@@ -561,8 +616,11 @@ export function startSettingsSync(): () => void {
     if (state.accounts !== prev.accounts && ids(state.accounts) !== ids(prev.accounts)) requestSettingsSync(0);
   });
   // Rounds wait for the organisation policy of the active account.
+  // A lock that goes or comes changes what may be taken and sent.
   const unsubscribePolicy = usePolicyStore.subscribe((state, prev) => {
-    if (state.accountId !== prev.accountId) requestSettingsSync(0);
+    if (state.accountId !== prev.accountId || state.configPending !== prev.configPending || state.rules !== prev.rules) {
+      requestSettingsSync(0);
+    }
   });
   // Back in the foreground, or back online: other devices may have changed things meanwhile.
   const appState = AppState.addEventListener('change', (state) => {
@@ -575,7 +633,9 @@ export function startSettingsSync(): () => void {
   // does every new message, hence the gap. Only the active account's
   // changes arrive here: for another one the rounds above have to do.
   const unsubscribeMailbox = onStateChangeType('Mailbox', (accountId) => {
-    if (!side || side.client.accountId !== accountId || timer) return;
+    // Account ids repeat across servers: only the holder's own changes.
+    if (!side || side.client.accountId !== accountId || timer
+      || side.client.serverUrl !== jmapClient.serverUrl || side.client.username !== jmapClient.username) return;
     requestSettingsSync(Math.max(CHANGE_DELAY_MS, lastRoundAt + SERVER_CHANGE_GAP_MS - Date.now()));
   });
   return () => {
@@ -598,6 +658,7 @@ export function resetSettingsSyncForTests(): void {
   timer = null;
   running = null;
   again = false;
+  retriedPatch = false;
   side = null;
   marks = noMarks();
   early = [];
