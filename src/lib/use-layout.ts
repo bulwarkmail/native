@@ -149,6 +149,30 @@ export function hasStatusColumn(insets: Insets, os: string = Platform.OS): boole
   return os === 'ios' && insets.right >= STATUS_COLUMN_MIN && insets.left === 0 && insets.top === 0;
 }
 
+/** A button in the status column (StatusColumnBar), and the gap between its two groups. */
+export const STATUS_COLUMN_BUTTON = 40;
+const STATUS_COLUMN_GAP = 16;
+/**
+ * The top of the status column that the status bar keeps: the clock and the
+ * battery end about 146 pt down on the iPhone Duo's outer display.
+ */
+const STATUS_BAR_RESERVE = 150;
+
+/**
+ * Whether `buttons` toolbar buttons fit in the status column (`hasStatusColumn`)
+ * of a window `height` tall, below the status bar and above the bottom inset.
+ * The Duo's eleven message buttons fit on both displays (678 and 669 pt).
+ */
+export function fitsStatusColumn(
+  insets: Insets & { bottom: number },
+  height: number,
+  buttons: number,
+  os: string = Platform.OS,
+): boolean {
+  return hasStatusColumn(insets, os)
+    && STATUS_BAR_RESERVE + buttons * STATUS_COLUMN_BUTTON + STATUS_COLUMN_GAP + insets.bottom + 8 <= height;
+}
+
 /**
  * Where a window's tabs go. Where iOS keeps the status bar in a column on the
  * side (`hasStatusColumn`), the tabs go in that column, as Apple lays out

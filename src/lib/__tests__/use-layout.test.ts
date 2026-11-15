@@ -6,7 +6,7 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ t
 import {
   DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
   mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets, tabBarPositionFor,
-  hasStatusColumn, foldAlignedPanes,
+  hasStatusColumn, foldAlignedPanes, fitsStatusColumn,
 } from '../use-layout';
 
 const NO_INSETS = { top: 0, left: 0, right: 0 };
@@ -253,6 +253,26 @@ describe('iPhone Duo', () => {
   it('keeps one pane on the outer display', () => {
     expect(mailTabPanes(466, 678)).toMatchObject({ isSplit: false, listWidth: 466 });
     expect(mailTabPanes(678, 466)).toMatchObject({ isSplit: false, listWidth: 678 });
+  });
+});
+
+describe('fitsStatusColumn', () => {
+  // Back, five toolbar buttons and five bottom-bar buttons.
+  const MESSAGE = 11;
+
+  it("fits the message viewer's buttons in the column on both of the Duo's displays", () => {
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, MESSAGE, 'ios')).toBe(true);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 669, MESSAGE, 'ios')).toBe(true);
+  });
+
+  it('keeps the bars where the buttons would run into the status bar', () => {
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 600, MESSAGE, 'ios')).toBe(false);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, 14, 'ios')).toBe(false);
+  });
+
+  it('never puts them in a column that is not there', () => {
+    expect(fitsStatusColumn({ top: 59, left: 0, right: 0, bottom: 34 }, 932, MESSAGE, 'ios')).toBe(false);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, MESSAGE, 'android')).toBe(false);
   });
 });
 

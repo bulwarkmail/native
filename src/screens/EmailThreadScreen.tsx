@@ -50,7 +50,7 @@ import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, useAccountKeywordDefs, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
-import { useLayout } from '../lib/use-layout';
+import { fitsStatusColumn, useLayout } from '../lib/use-layout';
 import { useLocaleStore } from '../stores/locale-store';
 import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
@@ -68,6 +68,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import StatusColumnBar, { type BarItem } from '../components/StatusColumnBar';
 import { setStackViewerMessage } from '../lib/stack-viewer';
 import { Watermark } from '../components/Watermark';
 
@@ -135,7 +136,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     return () => setStackViewerMessage(route.key, null);
   }, [embedded, route.key, activeEmailId]);
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // Pages are as wide as the pager itself, which is the window on a phone
   // but only the detail pane in a split view. Measured, so a rotation or a
   // pane resize re-sizes them. The pages render only once it is measured:
@@ -843,9 +844,59 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     ? (themeOverrides[email.id] ? themeOverrides[email.id] === 'dark' : !emailAlwaysLightMode && resolvedTheme === 'dark')
     : false;
 
+  // The toolbar's and the bottom bar's buttons, in order.
+  const topItems: BarItem[] = [
+    ...relocatedActions.map((id) => {
+      const def = quickActionRegistry[id];
+      return { key: id, icon: def.icon, label: def.label, onPress: def.onPress };
+    }),
+    { key: 'delete', icon: (size, color) => <Trash2 size={size} color={color} />, label: t('email_viewer.delete', 'Delete'), onPress: onDelete },
+    ...(showArchive ? [{
+      key: 'archive', icon: (size: number, color: string) => <Archive size={size} color={color} />,
+      label: t('email_viewer.archive', 'Archive'), onPress: onArchive,
+    }] : []),
+    ...(showMarkUnread ? [{
+      key: 'unread',
+      icon: (size: number, color: string) => (unread ? <MailOpen size={size} color={color} /> : <Mail size={size} color={color} />),
+      label: unread ? t('email_viewer.read', 'Read') : t('email_viewer.unread', 'Unread'),
+      onPress: onToggleUnread,
+    }] : []),
+    {
+      key: 'star',
+      icon: (size, color) => (
+        <Star size={size} color={starred ? c.starred : color} fill={starred ? c.starred : 'transparent'} />
+      ),
+      label: starred ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star'),
+      onPress: onToggleStar,
+    },
+    { key: 'more', icon: (size, color) => <MoreVertical size={size} color={color} />, label: t('email_viewer.more', 'More'), onPress: () => setMoreMenuOpen(true) },
+  ];
+  const bottomItems: BarItem[] = [
+    {
+      key: 'prev', icon: (size, color) => <ChevronLeft size={size} color={color} />, label: t('email_viewer.previous', 'Prev'),
+      onPress: prevEmail ? () => goToIndex(currentIndex - 1) : undefined, disabled: !prevEmail,
+    },
+    ...bottomActions.map((id) => {
+      const def = quickActionRegistry[id];
+      return { key: id, icon: def.icon, label: def.label, onPress: def.available ? def.onPress : undefined, disabled: !def.available };
+    }),
+    {
+      key: 'next', icon: (size, color) => <ChevronRight size={size} color={color} />, label: t('email_viewer.next', 'Next'),
+      onPress: nextEmail ? () => goToIndex(currentIndex + 1) : undefined, disabled: !nextEmail,
+    },
+  ];
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo), the
+  // bars go into it as Apple lays them out: Back and the toolbar at the top,
+  // the bottom bar's buttons below, and the message gets the whole height.
+  // Only on the stack, and where every button fits below the status bar;
+  // else the bars stay as they are.
+  const inColumn = !embedded && fitsStatusColumn(insets, windowHeight, 1 + topItems.length + bottomItems.length);
+
   return (
+    <>
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Toolbar */}
+      {!inColumn && (
       <View style={[styles.toolbar, embedded && styles.toolbarEmbedded]}>
         {!embedded && (
           <Pressable
@@ -859,60 +910,12 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
           </Pressable>
         )}
         <View style={styles.toolbarActions}>
-          {relocatedActions.map((id) => {
-            const def = quickActionRegistry[id];
-            return (
-              <ToolbarButton
-                key={id}
-                icon={def.icon(18, c.textSecondary)}
-                label={def.label}
-                onPress={def.onPress}
-              />
-            );
-          })}
-          <ToolbarButton
-            icon={<Trash2 size={18} color={c.textSecondary} />}
-            label={t('email_viewer.delete', 'Delete')}
-            onPress={onDelete}
-          />
-          {showArchive && (
-            <ToolbarButton
-              icon={<Archive size={18} color={c.textSecondary} />}
-              label={t('email_viewer.archive', 'Archive')}
-              onPress={onArchive}
-            />
-          )}
-          {showMarkUnread && (
-            <ToolbarButton
-              icon={
-                unread ? (
-                  <MailOpen size={18} color={c.textSecondary} />
-                ) : (
-                  <Mail size={18} color={c.textSecondary} />
-                )
-              }
-              label={unread ? t('email_viewer.read', 'Read') : t('email_viewer.unread', 'Unread')}
-              onPress={onToggleUnread}
-            />
-          )}
-          <ToolbarButton
-            icon={
-              <Star
-                size={18}
-                color={starred ? c.starred : c.textSecondary}
-                fill={starred ? c.starred : 'transparent'}
-              />
-            }
-            label={starred ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star')}
-            onPress={onToggleStar}
-          />
-          <ToolbarButton
-            icon={<MoreVertical size={18} color={c.textSecondary} />}
-            label={t('email_viewer.more', 'More')}
-            onPress={() => setMoreMenuOpen(true)}
-          />
+          {topItems.map((item) => (
+            <ToolbarButton key={item.key} icon={item.icon(18, c.textSecondary)} label={item.label} onPress={item.onPress} />
+          ))}
         </View>
       </View>
+      )}
 
       {error && !email ? (
         <View style={styles.centered}>
@@ -973,7 +976,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
                   ensureThread={ensureThread}
                   scheduleMarkRead={scheduleMarkRead}
                   styles={styles}
-                  bottomBarHeight={bottomBarHeight}
+                  bottomBarHeight={inColumn ? insets.bottom : bottomBarHeight}
                   kbObstruction={item.id === activeEmailId ? kbObstruction : 0}
                   onToggleStar={toggleStarFor}
                   onAddressPress={setAddressSheet}
@@ -989,32 +992,17 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
           </View>
 
           {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
-          {kbObstruction === 0 && (
+          {kbObstruction === 0 && !inColumn && (
             <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4), paddingLeft: insets.left, paddingRight: insets.right }]}>
-              <BottomBarButton
-                icon={<ChevronLeft size={20} color={c.textMuted} />}
-                label={t('email_viewer.previous', 'Prev')}
-                onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
-                disabled={!prevEmail}
-              />
-              {bottomActions.map((id) => {
-                const def = quickActionRegistry[id];
-                return (
-                  <BottomBarButton
-                    key={id}
-                    icon={def.icon(20, c.textSecondary)}
-                    label={def.label}
-                    onPress={def.available ? def.onPress : undefined}
-                    disabled={!def.available}
-                  />
-                );
-              })}
-              <BottomBarButton
-                icon={<ChevronRight size={20} color={c.textMuted} />}
-                label={t('email_viewer.next', 'Next')}
-                onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
-                disabled={!nextEmail}
-              />
+              {bottomItems.map((item) => (
+                <BottomBarButton
+                  key={item.key}
+                  icon={item.icon(20, item.key === 'prev' || item.key === 'next' ? c.textMuted : c.textSecondary)}
+                  label={item.label}
+                  onPress={item.onPress}
+                  disabled={item.disabled}
+                />
+              ))}
             </View>
           )}
         </>
@@ -1107,6 +1095,15 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
       <QuickRuleSheet visible={rulesOpen} email={email ?? null} mailboxes={scopedMailboxes} onClose={() => setRulesOpen(false)} />
     </SafeAreaView>
+    {/* Beside the screen's root, which pads for the column: drawn over the column itself. */}
+    {inColumn && (
+      <StatusColumnBar
+        back={{ key: 'back', icon: (size, color) => <ArrowLeft size={size} color={color} />, label: t('common.back', 'Back'), onPress: () => navigation.goBack() }}
+        top={topItems}
+        bottom={bottomItems}
+      />
+    )}
+    </>
   );
 }
 
