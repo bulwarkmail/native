@@ -20,7 +20,8 @@ describe('unified inbox split view wiring', () => {
 
   it('draws the list and the pane side by side, like the Mail tab', () => {
     // Only the list keeps clear of the top edge: the viewer does that itself.
-    expect(src).toMatch(/<SafeAreaView style=\{\[styles\.listPane, \{ width: layout\.listWidth \+ insets\.left \}\]\} edges=\{\['top', 'left'\]\}>\s+\{listColumn\}/);
+    // In the Mail tab the tab rail keeps clear of the left edge, as for the folder list.
+    expect(src).toMatch(/<SafeAreaView style=\{\[styles\.listPane, \{ width: layout\.listWidth \}\]\} edges=\{\['top', 'left'\]\}>\s+\{listColumn\}/);
     expect(src).toMatch(/<MessagePane\s+message=\{pane\.open\}/);
     const mailTab = read('screens/MailTab.tsx');
     expect(mailTab).toMatch(/const pane = useMessagePane\(navigation, layout\.isSplit, readingPane === 'off'\);/);

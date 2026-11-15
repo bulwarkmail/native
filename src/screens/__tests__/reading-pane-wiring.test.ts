@@ -18,11 +18,13 @@ describe('reading pane setting wiring', () => {
     expect(read('lib/use-mail-layout.ts')).toMatch(/const readingPane = useSettingsStore\(\(s\) => s\.readingPane\);/);
     expect(read('lib/use-layout.ts')).toMatch(/const layout = readingPane === 'auto' \? auto : mailLayoutFor\(window, readingPane, contentWidth\);/);
     // The Mail tab goes by its own width, right of the tab rail (#104); the
-    // unified views are stack screens, without the rail...
+    // unified views are lists of the tab (#119) and split the room right of
+    // its docked folder list...
     const tab = read('screens/MailTab.tsx');
     expect(tab).toMatch(/const layout = useMailLayout\(true\);/);
     expect(tab).toMatch(/<View style=\{styles\.row\} onLayout=\{layout\.onLayout\}>/);
-    expect(read('screens/UnifiedInboxScreen.tsx')).toMatch(/const layout = useMailLayout\(false\);/);
+    expect(tab).toMatch(/const roomWidth = layout\.listWidth \+ layout\.detailWidth;/);
+    expect(read('screens/UnifiedInboxScreen.tsx')).toMatch(/const layout = mailLayoutFor\(\{ \.\.\.useLayout\(\), hasSidebar: false \}, readingPane, width\);/);
     // ...and the list places its undo bar by the tab's decision...
     expect(tab).toMatch(/split=\{layout\.isSplit\}/);
     const list = read('screens/EmailListScreen.tsx');
@@ -36,7 +38,9 @@ describe('reading pane setting wiring', () => {
     expect(read('lib/use-mail-layout.ts')).toMatch(/mailScreenLayoutFor\(window, contentWidth, readingPane, hydrated\)/);
     expect(read('lib/use-mail-layout.ts')).toMatch(/const hydrated = useSettingsStore\(\(s\) => s\.hydrated\);/);
     expect(read('screens/MailTab.tsx')).toMatch(/if \(!layout\.ready\) return <View style=\{styles\.row\} onLayout=\{layout\.onLayout\} \/>;\r?\n\r?\n(\s*\/\/.*\r?\n)*  return \(\r?\n    <View style=\{styles\.row\} onLayout=\{layout\.onLayout\}>/);
-    expect(read('screens/UnifiedInboxScreen.tsx')).toMatch(/if \(!layout\.ready\) return <View style=\{styles\.container\} onLayout=\{layout\.onLayout\} \/>;\r?\n\r?\n  if \(!layout\.isSplit\) \{/);
+    // A unified view is drawn by the Mail tab (#119), after that wait.
+    expect(read('screens/MailTab.tsx')).toMatch(/if \(!layout\.ready\) return [^\n]*\n[\s\S]*\{unified && \(\s+<View style=\{styles\.fill\}>\s+<UnifiedInboxScreen/);
+    expect(read('screens/UnifiedInboxScreen.tsx')).not.toMatch(/useMailLayout/);
   });
 
   it('lets the open message go when the setting turned the split off, and keeps it when the room did', () => {
