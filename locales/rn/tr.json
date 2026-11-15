@@ -874,7 +874,7 @@
         "system_default": "Sistem varsayılanı"
       },
       "toolbar_labels": {
-        "description_mobile": "Araç çubuğu simgelerinin yanında metin etiketleri göster."
+        "description_mobile": "Araç çubuğu ve gezinme simgelerinin yanında metin etiketleri göster."
       },
       "accessibility_link": {
         "description_mobile": "Metin boyutu, hareketi azaltma ve erişilebilirlik hazır ayarları Erişilebilirlik sayfasındadır."

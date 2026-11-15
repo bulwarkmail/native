@@ -873,7 +873,7 @@
         "system_default": "Podle systému"
       },
       "toolbar_labels": {
-        "description_mobile": "Zobrazovat textové popisky vedle ikon na panelu nástrojů."
+        "description_mobile": "Zobrazovat textové popisky vedle ikon na panelu nástrojů a v navigaci."
       },
       "accessibility_link": {
         "description_mobile": "Velikost textu, omezení pohybu a předvolby přístupnosti najdete na stránce Přístupnost."

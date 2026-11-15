@@ -873,7 +873,7 @@
         "system_default": "Predeterminat del sistema"
       },
       "toolbar_labels": {
-        "description_mobile": "Mostra etiquetes de text al costat de les icones de la barra d'eines."
+        "description_mobile": "Mostra etiquetes de text al costat de les icones de la barra d'eines i de navegació."
       },
       "accessibility_link": {
         "description_mobile": "La mida del text, el moviment reduït i els perfils predefinits d'accessibilitat són a la pàgina Accessibilitat."

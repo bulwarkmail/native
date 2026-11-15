@@ -870,7 +870,7 @@
         "system_default": "Systemstandard"
       },
       "toolbar_labels": {
-        "description_mobile": "Vis tekstetiketter ved siden af værktøjslinjeikoner."
+        "description_mobile": "Vis tekstetiketter ved siden af værktøjslinje- og navigationsikoner."
       },
       "accessibility_link": {
         "description_mobile": "Tekststørrelse, reduceret bevægelse og forudindstillingerne for tilgængelighed findes på siden Tilgængelighed."

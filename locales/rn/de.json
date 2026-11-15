@@ -883,7 +883,7 @@
         "system_default": "Systemstandard"
       },
       "toolbar_labels": {
-        "description_mobile": "Textbeschriftungen neben den Symbolleistensymbolen anzeigen."
+        "description_mobile": "Textbeschriftungen neben den Symbolleisten- und Navigationssymbolen anzeigen."
       },
       "description_mobile": "Passen Sie an, wie die App aussieht",
       "accessibility_link": {

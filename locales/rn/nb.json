@@ -870,7 +870,7 @@
         "system_default": "Systemstandard"
       },
       "toolbar_labels": {
-        "description_mobile": "Vis tekst ved siden av ikonene på verktøylinjen."
+        "description_mobile": "Vis tekst ved siden av ikonene på verktøylinjen og i navigasjonen."
       },
       "accessibility_link": {
         "description_mobile": "Tekststørrelse, redusert bevegelse og forhåndsvalgene for tilgjengelighet finner du på siden Tilgjengelighet."

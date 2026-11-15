@@ -1185,7 +1185,7 @@
         "system_default": "System default"
       },
       "toolbar_labels": {
-        "description_mobile": "Display text labels next to toolbar icons."
+        "description_mobile": "Display text labels next to toolbar and navigation icons."
       }
     },
     "backup": {

@@ -60,7 +60,7 @@ Legend: RN? = key exists in RN store; Honored = read by RN app code outside `sto
 | calendarInvitationParsingEnabled | same | yes | yes | CalendarInvitationBanner |
 | protocolOpenMode | – | no | – | N/A (web protocol handlers) |
 | toolbarPosition | – | no | – | N/A |
-| showToolbarLabels | same | yes | yes | EmailThreadScreen |
+| showToolbarLabels | same | yes | yes | EmailThreadScreen; the tab bar's names too (App.tsx, #128) |
 | hideAccountSwitcher, showRailAccountList, proInterface | – | no | – | N/A |
 | enableUnifiedMailbox, unifiedCrossAccount, enableCross*View, allMailFolderIds | – | no | – | RN has a UnifiedInbox screen without these switches. Owner: mail-list agent |
 | includeGroupInUnified (true) | same (**false**) | yes | yes | Default differs |

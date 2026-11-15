@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, AppState, Linking, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'react-native';
@@ -253,6 +253,14 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   // Side by side layouts move the tabs into a rail on the left, like the
   // webmail's navigation rail.
   const { isSplit } = useLayout();
+  // Appearance > Show Toolbar Labels covers the tab names too (#128). With
+  // it off a tab is its icon, centred in the room the name leaves.
+  const showTabLabels = useSettingsStore((state) => state.showToolbarLabels);
+  const tabItemStyle = showTabLabels ? undefined : ({ justifyContent: 'center' } as const);
+  // Android has TalkBack read a tab's own text, which an icon-only tab
+  // lacks; iOS is given "Mail, tab, 1 of 5" by the navigator either way.
+  const iconOnlyTabName = (name: string) =>
+    (Platform.OS === 'android' && !showTabLabels ? { tabBarAccessibilityLabel: name } : null);
   // A bottom tab bar keeps the screens clear of the gesture bar or taskbar;
   // with the tabs in a side rail the whole tab area has to.
   const bottomInset = useSafeAreaInsets().bottom;
@@ -275,6 +283,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         freezeOnBlur: true,
         tabBarPosition: isSplit ? 'left' : 'bottom',
         tabBarVariant: isSplit ? 'material' : 'uikit',
+        tabBarShowLabel: showTabLabels,
+        tabBarItemStyle: tabItemStyle,
         // A narrow rail (icon over label), not a wide sidebar with labels
         // beside the icons.
         ...(isSplit ? { tabBarLabelPosition: 'below-icon' as const } : null),
@@ -306,6 +316,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         options={{
           title: tabLabels.mail,
           tabBarButtonTestID: 'tab-mail',
+          // TalkBack read the unread count with the name; keep it.
+          ...iconOnlyTabName(inboxUnreadCount > 0 ? `${inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}, ${tabLabels.mail}` : tabLabels.mail),
           tabBarIcon: ({ color, size }) => <Mail size={size} color={color} />,
           tabBarBadge: inboxUnreadCount > 0 ? (inboxUnreadCount > 99 ? '99+' : inboxUnreadCount) : undefined,
           tabBarBadgeStyle: {
@@ -331,7 +343,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           title: tabLabels.calendar,
           tabBarButtonTestID: 'tab-calendar',
           tabBarIcon: ({ color, size }) => <Calendar size={size} color={color} />,
-          tabBarItemStyle: hasCalendar ? undefined : disabledTabStyle,
+          tabBarItemStyle: hasCalendar ? tabItemStyle : [tabItemStyle, disabledTabStyle],
           tabBarAccessibilityLabel: hasCalendar ? tabLabels.calendar : unavailable(tabLabels.calendar),
           ...(calendarAllowed ? null : hiddenTab),
         }}
@@ -348,7 +360,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           title: tabLabels.contacts,
           tabBarButtonTestID: 'tab-contacts',
           tabBarIcon: ({ color, size }) => <BookUser size={size} color={color} />,
-          tabBarItemStyle: hasContacts ? undefined : disabledTabStyle,
+          tabBarItemStyle: hasContacts ? tabItemStyle : [tabItemStyle, disabledTabStyle],
           tabBarAccessibilityLabel: hasContacts ? tabLabels.contacts : unavailable(tabLabels.contacts),
           ...(contactsAllowed ? null : hiddenTab),
         }}
@@ -365,7 +377,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
           title: tabLabels.files,
           tabBarButtonTestID: 'tab-files',
           tabBarIcon: ({ color, size }) => <HardDrive size={size} color={color} />,
-          tabBarItemStyle: hasFiles ? undefined : disabledTabStyle,
+          tabBarItemStyle: hasFiles ? tabItemStyle : [tabItemStyle, disabledTabStyle],
           tabBarAccessibilityLabel: hasFiles ? tabLabels.files : unavailable(tabLabels.files),
           ...(filesAllowed ? null : hiddenTab),
         }}
@@ -380,6 +392,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         options={{
           title: tabLabels.settings,
           tabBarButtonTestID: 'tab-settings',
+          ...iconOnlyTabName(tabLabels.settings),
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       >

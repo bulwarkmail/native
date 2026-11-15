@@ -869,7 +869,7 @@
         "system_default": "Rendszer alapértelmezése"
       },
       "toolbar_labels": {
-        "description_mobile": "Szöveges feliratok megjelenítése az eszköztár ikonjai mellett."
+        "description_mobile": "Szöveges feliratok megjelenítése az eszköztár és a navigáció ikonjai mellett."
       },
       "accessibility_link": {
         "description_mobile": "A szövegméret, a csökkentett mozgás és az előbeállítások a Kisegítő lehetőségek oldalon találhatók."
