@@ -13,6 +13,7 @@ import {
   hourAtOffset,
   multiDayCount,
   timeGridFocusColumn,
+  timedTitleLines,
   windowDays,
 } from '../calendar-time-grid';
 
@@ -118,6 +119,32 @@ describe('hourAtOffset', () => {
     expect(hourAtOffset(48 * 13 + 5, 48)).toBe(13);
     expect(hourAtOffset(48 * 30, 48)).toBe(23);
     expect(hourAtOffset(-4, 48)).toBe(0);
+  });
+});
+
+describe('timedTitleLines', () => {
+  // The grids draw 48 px an hour and give a block its length less a pixel.
+  const block = (minutes: number) => Math.max(20, (minutes / 60) * 48 - 1);
+
+  it('keeps short events to one line', () => {
+    expect(timedTitleLines(block(15), false)).toBe(1);
+    expect(timedTitleLines(block(30), false)).toBe(1);
+    expect(timedTitleLines(block(45), true)).toBe(1);
+  });
+
+  it('wraps the title of longer events over the room above the time line (#126)', () => {
+    expect(timedTitleLines(block(60), true)).toBe(2);
+    expect(timedTitleLines(block(90), true)).toBe(3);
+    expect(timedTitleLines(block(120), true)).toBe(5);
+  });
+
+  it('counts the room by the larger lines of a bigger system text size', () => {
+    expect(timedTitleLines(block(60), true, 1.3)).toBe(1);
+    expect(timedTitleLines(block(120), true, 1.3)).toBe(3);
+  });
+
+  it('never gives less than one line', () => {
+    expect(timedTitleLines(5, true, 2)).toBe(1);
   });
 });
 
