@@ -2,7 +2,8 @@
 
 Branch `catch-up-2026-11b`, started from native main 37b93729 and merged
 with main again at c4e79f6c (0.1.94, which brought the security audit's
-native fixes). On GitHub as a branch only (decision 12), not on main. The
+native fixes) and at b3b42303 (2026-11-13, contributor PRs #107, #109 and
+#111). On GitHub as a branch only (decision 12), not on main. The
 version is still 0.1.94; no release is cut.
 
 The run brought the app to webmail 1.21.1 (and webmail main 2c21722ae) and
@@ -146,6 +147,31 @@ with 09947d8b on top. rel-ios-e2e cf5a55e8. Main merged in 06663f68 (the
 security branch; conflicts in five files resolved, Copy code stays off
 while the organisation hides notification content).
 
+### Main merged again on 2026-11-13 (e7ec3798)
+
+Overnight, main got contributor PRs #103 and #106 (the same commits this
+branch merged), #107 (#104 reading pane, 5c7f97c8), #109 (#108 contact
+form keeps hidden fields, f3263c6d) and #111 (#110 calendar links,
+36cd199e), plus the reading pane strings in every language 7b465446.
+Where both sides fixed the same thing, main's code is the base and this
+branch keeps what it adds:
+
+- #104: main's `mailLayoutFor` and constants; on top, the list narrows
+  toward 280 dp before the split goes, the estimate before measuring
+  takes the tab rail and insets into account, the #93 settings wait
+  (3b24de3a), and the Contacts tab shares the width code. Widths: 852 dp
+  gives list 320 + reader 446 with the folders in the drawer, 616 dp one
+  pane, 1280 dp rail + folders + list 320 + reader 602. Doc note
+  fc298a1b.
+- Contact save: main's contact-form.ts (it covers more fields than
+  245825fc); on top, contexts and phone labels the form has no option
+  for (e.g. "car") still show and are kept. From main: a stored `cell`
+  phone is saved as `mobile` on any save.
+- Locales: the 25 conflicts were the four reading pane strings; main's
+  translations won.
+- Checks after the merge: tsc, 74 test files, the live contacts suite
+  (20/20 on both servers), CI 43472818437 green.
+
 ### Review and test fixes
 
 - Code review (code-review skill, high) of the whole diff: 8 findings, all
@@ -288,6 +314,13 @@ while the organisation hides notification content).
     helper and flows changed (142ed51e, cd6aa3b1, dd554856). There is no
     single all-green run of the full matrix: each full run hit a different
     simulator, driver or runner-network failure.
+  - After the main merge (e7ec3798, fc298a1b): 43472916706 (features)
+    phone-dark green, tablet-light and tablet-landscape red (the iPad photo
+    picker took no photo; a folder name lost keystrokes), phone-light and
+    tablet-dark cancelled by the runner; 43491369973 (those four):
+    phone-light, tablet-dark and tablet-landscape green, tablet-light red
+    on the photo picker again (taps at the right spot, no photo
+    selected). 43506374657 (tablet-light alone): green. So every features leg is green on fc298a1b (phone-dark 43472916706; phone-light, tablet-dark, tablet-landscape 43491369973; tablet-light 43506374657), and both sign-in legs on dd554856 (the merge didn't touch sign-in).
   - Every leg has passed on code within the last app change or two. The
     remaining failures move between legs and flows from run to run and come
     from the simulator, the Maestro driver or the runners' network.
@@ -440,7 +473,8 @@ Stalwart, not the webmail:
   reverted. Remove the junction first (`cmd /c rmdir C:\cu2b`), then the
   worktree; its build output may need `rd /s /q "\\?\<path>"` (long
   paths). Worktrees whose node_modules pointed at it are already removed.
-- An empty, locked folder C:\Users\info\worktrees\react-native-cu2-reply
+- Empty, locked folders C:\Users\info\worktrees\react-native-cu2-mainmerge
+  and C:\Users\info\worktrees\react-native-cu2-reply
   (git refused to delete it, "Permission denied"; already unregistered and
   its junction unlinked first). Delete it when Windows lets go of it.
 - Junction C:\cu2p (dangling, it pointed at the removed cu2-push worktree):
