@@ -10,6 +10,7 @@ import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.ReactHost
 import com.facebook.react.common.ReleaseLevel
+import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import com.facebook.react.defaults.DefaultReactNativeHost
 
@@ -41,6 +42,13 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     HttpConnections.install(this)
+    // A mouse pointer over a view reaches JS only as a W3C pointer event
+    // (onPointerEnter/onPointerLeave), which React Native sends with this on.
+    // The mail rows' hover actions (RowHoverActions) depend on it. It applies
+    // to every input: each touch event gets one more hit test, and JS hears
+    // only of the views that listen.
+    @Suppress("DEPRECATION")
+    ReactFeatureFlags.dispatchPointerEvents = true
     DefaultNewArchitectureEntryPoint.releaseLevel = try {
       ReleaseLevel.valueOf(BuildConfig.REACT_NATIVE_RELEASE_LEVEL.uppercase())
     } catch (e: IllegalArgumentException) {

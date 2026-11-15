@@ -15,8 +15,11 @@ import SenderAvatar from '../components/SenderAvatar';
 import MessagePane from '../components/MessagePane';
 import SidebarDrawer from '../components/SidebarDrawer';
 import { SwipeableRow } from '../components/SwipeableRow';
+import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
+import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import {
   fetchUnifiedInbox, patchUnifiedKeywords, moveUnifiedEmails, deleteUnifiedEmails, isInUnifiedTrash, emptyUnifiedRole,
+  unifiedCanArchive,
   unifiedSnippetStamp, type UnifiedEmail, type UnifiedRole, type CrossView, type UnifiedInboxResult,
 } from '../api/unified-inbox';
 import { withSearchSnippets } from '../lib/search-snippet';
@@ -417,6 +420,12 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
   };
 
   const selectionMode = selected.size > 0;
+  const rowHoverListProps = useRowHoverList(emails);
+  // No quick actions while rows are being picked: a click picks the row. No
+  // Archive on a row whose account has no Archive folder.
+  const hoverActionsFor = (email: UnifiedEmail): RowHoverAction[] => (selectionMode
+    ? []
+    : rowHoverActions(archiveEnabled && role !== 'archive' && unifiedCanArchive(email)));
   const selectedEmails = React.useMemo(
     () => emails.filter((e) => selected.has(rowKey(e))),
     [emails, selected],
@@ -501,102 +510,112 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
         context={{ unread, starred, pinned: !!item.keywords?.$pinned, inJunk: role === 'junk' }}
         onAction={(action) => handleSwipe(item, action)}
       >
-        <Pressable
-          onPress={() => (selectionMode ? toggleSelect(item) : onOpen(item))}
-          onLongPress={() => toggleSelect(item)}
-          delayLongPress={300}
-          style={({ pressed }) => [
-            styles.row,
-            { paddingVertical: density.rowPaddingVertical },
-            pressed && styles.rowPressed,
-            isActive && styles.rowActive,
-            isSelected && styles.rowSelected,
-          ]}
+        <RowHoverActions
+          actions={hoverActionsFor(item)}
+          unread={unread}
+          starred={starred}
+          onAction={(action) => handleSwipe(item, action)}
         >
-          {unread && <View style={styles.unreadDot} />}
-          {selectionMode && (
-            <View style={styles.checkbox}>
-              {isSelected ? <SquareCheck size={16} color={c.primary} /> : <Square size={16} color={c.textMuted} />}
-            </View>
-          )}
-          {!density.showAvatar && !selectionMode && (
-            // Extra compact has no avatar: the row's left edge picks it instead (#91).
+          {(hovered) => (
             <Pressable
-              onPress={() => toggleSelect(item)}
-              style={styles.selectGutter}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isSelected }}
-              accessibilityLabel={selectLabel}
-              testID="unified-row-select-gutter"
-            />
-          )}
-          {density.showAvatar && <Pressable
-            // A tap on the avatar picks the row and starts selection mode,
-            // like a long press (#91).
-            onPress={() => toggleSelect(item)}
-            hitSlop={4}
-            style={styles.avatarWrap}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: isSelected }}
-            accessibilityLabel={selectLabel}
-            testID="unified-row-avatar"
-          >
-            <SenderAvatar
-              name={rowName}
-              email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
-              size={componentSizes.avatarMd}
-              disableImages={role === 'junk' && !showAvatarsInJunk}
-              senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
-              brandDomain={showRecipient ? undefined : brandIndicatorDomain(item, internalDomains)}
-            />
-            {acc && accountIds.length > 1 && (
-              <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
-            )}
-          </Pressable>}
-          <View style={styles.content}>
-            <View style={styles.line}>
-              <Text style={[styles.sender, dyn.bodyMedium, unread && styles.bold]} numberOfLines={1}>
-                {senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress)}
-              </Text>
-              {starred && <Star size={12} color={c.starred} fill={c.starred} />}
-              {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
-              <Text style={[styles.time, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
-            </View>
-            <Text style={[styles.subject, dyn.body, unread && styles.bold]} numberOfLines={1}>
-              {item.searchSnippet?.subject
-                ? <SearchSnippetText snippet={item.searchSnippet.subject} />
-                : singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}
-            </Text>
-            <View style={styles.line}>
-              {acc && accountIds.length > 1 && (
-                <Text style={styles.account} numberOfLines={1}>
-                  {acc.email || acc.username}
-                </Text>
+              onPress={() => (selectionMode ? toggleSelect(item) : onOpen(item))}
+              onLongPress={() => toggleSelect(item)}
+              delayLongPress={300}
+              style={({ pressed }) => [
+                styles.row,
+                { paddingVertical: density.rowPaddingVertical },
+                hovered && styles.rowHovered,
+                pressed && styles.rowPressed,
+                isActive && styles.rowActive,
+                isSelected && styles.rowSelected,
+              ]}
+            >
+              {unread && <View style={styles.unreadDot} />}
+              {selectionMode && (
+                <View style={styles.checkbox}>
+                  {isSelected ? <SquareCheck size={16} color={c.primary} /> : <Square size={16} color={c.textMuted} />}
+                </View>
               )}
-              {item.isShared && (
-                <View style={styles.sharedBadge}>
-                  <Text style={styles.sharedBadgeText} numberOfLines={1}>
-                    {item.sharedLabel || t('sidebar.shared', 'Shared')}
+              {!density.showAvatar && !selectionMode && (
+                // Extra compact has no avatar: the row's left edge picks it instead (#91).
+                <Pressable
+                  onPress={() => toggleSelect(item)}
+                  style={styles.selectGutter}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: isSelected }}
+                  accessibilityLabel={selectLabel}
+                  testID="unified-row-select-gutter"
+                />
+              )}
+              {density.showAvatar && <Pressable
+                // A tap on the avatar picks the row and starts selection mode,
+                // like a long press (#91).
+                onPress={() => toggleSelect(item)}
+                hitSlop={4}
+                style={styles.avatarWrap}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isSelected }}
+                accessibilityLabel={selectLabel}
+                testID="unified-row-avatar"
+              >
+                <SenderAvatar
+                  name={rowName}
+                  email={showRecipient ? item.to?.[0]?.email : item.from?.[0]?.email}
+                  size={componentSizes.avatarMd}
+                  disableImages={role === 'junk' && !showAvatarsInJunk}
+                  senderWarning={verification ? describeSenderVerification(verification, t).label : undefined}
+                  brandDomain={showRecipient ? undefined : brandIndicatorDomain(item, internalDomains)}
+                />
+                {acc && accountIds.length > 1 && (
+                  <View style={[styles.accountDot, { backgroundColor: acc.avatarColor }]} />
+                )}
+              </Pressable>}
+              <View style={styles.content}>
+                <View style={styles.line}>
+                  <Text style={[styles.sender, dyn.bodyMedium, unread && styles.bold]} numberOfLines={1}>
+                    {senderName(item, showRecipient, t('email_viewer.unknown_sender', 'Unknown'), formatAddress)}
                   </Text>
+                  {starred && <Star size={12} color={c.starred} fill={c.starred} />}
+                  {item.hasAttachment && <Paperclip size={12} color={c.textMuted} />}
+                  <Text style={[styles.time, dyn.caption]}>{formatListDate(item.receivedAt, { dateFormat, timeFormat, locale, t })}</Text>
                 </View>
-              )}
-              {item.sourceFolder && (
-                <View style={styles.sharedBadge}>
-                  <Folder size={10} color={c.mutedForeground} />
-                  <Text style={styles.sharedBadgeText} numberOfLines={1}>{item.sourceFolder}</Text>
+                <Text style={[styles.subject, dyn.body, unread && styles.bold]} numberOfLines={1}>
+                  {item.searchSnippet?.subject
+                    ? <SearchSnippetText snippet={item.searchSnippet.subject} />
+                    : singleLine(item.subject) || t('email_viewer.no_subject', '(No Subject)')}
+                </Text>
+                <View style={styles.line}>
+                  {acc && accountIds.length > 1 && (
+                    <Text style={styles.account} numberOfLines={1}>
+                      {acc.email || acc.username}
+                    </Text>
+                  )}
+                  {item.isShared && (
+                    <View style={styles.sharedBadge}>
+                      <Text style={styles.sharedBadgeText} numberOfLines={1}>
+                        {item.sharedLabel || t('sidebar.shared', 'Shared')}
+                      </Text>
+                    </View>
+                  )}
+                  {item.sourceFolder && (
+                    <View style={styles.sharedBadge}>
+                      <Folder size={10} color={c.mutedForeground} />
+                      <Text style={styles.sharedBadgeText} numberOfLines={1}>{item.sourceFolder}</Text>
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
-            {/* Same settings as the folder list: preview on/off, density, text size. */}
-            {(item.searchSnippet?.preview || item.preview) && showPreview && density.showPreview ? (
-              <Text style={[styles.preview, dyn.body]} numberOfLines={2}>
-                {item.searchSnippet?.preview
-                  ? <SearchSnippetText snippet={item.searchSnippet.preview} />
-                  : singleLine(cleanPreview(item.preview))}
-              </Text>
-            ) : null}
-          </View>
-        </Pressable>
+                {/* Same settings as the folder list: preview on/off, density, text size. */}
+                {(item.searchSnippet?.preview || item.preview) && showPreview && density.showPreview ? (
+                  <Text style={[styles.preview, dyn.body]} numberOfLines={2}>
+                    {item.searchSnippet?.preview
+                      ? <SearchSnippetText snippet={item.searchSnippet.preview} />
+                      : singleLine(cleanPreview(item.preview))}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+          )}
+        </RowHoverActions>
       </SwipeableRow>
     );
   };
@@ -767,6 +786,7 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: spacing.md }} color={c.primary} /> : null}
           contentContainerStyle={styles.listContent}
+          {...rowHoverListProps}
         />
       )}
       {!sidebarDocked && <SidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />}
@@ -852,6 +872,8 @@ function makeStyles(c: ThemePalette) {
       paddingVertical: spacing.md,
       backgroundColor: c.background,
     },
+    // Under a mouse pointer.
+    rowHovered: { backgroundColor: c.muted },
     rowPressed: { backgroundColor: c.surfaceHover },
     rowSelected: { backgroundColor: c.selection },
     // The message open in the pane, as in the folder list.

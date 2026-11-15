@@ -301,7 +301,7 @@ RN covers the core single-folder loop well (folder tree incl. shared/group accou
 
 ## N/A on mobile
 - Category tabs / message-list tabs (`stores/message-list-tabs-store.ts`) — plugin-registered; RN has no plugin runtime.
-- Hover quick actions, keyboard navigation/shortcuts, right-click context menus, drag-and-drop of mail onto folders/tags and folder-tab drag (Pro) — desktop interactions; RN has swipe + selection instead.
+- Keyboard navigation/shortcuts, right-click context menus, drag-and-drop of mail onto folders/tags and folder-tab drag (Pro) — desktop interactions; RN has swipe + selection instead.
 - Admin policy gates for unified/cross views (`usePolicyStore` feature flags) — RN has no admin policy channel; only the user-side toggles apply.
 - Return-to-list-after-action setting — the RN thread screen always returns after delete/archive/spam.
 - "Refresh" toolbar button and F5/Ctrl+R interception — pull-to-refresh covers it.
