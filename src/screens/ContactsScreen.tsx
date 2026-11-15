@@ -453,8 +453,9 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
     return items;
   }, [addressBooks, groups, selectedCategory, t]);
 
+  // Beside a contact pane (ContactsTab) the pane keeps clear of the right edge.
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={onOpenContact ? ['top', 'left'] : ['top', 'left', 'right']}>
       <ContactsSidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <View style={styles.header}>

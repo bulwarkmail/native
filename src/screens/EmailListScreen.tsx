@@ -528,6 +528,10 @@ export default function EmailListScreen({
   // the native SafeAreaView only learned them a few frames later on Fabric,
   // so the header first drew under the status bar and then jumped down.
   const insets = useSafeAreaInsets();
+  // In a split view the reading pane is between the list and the right edge,
+  // and keeps clear of it itself: the iPhone Duo's status column (its right
+  // inset) took 84 dp off a 320 dp list.
+  const rightInset = isSplit ? 0 : insets.right;
   const { t } = useLocaleStore();
   const resolvedTheme = useResolvedTheme();
   // The undo bar floats over the list's bottom right on a phone (on a split
@@ -1624,7 +1628,7 @@ export default function EmailListScreen({
     <View
       ref={rootRef}
       onLayout={reportListColumn}
-      style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}
+      style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: rightInset }]}
     >
       {/* Header */}
       {selectionMode ? (
@@ -2045,7 +2049,7 @@ export default function EmailListScreen({
           styles.fab,
           // Lifted over the phone's undo bar, which used to cover it.
           undoBarUp && { bottom: spacing.lg + UNDO_BAR_CLEARANCE },
-          { right: spacing.lg + insets.right },
+          { right: spacing.lg + rightInset },
           pressed && styles.fabPressed,
         ]}
         accessibilityRole="button"
