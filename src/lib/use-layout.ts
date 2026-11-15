@@ -182,6 +182,21 @@ export function useTabBarPosition(): TabBarPosition {
 }
 
 /**
+ * Panes that meet at the fold of an iPhone Duo held half open like a book:
+ * Apple's split views move their column edge to the fold, so neither pane is
+ * creased ("Designing for iPhone Duo", Reserved regions). The list ends at
+ * the window's centre line, where the hinge is (`listLeft`: where the list
+ * starts in the window), as long as both panes keep their minimum widths.
+ */
+export function foldAlignedPanes(layout: PaneLayout, windowWidth: number, listLeft: number): PaneLayout {
+  if (!layout.isSplit) return layout;
+  const room = layout.listWidth + layout.detailWidth;
+  const listWidth = Math.round(windowWidth / 2) - listLeft;
+  if (listWidth < LIST_PANE_MIN || room - listWidth < READING_PANE_MIN) return layout;
+  return { ...layout, listWidth, detailWidth: room - listWidth };
+}
+
+/**
  * The layout of the mail list and reader, `contentWidth` dp wide (the window
  * less the tab rail and the side insets). With the reading pane off (#93)
  * they keep the phone's single pane, and the folder list its drawer, at any

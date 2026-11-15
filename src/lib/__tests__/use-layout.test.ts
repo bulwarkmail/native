@@ -6,7 +6,7 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ t
 import {
   DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
   mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets, tabBarPositionFor,
-  hasStatusColumn,
+  hasStatusColumn, foldAlignedPanes,
 } from '../use-layout';
 
 const NO_INSETS = { top: 0, left: 0, right: 0 };
@@ -253,6 +253,27 @@ describe('iPhone Duo', () => {
   it('keeps one pane on the outer display', () => {
     expect(mailTabPanes(466, 678)).toMatchObject({ isSplit: false, listWidth: 466 });
     expect(mailTabPanes(678, 466)).toMatchObject({ isSplit: false, listWidth: 678 });
+  });
+});
+
+describe('foldAlignedPanes', () => {
+  it('moves the edge between the panes to the fold of a Duo held like a book', () => {
+    // Inner display sideways, the tabs in the 84 pt status column: 867 pt of room from the left edge.
+    const split = { ...layoutFor(951, 669), listWidth: 320, detailWidth: 547 };
+    expect(foldAlignedPanes(split, 951, 0)).toMatchObject({ isSplit: true, listWidth: 476, detailWidth: 391 });
+  });
+
+  it('keeps the panes where the fold would leave either too narrow', () => {
+    const split = { ...layoutFor(951, 669), listWidth: 320, detailWidth: 300 + 360 - 320 };
+    // Room 660: a list of 476 leaves the reader 184.
+    expect(foldAlignedPanes(split, 951, 0)).toBe(split);
+    // A list starting right of the fold.
+    expect(foldAlignedPanes({ ...split, detailWidth: 900 }, 951, 300)).toMatchObject({ listWidth: 320 });
+  });
+
+  it('changes nothing on one pane', () => {
+    const one = mailTabPanes(466, 678);
+    expect(foldAlignedPanes(one, 466, 0)).toBe(one);
   });
 });
 

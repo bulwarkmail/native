@@ -14,6 +14,7 @@ export interface HingeState {
 }
 
 export const HINGE_CLOSED = 1;
+export const HINGE_PARTIALLY_OPEN = 2;
 
 /**
  * Below this a closed Duo is lying shut or in a hand, not standing: the
