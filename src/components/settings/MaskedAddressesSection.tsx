@@ -13,6 +13,7 @@ import Button from '../Button';
 import { spacing, radius, typography, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import { SettingsKeyboardContext } from './keyboard-reveal';
 import {
   createMaskedEmailManager,
   maskedEmailErrorType,
@@ -48,6 +49,9 @@ function AddressRow({
   const t = useLocaleStore((s) => s.t);
   const [description, setDescription] = useState(address.description ?? '');
   const [copyStatus, setCopyStatus] = useState<'copied' | 'copy_failed' | null>(null);
+  // The section ends the Security page: keep the field above the keyboard.
+  const revealOnKeyboard = React.useContext(SettingsKeyboardContext);
+  const detailsRef = useRef<View>(null);
   useEffect(() => { setDescription(address.description ?? ''); }, [address.description, expanded]);
 
   const copy = async () => {
@@ -87,12 +91,13 @@ function AddressRow({
         </Text>
       )}
       {expanded && (
-        <View style={styles.details}>
+        <View ref={detailsRef} style={styles.details}>
           <Input
             label={t(`${K}.description`, 'Description (optional)')}
             value={description}
             onChangeText={setDescription}
             editable={!busy && canUpdate}
+            onFocus={() => revealOnKeyboard?.(detailsRef.current)}
           />
           <View style={styles.actions}>
             <Button
@@ -135,6 +140,8 @@ export function MaskedAddressesSection() {
   const [notice, setNotice] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [website, setWebsite] = useState('');
+  const revealOnKeyboard = React.useContext(SettingsKeyboardContext);
+  const formRef = useRef<View>(null);
 
   const load = useCallback(async (): Promise<boolean> => {
     if (!manager) return false;
@@ -299,7 +306,7 @@ export function MaskedAddressesSection() {
           {!canUpdate && <Text style={styles.meta}>{noticeText('update_forbidden')}</Text>}
           {!canDelete && <Text style={styles.meta}>{noticeText('delete_forbidden')}</Text>}
 
-          <View style={styles.createBox}>
+          <View ref={formRef} style={styles.createBox}>
             <Text style={styles.subTitle}>{t(`${K}.create`, 'Create masked address')}</Text>
             <Input
               label={t(`${K}.website`, 'Website (optional)')}
@@ -308,12 +315,14 @@ export function MaskedAddressesSection() {
               editable={!busy && canCreate}
               autoCapitalize="none"
               autoCorrect={false}
+              onFocus={() => revealOnKeyboard?.(formRef.current)}
             />
             <Input
               label={t(`${K}.description`, 'Description (optional)')}
               value={description}
               onChangeText={setDescription}
               editable={!busy && canCreate}
+              onFocus={() => revealOnKeyboard?.(formRef.current)}
             />
             <View style={{ alignItems: 'flex-start' }}>
               <Button size="sm" disabled={busy || !canCreate} onPress={() => { void mutate('create', () => manager.create({ description, forDomain: website })); }}>

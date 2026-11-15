@@ -45,4 +45,13 @@ describe('settings keyboard reveal', () => {
     expect(tags).toMatch(/<View ref=\{formRef\} style=\{styles\.form\}>/);
     expect(tags).toMatch(/onFocus=\{\(\) => revealOnKeyboard\?\.\(formRef\.current\)\}/);
   });
+
+  it('hands the masked address forms to the page on focus', () => {
+    // The section ends Settings > Security, so its fields sat under the keyboard.
+    const src = read('components/settings/MaskedAddressesSection.tsx');
+    expect(src).toMatch(/<View ref=\{formRef\} style=\{styles\.createBox\}>/);
+    expect(src.match(/onFocus=\{\(\) => revealOnKeyboard\?\.\(formRef\.current\)\}/g)).toHaveLength(2);
+    expect(src).toMatch(/<View ref=\{detailsRef\} style=\{styles\.details\}>/);
+    expect(src).toMatch(/onFocus=\{\(\) => revealOnKeyboard\?\.\(detailsRef\.current\)\}/);
+  });
 });
