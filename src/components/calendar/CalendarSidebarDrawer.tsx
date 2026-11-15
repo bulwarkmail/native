@@ -9,7 +9,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Check, X, Upload, Rss, Shuffle, Star, Plus, Pencil, Share2, Eraser, Trash2, RefreshCw, ArrowUp, ArrowDown,
   type AppIcon,
@@ -25,6 +24,7 @@ import { useLocaleStore } from '../../stores/locale-store';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { SafeAreaModal } from '../SafeAreaModal';
 import { useCollectionNames } from '../../lib/use-collection-names';
+import { DrawerPanel } from '../DrawerPanel';
 
 /** A calendar view listed at the top of the drawer. */
 export interface DrawerViewOption {
@@ -179,7 +179,7 @@ export function CalendarSidebarDrawer({
       <Animated.View
         style={[styles.drawer, { transform: [{ translateX: slideX }] }]}
       >
-        <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom', 'left']}>
+        <DrawerPanel style={styles.drawerSafe}>
           <View style={styles.header}>
             <Pressable
               onPress={onClose}
@@ -285,7 +285,7 @@ export function CalendarSidebarDrawer({
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </DrawerPanel>
       </Animated.View>
     </SafeAreaModal>
   );
