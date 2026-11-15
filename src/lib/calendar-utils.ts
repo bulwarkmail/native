@@ -441,6 +441,11 @@ export interface TimedEventLayout {
   /** Start edge and width as fractions of the day column. */
   left: number;
   width: number;
+  /**
+   * Where the first event drawn over this one starts, in minutes of the day;
+   * the title and time stay above it. Null when nothing lies over it.
+   */
+  coveredFromMinutes: number | null;
   startMinutes: number;
   endMinutes: number;
   continuesBefore: boolean;
@@ -464,20 +469,23 @@ const OVERLAP_INDENT = 0.25;
 
 type TimedSpan = Pick<TimedEventLayout, 'startMinutes' | 'endMinutes'>;
 
-/** Whether the later of two events starts below the earlier one's text. */
-function startsClearOf(a: TimedSpan, b: TimedSpan): boolean {
+/**
+ * Whether the later of two events starts below the earlier one's text. The
+ * text grows with the system text size (`fontScale`), and so does the room.
+ */
+function startsClearOf(a: TimedSpan, b: TimedSpan, fontScale: number): boolean {
   const [first, second] = a.startMinutes <= b.startMinutes ? [a, b] : [b, a];
   const clear = first.endMinutes - first.startMinutes >= TIME_LINE_MIN_MINUTES
     ? TIME_LINE_CLEAR_MINUTES
     : TITLE_CLEAR_MINUTES;
-  return second.startMinutes - first.startMinutes >= clear;
+  return second.startMinutes - first.startMinutes >= clear * Math.max(1, fontScale);
 }
 
 /**
  * Sets `left` and `width` for one cluster, given in start order with its
  * columns assigned. No event ends up narrower than its column.
  */
-function spreadCluster(items: TimedEventLayout[], total: number): void {
+function spreadCluster(items: TimedEventLayout[], total: number, fontScale: number): void {
   // Columns each event covers. Events not reached yet cover their own.
   const from = items.map((item) => item.column);
   const to = items.map((item) => item.column);
@@ -493,7 +501,7 @@ function spreadCluster(items: TimedEventLayout[], total: number): void {
         && item.startMinutes < drawnEnd[j]);
     const covers = (j: number, col: number) => col >= from[j] && col <= to[j];
     const canTake = (col: number, allow: (j: number) => boolean = () => true) =>
-      concurrent.every((j) => !covers(j, col) || (startsClearOf(item, items[j]) && allow(j)));
+      concurrent.every((j) => !covers(j, col) || (startsClearOf(item, items[j], fontScale) && allow(j)));
 
     while (from[i] > 0 && canTake(from[i] - 1)) from[i]--;
 
@@ -514,11 +522,36 @@ function spreadCluster(items: TimedEventLayout[], total: number): void {
     item.left = left[i] / total;
     item.width = (to[i] + 1 - left[i]) / total;
   });
+
+  // Later events are drawn on top; the first one over a block bounds the
+  // room its title can wrap into.
+  items.forEach((item, i) => {
+    for (let k = i + 1; k < items.length; k++) {
+      const over = items[k];
+      if (over.startMinutes >= drawnEnd[i]) continue;
+      const shareWidth = over.left < item.left + item.width - 1e-9
+        && item.left < over.left + over.width - 1e-9;
+      if (!shareWidth) continue;
+      if (item.coveredFromMinutes === null || over.startMinutes < item.coveredFromMinutes) {
+        item.coveredFromMinutes = over.startMinutes;
+      }
+    }
+  });
+}
+
+/**
+ * The height a timed block's title and time can use: the block's, or less
+ * where a later event is drawn over it.
+ */
+export function timedTextHeight(layout: TimedEventLayout, height: number, hourHeight: number): number {
+  if (layout.coveredFromMinutes === null) return height;
+  return Math.min(height, ((layout.coveredFromMinutes - layout.startMinutes) / 60) * hourHeight);
 }
 
 export function layoutOverlappingEvents(
   events: CalendarEvent[],
   day: Date,
+  fontScale = 1,
 ): TimedEventLayout[] {
   const layoutInputs = events.flatMap((event) => {
     const bounds = getTimedEventBoundsForDay(event, day);
@@ -537,7 +570,7 @@ export function layoutOverlappingEvents(
   let clusterMaxEnd = 0;
 
   const flushCluster = () => {
-    spreadCluster(result.slice(clusterStart), columns.length);
+    spreadCluster(result.slice(clusterStart), columns.length, fontScale);
   };
 
   for (const item of sorted) {
@@ -552,14 +585,14 @@ export function layoutOverlappingEvents(
     for (let col = 0; col < columns.length; col++) {
       if (columns[col].every((e) => e.end <= item.startMinutes)) {
         columns[col].push({ end: item.endMinutes });
-        result.push({ ...item, column: col, totalColumns: 0, left: 0, width: 0 });
+        result.push({ ...item, column: col, totalColumns: 0, left: 0, width: 0, coveredFromMinutes: null });
         placed = true;
         break;
       }
     }
     if (!placed) {
       columns.push([{ end: item.endMinutes }]);
-      result.push({ ...item, column: columns.length - 1, totalColumns: 0, left: 0, width: 0 });
+      result.push({ ...item, column: columns.length - 1, totalColumns: 0, left: 0, width: 0, coveredFromMinutes: null });
     }
     clusterMaxEnd = Math.max(clusterMaxEnd, item.endMinutes);
   }

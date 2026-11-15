@@ -16,7 +16,9 @@ import {
   CALENDAR_COLOR_PALETTE,
   reopenedEdit,
   getTimedEventBoundsForDay,
+  timedTextHeight,
 } from '../calendar-utils';
+import { timedTitleLines } from '../calendar-time-grid';
 import type { CalendarEvent } from '../../api/types';
 import { useSettingsStore } from '../../stores/settings-store';
 
@@ -412,6 +414,29 @@ describe('layoutOverlappingEvents widths', () => {
         expect(over.startMinutes - under.startMinutes).toBeGreaterThanOrEqual(clear);
       }
     }
+  });
+
+  it('keeps a wrapping title above the event drawn over it (#126)', () => {
+    const [a, b] = layoutOverlappingEvents([at('a', '09:00', '12:00'), at('b', '10:00', '11:00')], day);
+    expect(a.coveredFromMinutes).toBe(600);
+    expect(b.coveredFromMinutes).toBeNull();
+    // 48 px an hour: a three-hour block has room for eight lines, the hour
+    // above b for two and the time under them.
+    const height = 3 * 48 - 1;
+    expect(timedTitleLines(timedTextHeight(a, height, 48), true)).toBe(2);
+    expect(timedTextHeight(b, 47, 48)).toBe(47);
+    // Side by side, nothing lies over either.
+    const pair = layoutOverlappingEvents([at('c', '09:00', '10:00'), at('d', '09:30', '10:30')], day);
+    expect(pair.map((l) => l.coveredFromMinutes)).toEqual([null, null]);
+  });
+
+  it('leaves more room above an event drawn over another at a bigger system text size', () => {
+    const events = [at('a', '09:00', '10:30'), at('b', '09:45', '10:45')];
+    const framesAt = (fontScale: number) => layoutOverlappingEvents(events, day, fontScale)
+      .map((l) => [Math.round(l.left * 100), Math.round((l.left + l.width) * 100)]);
+    expect(framesAt(1)).toEqual([[0, 100], [13, 100]]);
+    // The title and time take 40 px at 1.3, more than the 36 px of 45 minutes.
+    expect(framesAt(1.3)).toEqual([[0, 50], [50, 100]]);
   });
 });
 

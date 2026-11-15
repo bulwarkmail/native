@@ -31,6 +31,7 @@ import {
   isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
   TIME_LINE_MIN_MINUTES,
+  timedTextHeight,
   type CalendarWeekSegment,
   type EventDayIndex,
   type TimedEventLayout,
@@ -138,7 +139,7 @@ function TimeGridScrollViewInner({
   );
 
   const perScreen = columnsPerScreen(mode, multiDays);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, fontScale } = useWindowDimensions();
   const [rootWidth, setRootWidth] = React.useState(screenWidth);
   const listWidth = Math.max(perScreen, rootWidth - GUTTER_WIDTH);
   const colWidth = listWidth / perScreen;
@@ -169,7 +170,8 @@ function TimeGridScrollViewInner({
   // Timed layouts per day, computed when a column first renders and kept
   // until the events change.
   // (A new day index means new events: start an empty cache.)
-  const layoutCache = React.useMemo(() => new Map<string, TimedEventLayout[]>(), [index]);
+  // The room left above an overlapping event grows with the text size.
+  const layoutCache = React.useMemo(() => new Map<string, TimedEventLayout[]>(), [index, fontScale]);
   const layoutsFor = React.useCallback(
     (day: Date) => {
       const key = dayKey(day);
@@ -178,12 +180,12 @@ function TimeGridScrollViewInner({
         const timed = eventsOnDayFromIndex(index, day).filter(
           (e) => !e.showWithoutTime && !isTimedEventFullDayOnDate(e, day),
         );
-        layouts = layoutOverlappingEvents(timed, day);
+        layouts = layoutOverlappingEvents(timed, day, fontScale);
         layoutCache.set(key, layouts);
       }
       return layouts;
     },
-    [index, layoutCache],
+    [index, layoutCache, fontScale],
   );
 
   // All-day bars over the whole window (cut per week, or per day in the day
@@ -642,7 +644,8 @@ const DayColumn = React.memo(function DayColumn({
       onPress={onTapAt ? handlePress : undefined}
       onLongPress={onLongPressAt ? handleLongPress : undefined}
     >
-      {layouts.map(({ event, left, width, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
+      {layouts.map((layout) => {
+        const { event, left, width, startMinutes, endMinutes, continuesBefore, continuesAfter } = layout;
         const top = (startMinutes / 60) * HOUR_HEIGHT;
         const height = Math.max(20, ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT - 1);
         return (
@@ -664,6 +667,7 @@ const DayColumn = React.memo(function DayColumn({
             accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
             onPress={() => onSelectEvent?.(event)}
             height={height}
+            textHeight={timedTextHeight(layout, height, HOUR_HEIGHT)}
             style={{ top, left: `${left * 100}%`, width: `${width * 100}%` }}
           />
         );

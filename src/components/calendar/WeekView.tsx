@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
 import { displayNow, displayNowMinutes, isDisplayToday } from '../../lib/calendar-timezone';
@@ -24,6 +25,7 @@ import {
   isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
   TIME_LINE_MIN_MINUTES,
+  timedTextHeight,
   type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
@@ -73,6 +75,7 @@ function WeekViewInner({
   // "Light event colors" (webmail calendarTintedEvents).
   const tinted = useSettingsStore((s) => s.calendarTintedEvents);
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { fontScale } = useWindowDimensions();
   const { locale, t, system } = useCalendarLocale();
   const scrollRef = React.useRef<ScrollView>(null);
 
@@ -121,9 +124,9 @@ function WeekViewInner({
       const dayEvents = eventsOnDayFromIndex(index, day).filter(
         (e) => !e.showWithoutTime && !isTimedEventFullDayOnDate(e, day),
       );
-      return layoutOverlappingEvents(dayEvents, day);
+      return layoutOverlappingEvents(dayEvents, day, fontScale);
     });
-  }, [weekDays, index]);
+  }, [weekDays, index, fontScale]);
 
   // The now-line and "today" follow a clock in the calendar's time zone.
   const [nowMinutes, setNowMinutes] = React.useState(displayNowMinutes);
@@ -275,7 +278,8 @@ function WeekViewInner({
                   ))}
 
                   {layouted.map(
-                    ({ event, left, width, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
+                    (layout) => {
+                      const { event, left, width, startMinutes, endMinutes, continuesBefore, continuesAfter } = layout;
                       const top = (startMinutes / 60) * HOUR_HEIGHT;
                       const height = Math.max(
                         20,
@@ -300,6 +304,7 @@ function WeekViewInner({
                           accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
                           onPress={() => onSelectEvent?.(event)}
                           height={height}
+                          textHeight={timedTextHeight(layout, height, HOUR_HEIGHT)}
                           style={{ top, left: `${left * 100}%`, width: `${width * 100}%` }}
                         />
                       );

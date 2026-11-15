@@ -51,6 +51,8 @@ interface TimedEventBlockProps {
   continuesAfter: boolean;
   /** Height in the day column; the title wraps over as many lines as it leaves room for. */
   height: number;
+  /** Height the title and time keep to when a later event lies over the block. */
+  textHeight?: number;
   /** Position and width in the day column. */
   style: StyleProp<ViewStyle>;
   onPress?: () => void;
@@ -67,6 +69,7 @@ export function TimedEventBlock({
   continuesBefore,
   continuesAfter,
   height,
+  textHeight = height,
   style,
   onPress,
   accessibilityLabel,
@@ -101,7 +104,7 @@ export function TimedEventBlock({
       )}
       <Text
         style={[styles.blockTitle, { color: colors.text }, inactive && styles.struck]}
-        numberOfLines={timedTitleLines(height, timeLabel !== null, fontScale)}
+        numberOfLines={timedTitleLines(textHeight, timeLabel !== null, fontScale)}
       >
         {title}
       </Text>
