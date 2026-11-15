@@ -12,9 +12,6 @@ import { TINTED_BAR_WIDTH, type EventBlockColors } from '../../lib/event-colors'
 /** Corner radius of event blocks and bars. */
 export const EVENT_RADIUS = 2;
 
-/** Timed blocks this long or longer show their start time under the title. */
-export const TIME_LINE_MIN_MINUTES = 45;
-
 // Corners on a side the event continues past (the day before or after, the
 // week before or after) stay square.
 function corners(
