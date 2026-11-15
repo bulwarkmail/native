@@ -16,6 +16,7 @@ import {
 } from './pending-calendar-date';
 import { setPendingMailSearch } from './pending-mail-search';
 import { setPendingMailFolder } from './pending-mail-folder';
+import { showMailFolders, showUnifiedView } from './unified-view';
 import { setPendingFilesLink } from './pending-files-link';
 import { setPendingSignInLink, usePendingSignInLinkStore } from './pending-sign-in-link';
 import { insecurePairingLinkError, parseQrLoginPayload, type QrLoginPayload } from '../lib/oauth';
@@ -289,6 +290,7 @@ export type AccountSwitchResult = boolean | 'switched';
  * whatever the link opens goes on top of it and Back lands there.
  */
 export function resetToAccountInbox(navigation: NavigationContainerRefWithCurrent<RootStackParamList>): void {
+  showMailFolders();
   setPendingMailFolder('inbox');
   navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Mail' } }] } as never);
 }
@@ -350,24 +352,29 @@ export async function handleDeepLink(link: DeepLink, nav: DeepLinkNavigator): Pr
     case 'draft':
       return nav.openDraft ? nav.openDraft(link.emailId, link.jmapAccountId) : false;
     case 'unified':
-      navigation.navigate('UnifiedInbox', {
+      // A list of the Mail tab, like a folder.
+      showUnifiedView({
         ...(link.role ? { role: link.role } : {}),
         ...(link.view ? { view: link.view } : {}),
       });
+      navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
     case 'scheduled':
       navigation.navigate('Scheduled');
       return true;
     case 'search':
+      showMailFolders();
       setPendingMailSearch(link.query);
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
     case 'thread':
       // The reader keys on the message; without one, open the list.
+      showMailFolders();
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;
     case 'folder':
       // The mail list opens the folder once its folders are loaded.
+      showMailFolders();
       setPendingMailFolder(link.ref);
       navigation.navigate('MainTabs', { screen: 'Mail' } as never);
       return true;

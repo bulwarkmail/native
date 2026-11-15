@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { showUnifiedSection, visibleCrossViews } from '../unified-section';
+import { showUnifiedSection, unifiedViewOffered, visibleCrossViews } from '../unified-section';
 
 const base = { accountCount: 1, unifiedCrossAccount: false, includeGroupInUnified: true, hasSharedInbox: false };
 
@@ -35,5 +35,20 @@ describe('visibleCrossViews', () => {
 
   it('keeps all three alongside the unified section, whatever the toggles', () => {
     expect(visibleCrossViews({ ...off, showUnified: true })).toEqual(['unread', 'starred', 'all']);
+  });
+});
+
+// #119: a unified view is the Mail tab's list, so it must not stay once the
+// drawer has no row for it.
+describe('unifiedViewOffered', () => {
+  it('follows the unified section for the per-role views', () => {
+    expect(unifiedViewOffered({}, { showUnified: true, crossViews: [] })).toBe(true);
+    expect(unifiedViewOffered({}, { showUnified: false, crossViews: ['all'] })).toBe(false);
+  });
+
+  it('follows the listed cross views for All mail, All unread and All starred', () => {
+    expect(unifiedViewOffered({ view: 'all' }, { showUnified: false, crossViews: ['all'] })).toBe(true);
+    expect(unifiedViewOffered({ view: 'unread' }, { showUnified: false, crossViews: ['all'] })).toBe(false);
+    expect(unifiedViewOffered({ view: 'all' }, { showUnified: false, crossViews: [] })).toBe(false);
   });
 });

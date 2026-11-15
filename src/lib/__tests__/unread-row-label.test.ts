@@ -23,7 +23,7 @@ describe('the sidebar Unified Inbox row', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../../components/SidebarDrawer.tsx'), 'utf8');
     const start = source.indexOf('{showUnified && (');
     const row = source.slice(start, source.indexOf('</Pressable>', start));
-    expect(row).toContain("navigation.navigate('UnifiedInbox', { role: 'inbox' })");
+    expect(row).toContain("onPress={() => openUnified({ role: 'inbox' })}");
     expect(row).toMatch(/accessibilityRole="button"/);
     expect(row).toMatch(/accessibilityLabel=\{unreadRowLabel\(unifiedInboxLabel, unifiedCounts\.inbox\.unread, t\)\}/);
   });
