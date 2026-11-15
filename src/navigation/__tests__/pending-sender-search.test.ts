@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setPendingSenderSearch, usePendingMailSearch } from '../pending-mail-search';
+import { showUnifiedView, useUnifiedView } from '../unified-view';
 
 // The address sheet had no "Find mail" from that person (webmail
 // address-context-menu.tsx, acb827bf1).
@@ -14,6 +15,13 @@ describe('Find mail from an address', () => {
     expect(usePendingMailSearch.getState().consumeFrom()).toBeNull();
     // A text search stays its own.
     expect(usePendingMailSearch.getState().query).toBeNull();
+  });
+
+  it('leaves a unified view for the folder list that runs the search', () => {
+    showUnifiedView({ view: 'all' });
+    setPendingSenderSearch('bob@example.org');
+    expect(useUnifiedView.getState().target).toBeNull();
+    usePendingMailSearch.getState().consumeFrom();
   });
 
   it('is offered in the address sheet and applied as the From filter by the list', () => {

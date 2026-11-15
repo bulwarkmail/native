@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { showMailFolders } from './unified-view';
 
 // A `mail/search` deep link (the search widget) arrives before the mail list
 // is mounted, or while it shows a folder. The query is parked here and
@@ -36,7 +37,11 @@ export function setPendingMailSearch(query: string | null): void {
   usePendingMailSearch.getState().set(query);
 }
 
-/** Opens the mail list on the mail from `address`. */
+/**
+ * Opens the mail list on the mail from `address`. A unified view in the Mail
+ * tab would cover the list that runs the search: back to the folders (#119).
+ */
 export function setPendingSenderSearch(address: string): void {
+  showMailFolders();
   usePendingMailSearch.getState().setFrom(address);
 }
