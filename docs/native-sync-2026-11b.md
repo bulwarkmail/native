@@ -473,10 +473,8 @@ Stalwart, not the webmail:
   reverted. Remove the junction first (`cmd /c rmdir C:\cu2b`), then the
   worktree; its build output may need `rd /s /q "\\?\<path>"` (long
   paths). Worktrees whose node_modules pointed at it are already removed.
-- Empty, locked folders C:\Users\info\worktrees\react-native-cu2-mainmerge
-  and C:\Users\info\worktrees\react-native-cu2-reply
-  (git refused to delete it, "Permission denied"; already unregistered and
-  its junction unlinked first). Delete it when Windows lets go of it.
+- The folders of the cu2-reply and cu2-mainmerge worktrees, briefly locked
+  by Windows after their junctions were unlinked, are gone too.
 - Junction C:\cu2p (dangling, it pointed at the removed cu2-push worktree):
   the permission settings block removing junctions under C:\ for agents;
   `cmd /c rmdir C:\cu2p` removes only the link.
