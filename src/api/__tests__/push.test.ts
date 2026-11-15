@@ -12,7 +12,7 @@ vi.mock('../jmap-client', () => ({
   },
 }));
 
-import { jmapClient } from '../jmap-client';
+import { jmapClient, type JMAPClient } from '../jmap-client';
 import {
   createPushSubscription,
   destroyPushSubscription,
@@ -98,6 +98,42 @@ describe('push operations', () => {
       const [calls, using] = mockRequest.mock.calls[0];
       expect(calls[0][1].update.s1).toEqual({ expires: '2026-10-01T00:00:00Z' });
       expect(using).toEqual(['urn:ietf:params:jmap:core']);
+    });
+  });
+
+  describe('through a client passed in', () => {
+    // A client loaded for another account: its server has emailPush, the
+    // jmapClient's has not.
+    const other = {
+      request: vi.fn(),
+      hasCapability: vi.fn((urn: string) => urn === EMAIL_PUSH),
+    };
+    const client = other as unknown as JMAPClient;
+
+    beforeEach(() => {
+      other.request.mockReset();
+    });
+
+    it('lists and destroys through that client, not the jmapClient', async () => {
+      other.request
+        .mockResolvedValueOnce({ methodResponses: [['PushSubscription/get', { list: [{ id: 's1' }] }, '0']] })
+        .mockResolvedValueOnce({ methodResponses: [['PushSubscription/set', { destroyed: ['s1'] }, '0']] });
+
+      expect(await listPushSubscriptions(client)).toEqual([{ id: 's1' }]);
+      await destroyPushSubscription('s1', client);
+
+      expect(other.request.mock.calls.map(([calls]) => calls[0][0])).toEqual(['PushSubscription/get', 'PushSubscription/set']);
+      expect(mockRequest).not.toHaveBeenCalled();
+    });
+
+    it("asks for emailPush by that client's server, not the jmapClient's", async () => {
+      other.request.mockResolvedValue({ methodResponses: [['PushSubscription/get', { list: [] }, '0']] });
+
+      await listPushSubscriptions(client);
+
+      const [calls, using] = other.request.mock.calls[0];
+      expect(calls[0][1].properties).toContain('emailPush');
+      expect(using).toEqual(['urn:ietf:params:jmap:core', EMAIL_PUSH]);
     });
   });
 
