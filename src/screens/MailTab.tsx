@@ -62,20 +62,20 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
     return index < 0 ? null : { rowKey: rowKeyOf(rows[index]), index };
   }, []);
   const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
-  const { show, close, openRef, setActiveKey } = pane;
+  const { show, close, openRef, setActiveKey, openOnStack } = pane;
 
   const openEmail = React.useCallback((email: Email) => {
     const params = threadParamsFor(email);
     // Start on the body now: mounting the viewer takes a while.
     prefetchMessage(email, params.jmapAccountId);
     if (!layout.isSplit) {
-      navigation.navigate('EmailThread', params);
+      openOnStack(params);
       return;
     }
     const key = rowKeyOf(email);
     const index = Math.max(0, visibleRows().findIndex((e) => rowKeyOf(e) === key));
     show({ params, rowKey: key, index });
-  }, [layout.isSplit, navigation, show]);
+  }, [layout.isSplit, openOnStack, show]);
 
   // Another folder: its list has nothing to do with the message on show.
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);

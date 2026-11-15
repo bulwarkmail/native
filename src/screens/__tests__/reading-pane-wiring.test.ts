@@ -47,7 +47,7 @@ describe('reading pane setting wiring', () => {
     for (const screen of ['screens/MailTab.tsx', 'screens/UnifiedInboxScreen.tsx']) {
       expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, readingPane === 'off', rowOf\)/);
     }
-    expect(read('lib/use-message-pane.ts')).toMatch(/if \(!turnedOff\) \{\s+navigation\.navigate\('EmailThread', openRef\.current\.params\);\s+handedOffRef\.current = openRef\.current\.params;\s+\}\s+close\(\);/);
+    expect(read('lib/use-message-pane.ts')).toMatch(/if \(!turnedOff\) openOnStack\(openRef\.current\.params\);\s+close\(\);/);
   });
 
   it('takes the message back into the pane when the room comes back with its viewer on show', () => {

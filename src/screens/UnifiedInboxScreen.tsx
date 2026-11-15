@@ -122,7 +122,9 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
     return index < 0 ? null : { rowKey: rowKey(emailsRef.current[index]), index };
   }, []);
   const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
-  const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
+  const {
+    show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey, openOnStack,
+  } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);
   const emailsRef = React.useRef(emails);
@@ -306,14 +308,14 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
           if (layout.isSplit) {
             showInPane({ params, rowKey: rowKey(email), index: Math.max(0, rows.indexOf(email)) });
           } else {
-            navigation.navigate('EmailThread', params);
+            openOnStack(params);
           }
         } finally {
           setOpening(false);
         }
       })();
     },
-    [opening, switchAccount, navigation, reloadTracker, layout.isSplit, showInPane, closePane],
+    [opening, switchAccount, navigation, reloadTracker, layout.isSplit, showInPane, closePane, openOnStack],
   );
   const onOpen = (email: UnifiedEmail) => openRow(email, emails);
 

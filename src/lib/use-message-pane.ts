@@ -34,8 +34,8 @@ export function rowAfterRemoval<T>(
 }
 
 /**
- * The viewer the pane handed to the stack (`handedOff`), if it is still the
- * screen on show, right over the tabs: its params, else null.
+ * The viewer the list or the pane put on the stack (`handedOff`), if it is
+ * still the screen on show, right over the tabs: its params, else null.
  */
 export function handedOffViewer(
   state: Pick<NavigationState, 'index' | 'routes'>,
@@ -51,10 +51,11 @@ export function handedOffViewer(
  * The message shown next to a list where there is room (`mailLayoutFor`),
  * for the Mail tab and the unified views; `MessagePane` draws it. When the
  * room gets too narrow (split-screen, a fold, a rotation) with a message
- * open, the message moves to the stack so it stays on screen; when the room
- * comes back with that viewer still on show (the iPhone Duo closed and opened
- * again), the message goes back into the pane beside the list, as Apple's
- * Mail does. `turnedOff`: the reading pane setting turned the split off
+ * open, the message moves to the stack so it stays on screen. When the room
+ * comes back with a message on the stack that the list opened there
+ * (`openOnStack`) or the pane moved there, and still on show, the message
+ * goes into the pane beside the list: Apple's Mail on the iPhone Duo shows
+ * the message when closed and the list beside it when opened. `turnedOff`: the reading pane setting turned the split off
  * (#93), from Settings, so the screen is not on show, and the message is let
  * go instead. `rowOf` finds a message's row (its key and place in the list);
  * a message no longer in the list keeps its own id as the key.
@@ -70,7 +71,7 @@ export function useMessagePane(
   const [activeKey, setActiveKey] = React.useState<string | null>(null);
   const openRef = React.useRef(open);
   openRef.current = open;
-  // The message that moved to the stack when the split went.
+  // The message the list opened on the stack, or the pane moved there.
   const handedOffRef = React.useRef<ThreadParams | null>(null);
   const rowOfRef = React.useRef(rowOf);
   rowOfRef.current = rowOf;
@@ -83,6 +84,11 @@ export function useMessagePane(
     setOpen(null);
     setActiveKey(null);
   }, []);
+  // One pane: the message opens on the stack.
+  const openOnStack = React.useCallback((params: ThreadParams) => {
+    navigation.navigate('EmailThread', params);
+    handedOffRef.current = params;
+  }, [navigation]);
   // The viewer opened another message itself: it takes the open one's place.
   const replace = React.useCallback((params: ThreadParams) => {
     setOpen({ params, rowKey: params.emailId, index: openRef.current?.index ?? 0 });
@@ -98,12 +104,9 @@ export function useMessagePane(
       return;
     }
     if (!openRef.current) return;
-    if (!turnedOff) {
-      navigation.navigate('EmailThread', openRef.current.params);
-      handedOffRef.current = openRef.current.params;
-    }
+    if (!turnedOff) openOnStack(openRef.current.params);
     close();
-  }, [isSplit, turnedOff, navigation, show, close]);
+  }, [isSplit, turnedOff, navigation, show, close, openOnStack]);
 
-  return { open, openRef, activeKey, setActiveKey, show, close, replace };
+  return { open, openRef, activeKey, setActiveKey, show, close, replace, openOnStack };
 }
