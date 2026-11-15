@@ -1837,12 +1837,17 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
  * Forget the account's notified message ids. The native side removes them
  * under the lock it posts notifications with (BulwarkFcmModule), so a push
  * being handled at that moment cannot write the old ids back after them.
+ * Without that module (iOS) nothing posts through it, and they go here.
  */
 async function forgetNotifiedIds(accountId: string): Promise<void> {
   const native = (NativeModules as Record<string, unknown>).BulwarkFcm as {
     forgetNotifiedIds?: (id: string) => Promise<void>;
   } | undefined;
-  await native?.forgetNotifiedIds?.(accountId);
+  if (native?.forgetNotifiedIds) {
+    await native.forgetNotifiedIds(accountId);
+    return;
+  }
+  await AsyncStorage.multiRemove([lastNotifiedKey(accountId), notifiedIdsKey(accountId)]);
 }
 
 /**

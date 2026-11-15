@@ -1885,6 +1885,23 @@ describe('teardownPushNotificationsForAccount', () => {
     expect(native.forgetNotifiedIds).toHaveBeenCalledWith(ACCOUNT_ID);
   });
 
+  // iOS has no BulwarkFcm module: the ids left by an earlier build go from
+  // the JS side.
+  it('forgets the notified ids itself where the native side cannot', async () => {
+    const fcm = (NativeModules as { BulwarkFcm: Record<string, unknown> }).BulwarkFcm;
+    const forget = fcm.forgetNotifiedIds;
+    delete fcm.forgetNotifiedIds;
+    try {
+      await AsyncStorage.setItem(`push:notifiedIds:v1:${ACCOUNT_ID}`, JSON.stringify(['m1']));
+      await AsyncStorage.setItem(`push:lastNotifiedEmailId:v2:${ACCOUNT_ID}`, 'm1');
+      await forgetPushServerState(ACCOUNT_ID);
+      expect(await AsyncStorage.getItem(`push:notifiedIds:v1:${ACCOUNT_ID}`)).toBeNull();
+      expect(await AsyncStorage.getItem(`push:lastNotifiedEmailId:v2:${ACCOUNT_ID}`)).toBeNull();
+    } finally {
+      fcm.forgetNotifiedIds = forget;
+    }
+  });
+
   it('leaves another device\'s subscription alone when it reuses the recorded id', async () => {
     await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
     await AsyncStorage.setItem(SUB_KEY, 'b');
