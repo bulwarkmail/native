@@ -7,7 +7,8 @@
 appId: org.bulwarkmail.mobile
 ---
 - extendedWaitUntil:
-    notVisible: "Draft saved|New Message"
+    notVisible:
+      id: "compose-header"
     timeout: 10000
     optional: true
 - waitForAnimationToEnd:
@@ -15,11 +16,13 @@ appId: org.bulwarkmail.mobile
 - takeScreenshot: compose-03-photo-picker
 - runFlow: pick-photo-taps.yaml
 - extendedWaitUntil:
-    visible: "New Message"
+    visible:
+      id: "compose-header"
     timeout: 10000
     optional: true
 - runFlow:
     when:
-      notVisible: "New Message"
+      notVisible:
+        id: "compose-header"
     commands:
       - runFlow: pick-photo-taps.yaml

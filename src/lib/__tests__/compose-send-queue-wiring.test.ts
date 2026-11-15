@@ -8,7 +8,7 @@ const compose = fs.readFileSync(path.resolve(__dirname, '../../screens/ComposeSc
 const banner = fs.readFileSync(path.resolve(__dirname, '../../components/OfflineBanner.tsx'), 'utf8');
 
 describe('ComposeScreen offline send', () => {
-  const send = compose.slice(compose.indexOf('const performSendInner'), compose.indexOf('const titleKey'));
+  const send = compose.slice(compose.indexOf('const performSendInner'), compose.indexOf('const headerTitle'));
 
   it('queues the message instead of trying while offline', () => {
     const offline = send.indexOf('if (!useNetworkStore.getState().online && queueForLater(outgoing, false)) return;');

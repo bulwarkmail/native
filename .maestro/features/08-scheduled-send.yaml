@@ -9,7 +9,8 @@ tags:
 - evalScript: ${output.subject = 'E2E scheduled ' + DEVICE + '-' + APPEARANCE + '-' + ORIENTATION + ' ' + Date.now()}
 - tapOn: "Compose"
 - extendedWaitUntil:
-    visible: "New Message"
+    visible:
+      id: "compose-header"
     timeout: 15000
 - tapOn: "Recipient email addresses"
 - inputText: "userb@example.org"

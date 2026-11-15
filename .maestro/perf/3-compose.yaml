@@ -9,7 +9,8 @@ name: Perf compose open
     commands:
       - tapOn: "Compose"
       - extendedWaitUntil:
-          visible: "New Message"
+          visible:
+            id: "compose-header"
           timeout: 20000
       - waitForAnimationToEnd:
           timeout: 3000
