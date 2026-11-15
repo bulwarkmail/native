@@ -1714,7 +1714,8 @@
     "wrong_passphrase": "密码不正确。"
   },
   "notifications": {
-    "vacation_filters_off": "外出设置已保存，但您的过滤器已关闭。再次保存即可重新开启。"
+    "vacation_filters_off": "外出设置已保存，但您的过滤器已关闭。再次保存即可重新开启。",
+    "copy_code": "复制 {code}"
   },
   "outbox": {
     "discard": "丢弃",

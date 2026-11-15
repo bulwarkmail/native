@@ -1716,7 +1716,8 @@
     "wrong_passphrase": "Bu parola doğru değil."
   },
   "notifications": {
-    "vacation_filters_off": "Ofis dışında ayarları kaydedildi, ancak filtreleriniz kapalı. Yeniden açmak için tekrar kaydedin."
+    "vacation_filters_off": "Ofis dışında ayarları kaydedildi, ancak filtreleriniz kapalı. Yeniden açmak için tekrar kaydedin.",
+    "copy_code": "{code} kopyala"
   },
   "outbox": {
     "discard": "Vazgeç",

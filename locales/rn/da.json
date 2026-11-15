@@ -1712,7 +1712,8 @@
     "wrong_passphrase": "Adgangssætningen er forkert."
   },
   "notifications": {
-    "vacation_filters_off": "Fraværsindstillinger gemt, men dine filtre er slået fra. Gem igen for at slå dem til igen."
+    "vacation_filters_off": "Fraværsindstillinger gemt, men dine filtre er slået fra. Gem igen for at slå dem til igen.",
+    "copy_code": "Kopiér {code}"
   },
   "outbox": {
     "discard": "Kassér",

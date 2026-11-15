@@ -1713,7 +1713,8 @@
     "wrong_passphrase": "비밀번호가 올바르지 않아요."
   },
   "notifications": {
-    "vacation_filters_off": "부재중 설정은 저장되었지만 필터가 꺼져 있어요. 다시 켜려면 한 번 더 저장해 주세요."
+    "vacation_filters_off": "부재중 설정은 저장되었지만 필터가 꺼져 있어요. 다시 켜려면 한 번 더 저장해 주세요.",
+    "copy_code": "{code} 복사"
   },
   "outbox": {
     "discard": "삭제",

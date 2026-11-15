@@ -3,12 +3,17 @@ package com.anonymous.bulwarkmobile
 import android.app.Application
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PersistableBundle
 import android.util.Log
+import android.widget.Toast
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.jstasks.HeadlessJsTaskConfig
 import com.facebook.react.jstasks.HeadlessJsTaskContext
@@ -31,6 +36,11 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
         }
         if (!accountId.isNullOrBlank()) {
             BulwarkFcmModule.refreshGroupSummaryAfterCancel(context, accountId)
+        }
+
+        if (action == "copyCode") {
+            copyCode(context, intent)
+            return
         }
 
         if (emailId.isNullOrBlank() || action.isNullOrBlank() || accountId.isNullOrBlank()) {
@@ -147,6 +157,29 @@ class BulwarkNotificationActionReceiver : BroadcastReceiver() {
             try {
                 pendingResult.finish()
             } catch (_: Exception) {}
+        }
+    }
+
+    // Copies the sign-in code the notification offered (OtpCode), marked
+    // sensitive so the clipboard preview of Android 13+ hides it. Older
+    // Android confirms nothing itself: a toast says it was copied.
+    private fun copyCode(context: Context, intent: Intent) {
+        val code = intent.getStringExtra(BulwarkFcmModule.EXTRA_CODE)
+        if (code.isNullOrBlank()) return
+        // The label is the app's name: a clipboard viewer may show the label
+        // even where it hides the sensitive text.
+        val clip = ClipData.newPlainText(context.getString(R.string.app_name), code).apply {
+            description.extras = PersistableBundle().apply {
+                // ClipDescription.EXTRA_IS_SENSITIVE, a constant of API 33.
+                putBoolean("android.content.extra.IS_SENSITIVE", true)
+            }
+        }
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(clip)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            val label = intent.getStringExtra(BulwarkFcmModule.EXTRA_CODE_COPIED_LABEL)
+                ?: context.getString(R.string.notification_code_copied)
+            Toast.makeText(context, label, Toast.LENGTH_SHORT).show()
         }
     }
 

@@ -140,6 +140,11 @@ interface ShowNotificationOptions {
   // one, or when that is not known, the unlock stays.
   deleteNeedsUnlock?: boolean;
   replyLabel?: string;
+  // The Copy action Android offers for a sign-in code it finds in the mail
+  // (OtpCode.kt). "{code}" in the label is replaced by the code; the second
+  // is the toast below Android 13, which confirms no copy itself.
+  copyCodeLabel?: string;
+  codeCopiedLabel?: string;
   // The login's organisation wants notifications without content: the
   // account's group summary takes no lines from the other notifications in
   // the group, which may be message notifications just taken out.
@@ -687,6 +692,8 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
     const markReadLabel = translate(locale, 'email_viewer.mark_read', 'Mark as read');
     const deleteLabel = translate(locale, 'email_viewer.delete', 'Delete');
     const replyLabel = translate(locale, 'email_viewer.reply', 'Reply');
+    const copyCodeLabel = translate(locale, 'notifications.copy_code', 'Copy {code}');
+    const codeCopiedLabel = translate(locale, 'notifications.copied_to_clipboard', 'Copied to clipboard');
 
     await native.showNotification({
       notificationId: `mail:${email.id}`,
@@ -707,6 +714,8 @@ async function notifyForPush(accountId: string, session: DetachedSession, payloa
       deleteLabel,
       deleteNeedsUnlock: !hasTrash,
       replyLabel,
+      copyCodeLabel,
+      codeCopiedLabel,
     });
   }
 

@@ -1189,6 +1189,8 @@ export async function shareAccountWithExtension(
           markRead: t('email_viewer.mark_read', 'Mark as read'),
           delete: t('email_viewer.delete', 'Delete'),
           reply: t('email_viewer.reply', 'Reply'),
+          copyCode: t('notifications.copy_code', 'Copy {code}'),
+          codeCopied: t('notifications.copied_to_clipboard', 'Copied to clipboard'),
         },
       }),
     );

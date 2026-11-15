@@ -1718,7 +1718,8 @@
     "wrong_passphrase": "A frase secreta não está correta."
   },
   "notifications": {
-    "vacation_filters_off": "Configurações de ausência salvas, mas seus filtros estão desativados. Salve de novo para reativá-los."
+    "vacation_filters_off": "Configurações de ausência salvas, mas seus filtros estão desativados. Salve de novo para reativá-los.",
+    "copy_code": "Copiar {code}"
   },
   "outbox": {
     "discard": "Descartar",

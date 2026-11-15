@@ -1715,7 +1715,8 @@
     "wrong_passphrase": "To hasło jest nieprawidłowe."
   },
   "notifications": {
-    "vacation_filters_off": "Ustawienia nieobecności zapisane, ale Twoje filtry są wyłączone. Zapisz ponownie, aby je włączyć."
+    "vacation_filters_off": "Ustawienia nieobecności zapisane, ale Twoje filtry są wyłączone. Zapisz ponownie, aby je włączyć.",
+    "copy_code": "Kopiuj {code}"
   },
   "outbox": {
     "discard": "Odrzuć",

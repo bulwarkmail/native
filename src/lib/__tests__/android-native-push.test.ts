@@ -44,6 +44,8 @@ describe('shareAccountWithExtension on Android', () => {
         markRead: expect.any(String),
         delete: expect.any(String),
         reply: expect.any(String),
+        copyCode: 'Copy {code}',
+        codeCopied: expect.any(String),
       },
     });
     // Ensure passwords and OAuth tokens are never duplicated into SharedPreferences

@@ -1531,7 +1531,8 @@
     }
   },
   "notifications": {
-    "vacation_filters_off": "Puhkusevastaja seaded salvestati, kuid sinu filtrid on välja lülitatud. Nende uuesti sisselülitamiseks salvesta veel kord."
+    "vacation_filters_off": "Puhkusevastaja seaded salvestati, kuid sinu filtrid on välja lülitatud. Nende uuesti sisselülitamiseks salvesta veel kord.",
+    "copy_code": "Kopeeri {code}"
   },
   "offline": {
     "banner": "Võrguühendus puudub",

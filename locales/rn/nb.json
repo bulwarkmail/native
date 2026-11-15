@@ -1712,7 +1712,8 @@
     "wrong_passphrase": "Passordfrasen er feil."
   },
   "notifications": {
-    "vacation_filters_off": "Fraværsinnstillingene er lagret, men filtrene dine er slått av. Lagre på nytt for å slå dem på igjen."
+    "vacation_filters_off": "Fraværsinnstillingene er lagret, men filtrene dine er slått av. Lagre på nytt for å slå dem på igjen.",
+    "copy_code": "Kopier {code}"
   },
   "outbox": {
     "discard": "Forkast",

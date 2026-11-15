@@ -1711,7 +1711,8 @@
     "wrong_passphrase": "Ez a jelszó nem megfelelő."
   },
   "notifications": {
-    "vacation_filters_off": "Távolléti beállítások elmentve, de a szűrőid ki vannak kapcsolva. Mentsd újra, hogy visszakapcsold őket."
+    "vacation_filters_off": "Távolléti beállítások elmentve, de a szűrőid ki vannak kapcsolva. Mentsd újra, hogy visszakapcsold őket.",
+    "copy_code": "{code} másolása"
   },
   "outbox": {
     "discard": "Elvetés",

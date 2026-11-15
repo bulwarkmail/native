@@ -1715,7 +1715,8 @@
     "wrong_passphrase": "Toto heslo není správné."
   },
   "notifications": {
-    "vacation_filters_off": "Nastavení nepřítomnosti bylo uloženo, ale vaše filtry jsou vypnuté. Uložte znovu, aby se zase zapnuly."
+    "vacation_filters_off": "Nastavení nepřítomnosti bylo uloženo, ale vaše filtry jsou vypnuté. Uložte znovu, aby se zase zapnuly.",
+    "copy_code": "Kopírovat {code}"
   },
   "outbox": {
     "discard": "Zahodit",

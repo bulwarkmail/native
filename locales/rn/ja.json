@@ -1715,7 +1715,8 @@
     "wrong_passphrase": "パスフレーズが正しくありません。"
   },
   "notifications": {
-    "vacation_filters_off": "不在の設定を保存しましたが、フィルターがオフになっています。オンに戻すには、もう一度保存してください。"
+    "vacation_filters_off": "不在の設定を保存しましたが、フィルターがオフになっています。オンに戻すには、もう一度保存してください。",
+    "copy_code": "{code} をコピー"
   },
   "outbox": {
     "discard": "破棄",

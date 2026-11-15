@@ -1715,7 +1715,8 @@
     "wrong_passphrase": "Fraza de acces nu este corectă."
   },
   "notifications": {
-    "vacation_filters_off": "Setările de absență au fost salvate, dar filtrele dvs. sunt dezactivate. Salvați din nou pentru a le reactiva."
+    "vacation_filters_off": "Setările de absență au fost salvate, dar filtrele dvs. sunt dezactivate. Salvați din nou pentru a le reactiva.",
+    "copy_code": "Copiază {code}"
   },
   "outbox": {
     "discard": "Renunțați",

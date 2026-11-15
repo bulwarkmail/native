@@ -229,6 +229,7 @@ describe('the rule for groups, several messages, older notifications and the cac
     expect(shown).toMatchObject({ emailId: '', threadId: '', groupKey: `bulwark-mail:${LOCAL}` });
     expect(shown).not.toHaveProperty('markReadLabel');
     expect(shown).not.toHaveProperty('replyLabel');
+    expect(shown).not.toHaveProperty('copyCodeLabel');
     // They count as notified: the next push for them shows nothing more.
     await push(['m1', 'm2', 'm3']);
     expect(showNotification).toHaveBeenCalledTimes(1);

@@ -1714,7 +1714,8 @@
     "wrong_passphrase": "密碼片語不正確。"
   },
   "notifications": {
-    "vacation_filters_off": "外出設定已儲存，但您的篩選規則已關閉。再次儲存即可重新開啟。"
+    "vacation_filters_off": "外出設定已儲存，但您的篩選規則已關閉。再次儲存即可重新開啟。",
+    "copy_code": "複製 {code}"
   },
   "outbox": {
     "discard": "捨棄",

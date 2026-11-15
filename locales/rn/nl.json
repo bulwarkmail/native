@@ -1715,7 +1715,8 @@
     "wrong_passphrase": "Die wachtwoordzin klopt niet."
   },
   "notifications": {
-    "vacation_filters_off": "Afwezigheidsinstellingen opgeslagen, maar je filters staan uit. Sla opnieuw op om ze weer in te schakelen."
+    "vacation_filters_off": "Afwezigheidsinstellingen opgeslagen, maar je filters staan uit. Sla opnieuw op om ze weer in te schakelen.",
+    "copy_code": "{code} kopiëren"
   },
   "outbox": {
     "discard": "Verwijderen",

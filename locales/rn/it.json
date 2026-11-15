@@ -1717,7 +1717,8 @@
     "wrong_passphrase": "La passphrase non è corretta."
   },
   "notifications": {
-    "vacation_filters_off": "Impostazioni di assenza salvate, ma i tuoi filtri sono disattivati. Salva di nuovo per riattivarli."
+    "vacation_filters_off": "Impostazioni di assenza salvate, ma i tuoi filtri sono disattivati. Salva di nuovo per riattivarli.",
+    "copy_code": "Copia {code}"
   },
   "outbox": {
     "discard": "Scarta",

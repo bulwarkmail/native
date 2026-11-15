@@ -1721,7 +1721,8 @@
     "wrong_passphrase": "Esa contraseña no es correcta."
   },
   "notifications": {
-    "vacation_filters_off": "Configuración de ausencia guardada, pero tus filtros están desactivados. Vuelve a guardar para activarlos de nuevo."
+    "vacation_filters_off": "Configuración de ausencia guardada, pero tus filtros están desactivados. Vuelve a guardar para activarlos de nuevo.",
+    "copy_code": "Copiar {code}"
   },
   "outbox": {
     "discard": "Descartar",

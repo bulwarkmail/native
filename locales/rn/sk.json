@@ -1714,7 +1714,8 @@
     "wrong_passphrase": "Toto heslo nie je správne."
   },
   "notifications": {
-    "vacation_filters_off": "Nastavenia neprítomnosti boli uložené, ale vaše filtre sú vypnuté. Ak ich chcete znova zapnúť, uložte ešte raz."
+    "vacation_filters_off": "Nastavenia neprítomnosti boli uložené, ale vaše filtre sú vypnuté. Ak ich chcete znova zapnúť, uložte ešte raz.",
+    "copy_code": "Kopírovať {code}"
   },
   "outbox": {
     "discard": "Zahodiť",

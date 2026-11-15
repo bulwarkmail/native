@@ -380,6 +380,9 @@ describe('pushBackgroundTask notifications', () => {
       markReadLabel: expect.any(String),
       deleteLabel: expect.any(String),
       replyLabel: expect.any(String),
+      // Left with its placeholder: Android puts in the code it finds.
+      copyCodeLabel: 'Copy {code}',
+      codeCopiedLabel: expect.any(String),
     }));
   });
 

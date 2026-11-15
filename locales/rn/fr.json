@@ -1719,7 +1719,8 @@
     "wrong_passphrase": "Cette phrase secrète est incorrecte."
   },
   "notifications": {
-    "vacation_filters_off": "Paramètres d'absence enregistrés, mais vos filtres sont désactivés. Enregistrez à nouveau pour les réactiver."
+    "vacation_filters_off": "Paramètres d'absence enregistrés, mais vos filtres sont désactivés. Enregistrez à nouveau pour les réactiver.",
+    "copy_code": "Copier {code}"
   },
   "outbox": {
     "discard": "Supprimer",

@@ -783,7 +783,8 @@
     }
   },
   "notifications": {
-    "vacation_filters_off": "Abwesenheits-Einstellungen gespeichert, aber Ihre Filter sind ausgeschaltet. Speichern Sie noch einmal, um sie wieder einzuschalten."
+    "vacation_filters_off": "Abwesenheits-Einstellungen gespeichert, aber Ihre Filter sind ausgeschaltet. Speichern Sie noch einmal, um sie wieder einzuschalten.",
+    "copy_code": "{code} kopieren"
   },
   "offline": {
     "banner": "Sie sind offline",

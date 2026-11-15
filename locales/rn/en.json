@@ -993,7 +993,8 @@
     "emails_marked_read": "{count, plural, one {# email marked as read} other {# emails marked as read}}",
     "emails_marked_unread": "{count, plural, one {# email marked as unread} other {# emails marked as unread}}",
     "tag_removed_count": "{count, plural, one {Tag removed from # email} other {Tag removed from # emails}}",
-    "vacation_filters_off": "Out of office settings saved, but your filters are switched off. Save again to turn them back on."
+    "vacation_filters_off": "Out of office settings saved, but your filters are switched off. Save again to turn them back on.",
+    "copy_code": "Copy {code}"
   },
   "offline": {
     "banner": "You are offline",

@@ -1715,7 +1715,8 @@
     "wrong_passphrase": "La contrasenya no és correcta."
   },
   "notifications": {
-    "vacation_filters_off": "S'ha desat la configuració d'absència, però els filtres estan desactivats. Torneu a desar per activar-los de nou."
+    "vacation_filters_off": "S'ha desat la configuració d'absència, però els filtres estan desactivats. Torneu a desar per activar-los de nou.",
+    "copy_code": "Copia {code}"
   },
   "outbox": {
     "discard": "Descarta",

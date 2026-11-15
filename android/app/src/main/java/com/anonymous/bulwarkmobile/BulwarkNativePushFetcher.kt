@@ -151,6 +151,8 @@ object BulwarkNativePushFetcher {
         val markRead: String,
         val delete: String,
         val reply: String,
+        val copyCode: String,
+        val codeCopied: String,
     )
 
     sealed class JmapFetchResult {
@@ -1047,6 +1049,10 @@ object BulwarkNativePushFetcher {
                 ?: context.getString(R.string.notification_action_delete),
             reply = stringsObj?.optString("reply")?.takeIf { it.isNotBlank() }
                 ?: context.getString(R.string.notification_action_reply),
+            copyCode = stringsObj?.optString("copyCode")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_action_copy_code),
+            codeCopied = stringsObj?.optString("codeCopied")?.takeIf { it.isNotBlank() }
+                ?: context.getString(R.string.notification_code_copied),
         )
     }
 
@@ -1187,6 +1193,8 @@ object BulwarkNativePushFetcher {
                             markReadLabel = strings.markRead,
                             deleteLabel = strings.delete,
                             replyLabel = strings.reply,
+                            copyCodeLabel = strings.copyCode,
+                            codeCopiedLabel = strings.codeCopied,
                             deleteNeedsUnlock = !result.hasTrash,
                         )
                     }

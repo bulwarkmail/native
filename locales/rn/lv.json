@@ -1714,7 +1714,8 @@
     "wrong_passphrase": "Parole nav pareiza."
   },
   "notifications": {
-    "vacation_filters_off": "Prombūtnes iestatījumi saglabāti, taču jūsu filtri ir izslēgti. Saglabājiet vēlreiz, lai tos atkal ieslēgtu."
+    "vacation_filters_off": "Prombūtnes iestatījumi saglabāti, taču jūsu filtri ir izslēgti. Saglabājiet vēlreiz, lai tos atkal ieslēgtu.",
+    "copy_code": "Kopēt {code}"
   },
   "outbox": {
     "discard": "Atmest",
