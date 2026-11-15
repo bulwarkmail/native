@@ -91,4 +91,18 @@ describe('reader', () => {
     expect(body).toMatch(/\{phishingMarked && \(\r?\n\s*<View style=\{styles\.phishingBanner\}/);
     expect(body).toMatch(/phishing_report\.banner/);
   });
+
+  it("hides the sender's unsubscribe link and cards, and turns off links in a previewed attachment", () => {
+    const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, '..', '..', rel), 'utf8');
+    const content = read('components/email/MessageContent.tsx');
+    expect(content).toMatch(/const phishingMarked = isPhishingMarked\(email\);/);
+    expect(content).toMatch(/listUnsubscribe\?\.preferred && !phishingMarked && \(/);
+    expect(content).toMatch(/\{!phishingMarked && <StructuredMailBanner /);
+    expect(content).toMatch(/linksOff=\{phishingMarked\}/);
+    expect(read('components/email/AttachmentChips.tsx')).toMatch(/<AttachmentPreviewModal \{\.\.\.preview\.modalProps\} linksOff=\{linksOff\} \/>/);
+    const modal = read('components/email/AttachmentPreviewModal.tsx');
+    expect(modal).toMatch(/keywords: linksOff \? \{ \[PHISHING_KEYWORD\]: true \} : /);
+    // An .eml inside the .eml is the same reported message's.
+    expect(modal).toMatch(/<AttachmentPreviewModal \{\.\.\.nested\.modalProps\} linksOff=\{linksOff\} \/>/);
+  });
 });

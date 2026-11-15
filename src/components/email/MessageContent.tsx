@@ -15,6 +15,7 @@ import { useBodyOverride } from './use-body-override';
 import { useSecureMessage } from './use-secure-message';
 import { SecureMessageBanner } from './SecureMessageBanner';
 import { deriveHeaderInfo } from '../../lib/email-headers';
+import { isPhishingMarked } from '../../lib/phishing-links';
 import { calendarBannerShownFor } from '../../lib/attachment-display';
 import { hidesPgpMimeControlParts, pgpMimeControlParts } from '../../lib/pgp-mime-parts';
 
@@ -68,6 +69,9 @@ export function MessageContent({
   const attachmentPosition = useSettingsStore((s) => s.attachmentPosition);
   const calendarParsing = useSettingsStore((s) => s.calendarInvitationParsingEnabled);
   const headerInfo = React.useMemo(() => deriveHeaderInfo(email), [email]);
+  // Reported as phishing: its links are off, and so are the sender's
+  // unsubscribe link and cards (webmail 50f95f446).
+  const phishingMarked = isPhishingMarked(email);
   const unwrap = useBodyOverride(email, jmapAccountId);
   // PGP / S/MIME (#58): the decrypted or verified body replaces the
   // message's own; an encrypted one that can't be opened shows nothing but
@@ -103,6 +107,7 @@ export function MessageContent({
       extracted={extracted}
       hidePart={hidePart}
       plainView={plainView ?? plainTextMode}
+      linksOff={phishingMarked}
     />
   );
 
@@ -132,7 +137,7 @@ export function MessageContent({
           onHandled={onEmailPatched}
         />
       )}
-      {headerInfo.list.listUnsubscribe?.preferred && (
+      {headerInfo.list.listUnsubscribe?.preferred && !phishingMarked && (
         <UnsubscribeBanner
           email={email}
           list={headerInfo.list}
@@ -143,7 +148,7 @@ export function MessageContent({
 
       {(secure.loading || secure.result) && <SecureMessageBanner status={secure.result?.status ?? null} loading={secure.loading} offeredKey={secure.result?.offeredKey} />}
       <CalendarInvitationBanner email={email} jmapAccountId={jmapAccountId} />
-      <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />
+      {!phishingMarked && <StructuredMailBanner email={email} jmapAccountId={jmapAccountId} />}
 
       <View style={[styles.body, fill && styles.fill]}>
         {deferBody ? (

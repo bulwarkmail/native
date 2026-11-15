@@ -36,6 +36,8 @@ interface Props {
   hidePart?: (att: Attachment) => boolean;
   /** The body is shown as plain text: no image is drawn there, so inline images get chips. */
   plainView?: boolean;
+  /** The message was reported as phishing: a previewed .eml or HTML file has its links off too. */
+  linksOff?: boolean;
 }
 
 type Item =
@@ -50,7 +52,7 @@ const MAX_BUNDLE_BYTES = 100 * 1024 * 1024;
  * save), long-press opens Preview / Open / Save / Share, and "Download all"
  * bundles every part into a zip named by the export template.
  */
-export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tnefUnpacked, extracted, hidePart, plainView }: Props) {
+export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tnefUnpacked, extracted, hidePart, plainView, linksOff }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -306,7 +308,7 @@ export function AttachmentChips({ email, jmapAccountId, calendarBannerShown, tne
         onSubmit={(name) => { const it = renaming; if (it) void saveAs(it, name); }}
       />
 
-      <AttachmentPreviewModal {...preview.modalProps} />
+      <AttachmentPreviewModal {...preview.modalProps} linksOff={linksOff} />
 
       <FilesPickerSheet
         visible={!!filesTarget}

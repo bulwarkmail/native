@@ -12,6 +12,7 @@ import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import EmailBodyView from '../EmailBodyView';
+import { PHISHING_KEYWORD } from '../../lib/phishing-links';
 import {
   handoffMimeType, needsNativeImageDecoder, needsWebImageViewer, type PreviewKind,
 } from '../../lib/file-preview';
@@ -61,6 +62,8 @@ interface Props {
   docked?: boolean;
   /** Extra header buttons, after the title (Files: previous / next file). */
   headerActions?: React.ReactNode;
+  /** A file of a message reported as phishing: an .eml or HTML file shown has its links off. */
+  linksOff?: boolean;
 }
 
 interface ViewerWebViewProps {
@@ -152,7 +155,7 @@ function PdfPagesView({ fileUri, viewerUri, background, onFailed }: {
  * place that opens a file.
  */
 export function AttachmentPreviewModal({
-  item, loading, title, onClose, onOpenExternal, onShare, onDownload, docked = false, headerActions,
+  item, loading, title, onClose, onOpenExternal, onShare, onDownload, docked = false, headerActions, linksOff = false,
 }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -214,13 +217,13 @@ export function AttachmentPreviewModal({
       id: `file-preview-${item.kind}-${item.fileUri ?? item.name}`,
       threadId: '',
       mailboxIds: {},
-      keywords: {},
+      keywords: linksOff ? { [PHISHING_KEYWORD]: true } : ({} as Record<string, boolean>),
       size: 0,
       receivedAt: item.eml?.date ?? new Date().toISOString(),
       hasAttachment: false,
       subject: item.eml?.subject ?? item.name,
     };
-  }, [item]);
+  }, [item, linksOff]);
 
   const failure = item?.fileUri && failed?.uri === item.fileUri ? failed : null;
   // Android's WebView zooms; React Native's Image there doesn't. iOS zooms
@@ -434,7 +437,7 @@ export function AttachmentPreviewModal({
         </View>
         {renderBody()}
         <Watermark />
-        {nested.modalProps.item || nested.modalProps.loading ? <AttachmentPreviewModal {...nested.modalProps} /> : null}
+        {nested.modalProps.item || nested.modalProps.loading ? <AttachmentPreviewModal {...nested.modalProps} linksOff={linksOff} /> : null}
       </SafeAreaView>
   );
   if (docked) return item || loading ? content : null;
