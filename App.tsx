@@ -64,7 +64,9 @@ import { useSettingsStore } from './src/stores/settings-store';
 import { startPolicySync, usePolicyFeature } from './src/stores/policy-store';
 import { startScreenPrivacySync } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
+import DeskInbox from './src/components/DeskInbox';
 import SideColumnTabBar from './src/components/SideColumnTabBar';
+import { useTent } from './src/lib/device-hinge';
 import { useLayout, useTabBarPosition } from './src/lib/use-layout';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
@@ -255,6 +257,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   // webmail's navigation rail, where it leaves room for both panes. With the
   // status bar in a column on the side (iPhone Duo) they go in that column.
   const tabBarPosition = useTabBarPosition();
+  const tent = useTent();
   const rail = tabBarPosition === 'left';
   const statusColumn = tabBarPosition === 'right';
   // Appearance > Show Toolbar Labels covers the tab names too (#128). With
@@ -404,6 +407,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         {() => <SettingsScreen onLogout={logout} />}
       </Tab.Screen>
     </Tab.Navigator>
+      {/* An iPhone Duo standing on a desk as a tent shows the inbox in large rows. */}
+      {tent && <DeskInbox navigation={navigation} />}
     </View>
   );
 }

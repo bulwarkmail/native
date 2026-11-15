@@ -3,7 +3,7 @@ import { NativeEventEmitter, NativeModules, Platform, useWindowDimensions } from
 
 /**
  * The hinge of a foldable iPhone (the iPhone Duo), from UIKit's
- * UIHingeInteraction (plugins/ios-hinge). Null on any other device, on
+ * UIHingeInteraction (plugins/ios-desk). Null on any other device, on
  * Android, and on an app built with an SDK older than iOS 27.1.
  */
 export interface HingeState {
