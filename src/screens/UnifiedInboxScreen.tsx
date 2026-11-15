@@ -48,7 +48,7 @@ import { mailLayoutFor, useLayout } from '../lib/use-layout';
 import { listBackStep } from '../lib/list-back';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { showMailFolders } from '../navigation/unified-view';
-import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
+import { rowAfterRemoval, useMessagePane, type ThreadParams } from '../lib/use-message-pane';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -117,7 +117,11 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
   // has already docked the folder list or not (and waited for the reading
   // pane setting): `width` is the room right of it.
   const layout = mailLayoutFor({ ...useLayout(), hasSidebar: false }, readingPane, width);
-  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
+  const rowOf = React.useCallback((params: ThreadParams) => {
+    const index = emailsRef.current.findIndex((e) => e.id === params.emailId);
+    return index < 0 ? null : { rowKey: rowKey(emailsRef.current[index]), index };
+  }, []);
+  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
   const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);

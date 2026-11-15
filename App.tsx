@@ -64,7 +64,7 @@ import { useSettingsStore } from './src/stores/settings-store';
 import { startPolicySync, usePolicyFeature } from './src/stores/policy-store';
 import { startScreenPrivacySync } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
-import { useLayout } from './src/lib/use-layout';
+import { useLayout, useTabBarPosition } from './src/lib/use-layout';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
 import { useUpdatesStore } from './src/stores/updates-store';
@@ -251,8 +251,8 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   };
   const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
   // Side by side layouts move the tabs into a rail on the left, like the
-  // webmail's navigation rail.
-  const { isSplit } = useLayout();
+  // webmail's navigation rail, where it leaves room for both panes.
+  const rail = useTabBarPosition() === 'left';
   // Appearance > Show Toolbar Labels covers the tab names too (#128). With
   // it off a tab is its icon, centred in the room the name leaves.
   const showTabLabels = useSettingsStore((state) => state.showToolbarLabels);
@@ -266,7 +266,7 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const bottomInset = useSafeAreaInsets().bottom;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: isSplit ? bottomInset : 0 }}>
+    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: rail ? bottomInset : 0 }}>
       <UpdateBanner />
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
@@ -281,16 +281,16 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         headerShown: false,
         // Tabs out of view stop re-rendering until they are shown again.
         freezeOnBlur: true,
-        tabBarPosition: isSplit ? 'left' : 'bottom',
-        tabBarVariant: isSplit ? 'material' : 'uikit',
+        tabBarPosition: rail ? 'left' : 'bottom',
+        tabBarVariant: rail ? 'material' : 'uikit',
         tabBarShowLabel: showTabLabels,
         tabBarItemStyle: tabItemStyle,
         // A narrow rail (icon over label), not a wide sidebar with labels
         // beside the icons.
-        ...(isSplit ? { tabBarLabelPosition: 'below-icon' as const } : null),
+        ...(rail ? { tabBarLabelPosition: 'below-icon' as const } : null),
         tabBarActiveTintColor: c.text,
         tabBarInactiveTintColor: c.textSecondary,
-        tabBarStyle: isSplit ? {
+        tabBarStyle: rail ? {
           backgroundColor: c.secondary,
           borderRightColor: c.border,
           borderRightWidth: 1,

@@ -45,9 +45,15 @@ describe('reading pane setting wiring', () => {
 
   it('lets the open message go when the setting turned the split off, and keeps it when the room did', () => {
     for (const screen of ['screens/MailTab.tsx', 'screens/UnifiedInboxScreen.tsx']) {
-      expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, readingPane === 'off'\)/);
+      expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, readingPane === 'off', rowOf\)/);
     }
-    expect(read('lib/use-message-pane.ts')).toMatch(/if \(!turnedOff\) navigation\.navigate\('EmailThread', openRef\.current\.params\);\s+close\(\);/);
+    expect(read('lib/use-message-pane.ts')).toMatch(/if \(!turnedOff\) \{\s+navigation\.navigate\('EmailThread', openRef\.current\.params\);\s+handedOffRef\.current = openRef\.current\.params;\s+\}\s+close\(\);/);
+  });
+
+  it('takes the message back into the pane when the room comes back with its viewer on show', () => {
+    const src = read('lib/use-message-pane.ts');
+    expect(src).toMatch(/if \(isSplit\) \{\s+const params = handedOffViewer\(navigation\.getState\(\), handedOffRef\.current\);/);
+    expect(src).toMatch(/navigation\.goBack\(\);\s+show\(\{ params, rowKey: params\.emailId, index: 0, \.\.\.rowOfRef\.current\(params\) \}\);/);
   });
 
   it('is offered under Settings > Layout', () => {

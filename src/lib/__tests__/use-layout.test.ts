@@ -5,7 +5,7 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ t
 
 import {
   DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
-  mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets,
+  mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets, tabBarPositionFor,
 } from '../use-layout';
 
 const NO_INSETS = { left: 0, right: 0 };
@@ -187,9 +187,53 @@ describe('content width', () => {
   it('goes by the measured root once there is one', () => {
     const window = layoutFor(1280, 800);
     // Right of a 110 dp rail (a longer tab label), which keeps clear of the left inset.
-    expect(measuredContentWidth(1170, window, { left: 24, right: 24 }, true)).toBe(1146);
+    expect(measuredContentWidth(1170, true, { left: 24, right: 24 })).toBe(1146);
     // A stack screen starts at the window's edge.
-    expect(measuredContentWidth(1280, window, { left: 24, right: 24 }, false)).toBe(1232);
+    expect(measuredContentWidth(1280, false, { left: 24, right: 24 })).toBe(1232);
+  });
+});
+
+describe('tab bar position', () => {
+  it('keeps the rail on tablets and foldables where the split fits beside it', () => {
+    expect(tabBarPositionFor(layoutFor(1280, 800), 1280, NO_INSETS)).toBe('left');
+    expect(tabBarPositionFor(layoutFor(800, 1280), 800, NO_INSETS)).toBe('left');
+    // iPad mini held upright: list 298 dp, reader 360 dp next to the rail.
+    expect(tabBarPositionFor(layoutFor(744, 1133), 744, NO_INSETS)).toBe('left');
+    // A Galaxy Z Fold held upright has one pane either way: no change.
+    expect(tabBarPositionFor(layoutFor(616, 816), 616, NO_INSETS)).toBe('left');
+  });
+
+  it('keeps a phone on the bottom bar', () => {
+    expect(tabBarPositionFor(layoutFor(411, 914), 411, NO_INSETS)).toBe('bottom');
+    expect(tabBarPositionFor(layoutFor(914, 411), 914, NO_INSETS)).toBe('bottom');
+  });
+
+  it('keeps the bottom bar where the rail would cost the reading pane', () => {
+    const edge = 640 + TAB_RAIL_WIDTH;
+    expect(tabBarPositionFor(layoutFor(edge - 1, 1000), edge - 1, NO_INSETS)).toBe('bottom');
+    expect(tabBarPositionFor(layoutFor(edge, 1000), edge, NO_INSETS)).toBe('left');
+    expect(tabBarPositionFor(layoutFor(640, 1000), 640, NO_INSETS)).toBe('bottom');
+    expect(tabBarPositionFor(layoutFor(639, 1000), 639, NO_INSETS)).toBe('left');
+  });
+});
+
+describe('iPhone Duo', () => {
+  // Measured on the iPhone Duo simulator (iOS 27.1): outer display 466 x 678
+  // pt, inner display 669 x 951 pt.
+  it('shows the list and the message side by side on the inner display held upright', () => {
+    const inner = layoutFor(669, 951);
+    expect(tabBarPositionFor(inner, 669, NO_INSETS)).toBe('bottom');
+    expect(mailTabPanes(669, 951)).toMatchObject({ isSplit: true, hasSidebar: false, listWidth: 309, detailWidth: 360 });
+  });
+
+  it('splits the inner display turned sideways next to the rail', () => {
+    expect(tabBarPositionFor(layoutFor(951, 669), 951, NO_INSETS)).toBe('left');
+    expect(mailTabPanes(951, 669)).toMatchObject({ isSplit: true, hasSidebar: false, listWidth: 320, detailWidth: 545 });
+  });
+
+  it('keeps one pane on the outer display', () => {
+    expect(mailTabPanes(466, 678)).toMatchObject({ isSplit: false, listWidth: 466 });
+    expect(mailTabPanes(678, 466)).toMatchObject({ isSplit: false, listWidth: 678 });
   });
 });
 
@@ -219,6 +263,10 @@ describe('sheetSideInsets', () => {
 describe('floatingCardFrame', () => {
   it('spans a phone with 12 dp margins above the tab bar', () => {
     expect(floatingCardFrame(411, false, { left: 0, right: 0 })).toEqual({ left: 12, right: 12, bottom: 64 });
+  });
+
+  it('sits bottom right above a bottom tab bar on a split layout that keeps one', () => {
+    expect(floatingCardFrame(669, true, NO_INSETS, 'bottom')).toEqual({ left: 289, right: 20, bottom: 64 });
   });
 
   it('sits bottom right at 360 dp on a split layout', () => {

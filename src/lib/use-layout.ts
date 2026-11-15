@@ -65,30 +65,30 @@ export const LIST_PANE_MIN = 280;
 
 /**
  * Width left for a screen's own content, until the screen has measured
- * itself: the window less its side safe-area insets and, on a tab screen of a
- * split window, the tab rail.
+ * itself: the window less its side safe-area insets and, on a tab screen
+ * beside the tab rail, the rail.
  */
 export function contentWidthFor(
   width: number,
   layout: Layout,
   insets: { left: number; right: number },
-  tabRail: boolean,
+  tabScreen: boolean,
 ): number {
-  return width - insets.left - insets.right - (tabRail && layout.isSplit ? TAB_RAIL_WIDTH : 0);
+  const rail = tabScreen && tabBarPositionFor(layout, width, insets) === 'left';
+  return width - insets.left - insets.right - (rail ? TAB_RAIL_WIDTH : 0);
 }
 
 /**
- * Content width from a screen's measured root: a tab screen of a split
- * window starts right of the rail (which keeps clear of the left inset), a
- * stack screen at the window's edge.
+ * Content width from a screen's measured root: a screen beside the tab rail
+ * starts right of it (the rail keeps clear of the left inset), any other at
+ * the window's edge.
  */
 export function measuredContentWidth(
   rootWidth: number,
-  layout: Layout,
+  besideRail: boolean,
   insets: { left: number; right: number },
-  tabRail: boolean,
 ): number {
-  return rootWidth - insets.right - (tabRail && layout.isSplit ? 0 : insets.left);
+  return rootWidth - insets.right - (besideRail ? 0 : insets.left);
 }
 
 /** A list-detail layout with its pane widths. */
@@ -121,6 +121,37 @@ export function paneLayoutFor(layout: Layout, contentWidth: number): PaneLayout 
     }
   }
   return { ...layout, isSplit: false, hasSidebar: false, listWidth: contentWidth, detailWidth: 0 };
+}
+
+/** Where the tabs are: a bar along the bottom, or a rail down the left. */
+export type TabBarPosition = 'bottom' | 'left';
+
+/**
+ * Where a window's tabs go. A split window puts them in a rail on the left,
+ * like the webmail's navigation rail, unless the rail's width is all that
+ * keeps the list and the reader from fitting side by side: there the tabs
+ * stay a bar along the bottom and the window gets both panes. That is a
+ * window 640 to 725 dp wide, such as the iPhone Duo's inner display held
+ * upright (669 pt), where Apple keeps the bars horizontal and Mail shows the
+ * list and the message side by side.
+ */
+export function tabBarPositionFor(
+  layout: Layout,
+  width: number,
+  insets: { left: number; right: number },
+): TabBarPosition {
+  if (!layout.isSplit) return 'bottom';
+  const content = width - insets.left - insets.right;
+  const railCostsTheSplit = paneLayoutFor(layout, content).isSplit
+    && !paneLayoutFor(layout, content - TAB_RAIL_WIDTH).isSplit;
+  return railCostsTheSplit ? 'bottom' : 'left';
+}
+
+/** `tabBarPositionFor` the current window. */
+export function useTabBarPosition(): TabBarPosition {
+  const { width, height } = useWindowDimensions();
+  const { left, right } = useSafeAreaInsets();
+  return tabBarPositionFor(layoutFor(width, height), width, { left, right });
 }
 
 /**
@@ -168,12 +199,12 @@ export interface PaneArea {
 }
 
 /**
- * The room of a list-detail screen, a tab screen (`tabRail`) or a stack
+ * The room of a list-detail screen, a tab screen (`tabScreen`) or a stack
  * screen. The first frames go by an estimate (the rail's width depends on
  * the longest tab label); once the root view has been laid out, by its
  * measured width, until the window changes again.
  */
-export function usePaneArea(tabRail: boolean): PaneArea {
+export function usePaneArea(tabScreen: boolean): PaneArea {
   const { width, height } = useWindowDimensions();
   const { left, right } = useSafeAreaInsets();
   const window = layoutFor(width, height);
@@ -183,9 +214,10 @@ export function usePaneArea(tabRail: boolean): PaneArea {
     setMeasured((m) => (m && m.root === root && m.window === width ? m : { root, window: width }));
   }, [width]);
   const insets = { left, right };
+  const besideRail = tabScreen && tabBarPositionFor(window, width, insets) === 'left';
   const contentWidth = measured && measured.window === width
-    ? measuredContentWidth(measured.root, window, insets, tabRail)
-    : contentWidthFor(width, window, insets, tabRail);
+    ? measuredContentWidth(measured.root, besideRail, insets)
+    : contentWidthFor(width, window, insets, tabScreen);
   return { window, contentWidth, onLayout };
 }
 
@@ -226,19 +258,21 @@ const TAB_BAR_CLEARANCE = 64;
 
 /**
  * Where toasts, the undo bar and the push prompt float. A phone gets the full
- * width above the tab bar; a split layout (tabs in a side rail) gets the
- * webmail's desktop placement, bottom right.
+ * width above the tab bar; a split layout gets the webmail's desktop
+ * placement, bottom right, above the tab bar where the tabs are along the
+ * bottom (`tabBarPositionFor`).
  */
 export function floatingCardFrame(
   width: number,
   split: boolean,
   insets: { left: number; right: number },
+  tabBar: TabBarPosition = split ? 'left' : 'bottom',
 ): { left: number; right: number; bottom: number } {
   if (split) {
     return {
       left: Math.max(FLOATING_CARD_MARGIN, width - FLOATING_CARD_WIDTH - FLOATING_CARD_MARGIN - insets.right),
       right: FLOATING_CARD_MARGIN + insets.right,
-      bottom: FLOATING_CARD_MARGIN,
+      bottom: tabBar === 'bottom' ? TAB_BAR_CLEARANCE : FLOATING_CARD_MARGIN,
     };
   }
   return {
@@ -252,6 +286,9 @@ export function floatingCardFrame(
 export function useFloatingCardFrame(): { left: number; right: number; bottom: number } {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { left, right, bottom } = floatingCardFrame(width, layoutFor(width, height).isSplit, insets);
+  const layout = layoutFor(width, height);
+  const { left, right, bottom } = floatingCardFrame(
+    width, layout.isSplit, insets, tabBarPositionFor(layout, width, insets),
+  );
   return React.useMemo(() => ({ left, right, bottom }), [left, right, bottom]);
 }

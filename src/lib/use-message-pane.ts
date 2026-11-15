@@ -1,4 +1,5 @@
 import React from 'react';
+import type { NavigationState } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -33,23 +34,46 @@ export function rowAfterRemoval<T>(
 }
 
 /**
+ * The viewer the pane handed to the stack (`handedOff`), if it is still the
+ * screen on show, right over the tabs: its params, else null.
+ */
+export function handedOffViewer(
+  state: Pick<NavigationState, 'index' | 'routes'>,
+  handedOff: ThreadParams | null,
+): ThreadParams | null {
+  const top = state.routes[state.index];
+  if (!handedOff || top?.name !== 'EmailThread' || state.routes[state.index - 1]?.name !== 'MainTabs') return null;
+  const params = top.params as ThreadParams | undefined;
+  return params?.emailId === handedOff.emailId ? params : null;
+}
+
+/**
  * The message shown next to a list where there is room (`mailLayoutFor`),
  * for the Mail tab and the unified views; `MessagePane` draws it. When the
  * room gets too narrow (split-screen, a fold, a rotation) with a message
- * open, the message moves to the stack so it stays on screen. `turnedOff`: the reading pane
- * setting turned the split off (#93), from Settings, so the screen is not on
- * show, and the message is let go instead.
+ * open, the message moves to the stack so it stays on screen; when the room
+ * comes back with that viewer still on show (the iPhone Duo closed and opened
+ * again), the message goes back into the pane beside the list, as Apple's
+ * Mail does. `turnedOff`: the reading pane setting turned the split off
+ * (#93), from Settings, so the screen is not on show, and the message is let
+ * go instead. `rowOf` finds a message's row (its key and place in the list);
+ * a message no longer in the list keeps its own id as the key.
  */
 export function useMessagePane(
-  navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate'>,
+  navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate' | 'getState' | 'goBack'>,
   isSplit: boolean,
   turnedOff: boolean,
+  rowOf: (params: ThreadParams) => { rowKey: string; index: number } | null = () => null,
 ) {
   const [open, setOpen] = React.useState<PaneMessage | null>(null);
   // The pager in the pane can move to another message; the list follows it.
   const [activeKey, setActiveKey] = React.useState<string | null>(null);
   const openRef = React.useRef(open);
   openRef.current = open;
+  // The message that moved to the stack when the split went.
+  const handedOffRef = React.useRef<ThreadParams | null>(null);
+  const rowOfRef = React.useRef(rowOf);
+  rowOfRef.current = rowOf;
 
   const show = React.useCallback((message: PaneMessage) => {
     setOpen(message);
@@ -65,10 +89,21 @@ export function useMessagePane(
   }, []);
 
   React.useEffect(() => {
-    if (isSplit || !openRef.current) return;
-    if (!turnedOff) navigation.navigate('EmailThread', openRef.current.params);
+    if (isSplit) {
+      const params = handedOffViewer(navigation.getState(), handedOffRef.current);
+      handedOffRef.current = null;
+      if (!params) return;
+      navigation.goBack();
+      show({ params, rowKey: params.emailId, index: 0, ...rowOfRef.current(params) });
+      return;
+    }
+    if (!openRef.current) return;
+    if (!turnedOff) {
+      navigation.navigate('EmailThread', openRef.current.params);
+      handedOffRef.current = openRef.current.params;
+    }
     close();
-  }, [isSplit, turnedOff, navigation, close]);
+  }, [isSplit, turnedOff, navigation, show, close]);
 
   return { open, openRef, activeKey, setActiveKey, show, close, replace };
 }
