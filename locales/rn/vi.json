@@ -991,7 +991,7 @@
         "system_default": "Mặc định của hệ thống"
       },
       "toolbar_labels": {
-        "description_mobile": "Hiển thị nhãn chữ bên cạnh các biểu tượng thanh công cụ."
+        "description_mobile": "Hiển thị nhãn chữ bên cạnh các biểu tượng thanh công cụ và điều hướng."
       }
     },
     "backup": {

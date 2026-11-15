@@ -991,7 +991,7 @@
         "system_default": "Systemstandard"
       },
       "toolbar_labels": {
-        "description_mobile": "Vis tekstetikettar ved sidan av ikona i verktøylinja."
+        "description_mobile": "Vis tekstetikettar ved sidan av ikona i verktøylinja og i navigasjonen."
       }
     },
     "backup": {
