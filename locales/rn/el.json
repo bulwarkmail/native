@@ -331,7 +331,10 @@
     "signing_out": "Αφαίρεση συγχρονισμένων επαφών και ημερολογίων από αυτήν τη συσκευή…"
   },
   "email_composer": {
+    "attach_bulwark_files": "Αρχεία Bulwark",
     "attach_camera": "Κάμερα",
+    "attach_gallery": "Συλλογή",
+    "attach_this_device": "Αυτή η συσκευή",
     "attachment_reminder_body": "Το μήνυμά σας αναφέρει \"{keyword}\", αλλά δεν έχει επισυναφθεί αρχείο. Αποστολή παρ' όλα αυτά;",
     "attachment_reminder_title": "Ξεχάσατε κάποιο συνημμένο;",
     "attachments_too_large_total": "Τα συνημμένα θα ξεπερνούσαν το όριο {max} που επιτρέπει αυτός ο διακομιστής ανά μήνυμα.",
