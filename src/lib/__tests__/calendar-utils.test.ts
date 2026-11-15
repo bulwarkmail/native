@@ -282,6 +282,139 @@ describe('layoutOverlappingEvents', () => {
   });
 });
 
+// #149: events spread over free columns and over events they do not hide the
+// text of, instead of every event of a cluster getting an equal share.
+describe('layoutOverlappingEvents widths', () => {
+  const day = new Date(2026, 3, 20);
+  // Floating times, so the test reads the same in any time zone.
+  const minutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+  const at = (id: string, from: string, to: string) => ev({
+    id,
+    start: `2026-04-20T${from}:00`,
+    duration: `PT${minutes(to) - minutes(from)}M`,
+  });
+  // id -> [left, right] in hundredths of the day column.
+  const frames = (events: CalendarEvent[]) => Object.fromEntries(
+    layoutOverlappingEvents(events, day).map((l) => [
+      l.event.id,
+      [Math.round(l.left * 100), Math.round((l.left + l.width) * 100)],
+    ]),
+  );
+
+  it('gives a lone event the whole column', () => {
+    expect(frames([at('a', '09:00', '10:00')])).toEqual({ a: [0, 100] });
+  });
+
+  it('keeps events that start together side by side', () => {
+    expect(frames([at('a', '09:00', '10:00'), at('b', '09:00', '10:00')]))
+      .toEqual({ a: [0, 50], b: [50, 100] });
+  });
+
+  it('keeps an event beside one whose start time it would cover', () => {
+    // 30 minutes clears a title, not the time under it.
+    expect(frames([at('a', '09:00', '10:00'), at('b', '09:30', '10:30')]))
+      .toEqual({ a: [0, 50], b: [50, 100] });
+  });
+
+  it('draws a later event over a long one, set in from its edge', () => {
+    expect(frames([at('a', '09:00', '12:00'), at('b', '10:00', '11:00')]))
+      .toEqual({ a: [0, 100], b: [13, 100] });
+  });
+
+  it('lets a short event be covered once its title is clear', () => {
+    expect(frames([at('a', '09:00', '09:40'), at('b', '09:30', '10:30')]))
+      .toEqual({ a: [0, 100], b: [13, 100] });
+  });
+
+  it('sets each further event in from the ones under it', () => {
+    expect(frames([
+      at('a', '09:00', '13:00'),
+      at('b', '10:00', '12:00'),
+      at('c', '11:00', '12:00'),
+    ])).toEqual({ a: [0, 100], b: [8, 100], c: [17, 100] });
+  });
+
+  it('spreads an event into a column that is free while it runs', () => {
+    // c cannot be drawn over a (it would cover its time), but b has ended.
+    expect(frames([
+      at('a', '09:00', '11:00'),
+      at('b', '09:00', '09:30'),
+      at('c', '09:30', '10:30'),
+    ])).toEqual({ a: [0, 50], b: [50, 100], c: [50, 100] });
+    expect(frames([
+      at('a', '09:00', '10:00'),
+      at('b', '09:00', '10:00'),
+      at('c', '09:00', '12:00'),
+      at('d', '10:00', '11:00'),
+    ])).toMatchObject({ d: [8, 100] });
+  });
+
+  it('counts the room a short block is drawn in, not only its length', () => {
+    // A block is never drawn under 25 minutes tall.
+    expect(frames([at('a', '09:00', '10:00'), at('z', '09:00', '09:00')]))
+      .toEqual({ a: [0, 50], z: [50, 100] });
+    // y ends at 9:00 but is drawn until 9:20: z stays out of its column.
+    expect(frames([
+      at('x', '08:50', '11:00'),
+      at('w', '08:50', '09:00'),
+      at('y', '08:55', '09:00'),
+      at('z', '09:00', '10:00'),
+    ])).toMatchObject({ y: [67, 100], z: [33, 67] });
+  });
+
+  it('lays out the example from the issue', () => {
+    const got = frames([
+      at('a', '04:00', '08:00'),
+      at('b', '04:00', '07:45'),
+      at('c', '04:00', '05:00'),
+      at('d', '04:00', '05:00'),
+      at('e', '04:45', '05:45'),
+      at('f', '05:00', '06:00'),
+      at('g', '05:45', '06:45'),
+      at('h', '06:45', '07:45'),
+    ]);
+    // Four start together and stay side by side; the short ones end at 5.
+    expect(got).toMatchObject({ a: [0, 20], b: [20, 40], c: [40, 60], d: [60, 100] });
+    // 4:45 lies over the 4-5 event beside it; 5-6 would cover its title, so they stay apart.
+    expect(got.e).toEqual([65, 100]);
+    expect(got.f).toEqual([25, 60]);
+    // The later ones lie over the long two, each set in from what it covers.
+    expect(got.g).toEqual([30, 100]);
+    expect(got.h).toEqual([25, 100]);
+  });
+
+  it('never makes an event narrower than its column, and returns later starts last', () => {
+    const events = [
+      at('a', '08:00', '12:00'), at('b', '08:15', '09:00'), at('c', '08:50', '10:10'),
+      at('d', '09:00', '09:20'), at('e', '09:10', '11:00'), at('f', '09:40', '10:00'),
+      at('g', '10:00', '12:30'), at('h', '10:05', '10:35'), at('i', '11:15', '12:00'),
+    ];
+    const layout = layoutOverlappingEvents(events, day);
+    expect(layout).toHaveLength(events.length);
+    layout.forEach((l, i) => {
+      expect(l.left).toBeLessThanOrEqual(l.column / l.totalColumns + 1e-9);
+      expect(l.left + l.width).toBeGreaterThanOrEqual((l.column + 1) / l.totalColumns - 1e-9);
+      expect(l.left + l.width).toBeLessThanOrEqual(1 + 1e-9);
+      if (i > 0) expect(l.startMinutes).toBeGreaterThanOrEqual(layout[i - 1].startMinutes);
+    });
+    // Where two blocks share ground, the one on top starts below the other's text.
+    for (const under of layout) {
+      for (const over of layout) {
+        if (under === over || over.startMinutes < under.startMinutes) continue;
+        // One after the other in a column, as before: a short block's
+        // minimum height can reach into the next.
+        if (under.column === over.column) continue;
+        const shareTime = over.startMinutes < Math.max(under.endMinutes, under.startMinutes + 25);
+        const shareWidth = over.left < under.left + under.width - 1e-9
+          && under.left < over.left + over.width - 1e-9;
+        if (!shareTime || !shareWidth) continue;
+        const clear = under.endMinutes - under.startMinutes >= 45 ? 45 : 30;
+        expect(over.startMinutes - under.startMinutes).toBeGreaterThanOrEqual(clear);
+      }
+    }
+  });
+});
+
 // Stalwart 1.0 accepts a calendar colour only as #rgb, #rrggbb or a CSS name
 // (groupware/src/calendar/color.rs). The edit sheet sent the colour with
 // every rename, so a calendar another client coloured with Apple's 8-digit

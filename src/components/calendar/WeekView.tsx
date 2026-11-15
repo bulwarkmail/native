@@ -23,12 +23,13 @@ import {
   getEventColor,
   isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
+  TIME_LINE_MIN_MINUTES,
   type CalendarWeekSegment,
   type EventDayIndex,
 } from '../../lib/calendar-utils';
 import { isInactiveEvent } from '../../lib/calendar-participants';
 import { eventBlockColors } from '../../lib/event-colors';
-import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllDayEventBar, TimedEventBlock } from './EventBlock';
 import { AllDayToggle } from './AllDayToggle';
 import { packAllDaySegments, shownAllDayRows } from '../../lib/calendar-time-grid';
 
@@ -274,14 +275,12 @@ function WeekViewInner({
                   ))}
 
                   {layouted.map(
-                    ({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
+                    ({ event, left, width, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
                       const top = (startMinutes / 60) * HOUR_HEIGHT;
                       const height = Math.max(
                         20,
                         ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT - 1,
                       );
-                      const widthPct = 100 / totalColumns;
-                      const leftPct = column * widthPct;
                       return (
                         <TimedEventBlock
                           key={event.id}
@@ -301,7 +300,7 @@ function WeekViewInner({
                           accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
                           onPress={() => onSelectEvent?.(event)}
                           height={height}
-                          style={{ top, left: `${leftPct}%`, width: `${widthPct}%` }}
+                          style={{ top, left: `${left * 100}%`, width: `${width * 100}%` }}
                         />
                       );
                     },

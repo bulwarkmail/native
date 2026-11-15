@@ -428,14 +428,92 @@ export function buildTimedFullDayWeekSegments(
 // the same `totalColumns`; across clusters, events get to use the full width
 // they actually need. The previous global packing forced an event with no
 // neighbors at 17:00 to share columns with a 9am cluster - visible squish.
+//
+// The columns are then only a starting point (#149): an event spreads over
+// the columns beside it that are free while it runs, and over events that
+// start far enough from it that the later one, drawn on top, begins below
+// the earlier one's text. `left` and `width` are what the grids draw; the
+// result is in drawing order, later starts last.
 export interface TimedEventLayout {
   event: CalendarEvent;
   column: number;
   totalColumns: number;
+  /** Start edge and width as fractions of the day column. */
+  left: number;
+  width: number;
   startMinutes: number;
   endMinutes: number;
   continuesBefore: boolean;
   continuesAfter: boolean;
+}
+
+/** Timed blocks this long or longer show their start time under the title. */
+export const TIME_LINE_MIN_MINUTES = 45;
+
+// How long after an event starts another may be drawn over it: past its
+// title (17px of a 48px hour), or past the start time under it (30px).
+const TITLE_CLEAR_MINUTES = 30;
+const TIME_LINE_CLEAR_MINUTES = 45;
+
+// The grids draw no block shorter than 20px, 25 minutes of a 48px hour, so
+// a short event takes up room past its end.
+const MIN_DRAWN_MINUTES = 25;
+
+/** How far, in columns, an event on top is set in from the one under it. */
+const OVERLAP_INDENT = 0.25;
+
+type TimedSpan = Pick<TimedEventLayout, 'startMinutes' | 'endMinutes'>;
+
+/** Whether the later of two events starts below the earlier one's text. */
+function startsClearOf(a: TimedSpan, b: TimedSpan): boolean {
+  const [first, second] = a.startMinutes <= b.startMinutes ? [a, b] : [b, a];
+  const clear = first.endMinutes - first.startMinutes >= TIME_LINE_MIN_MINUTES
+    ? TIME_LINE_CLEAR_MINUTES
+    : TITLE_CLEAR_MINUTES;
+  return second.startMinutes - first.startMinutes >= clear;
+}
+
+/**
+ * Sets `left` and `width` for one cluster, given in start order with its
+ * columns assigned. No event ends up narrower than its column.
+ */
+function spreadCluster(items: TimedEventLayout[], total: number): void {
+  // Columns each event covers. Events not reached yet cover their own.
+  const from = items.map((item) => item.column);
+  const to = items.map((item) => item.column);
+  const left = items.map((item) => item.column);
+
+  const drawnEnd = items.map((item) => Math.max(item.endMinutes, item.startMinutes + MIN_DRAWN_MINUTES));
+
+  items.forEach((item, i) => {
+    const concurrent = items
+      .map((_, j) => j)
+      .filter((j) => j !== i
+        && items[j].startMinutes < drawnEnd[i]
+        && item.startMinutes < drawnEnd[j]);
+    const covers = (j: number, col: number) => col >= from[j] && col <= to[j];
+    const canTake = (col: number, allow: (j: number) => boolean = () => true) =>
+      concurrent.every((j) => !covers(j, col) || (startsClearOf(item, items[j]) && allow(j)));
+
+    while (from[i] > 0 && canTake(from[i] - 1)) from[i]--;
+
+    // Set in from every earlier event underneath, so its edge still shows.
+    left[i] = from[i];
+    for (const j of concurrent) {
+      if (j < i && to[j] >= from[i] && from[j] <= item.column) {
+        left[i] = Math.max(left[i], left[j] + OVERLAP_INDENT);
+      }
+    }
+    left[i] = Math.min(left[i], item.column);
+
+    // To the right, only over earlier events whose edge would still show.
+    const showsEdge = (j: number) => j > i || left[j] + OVERLAP_INDENT <= left[i];
+    while (to[i] < total - 1 && canTake(to[i] + 1, showsEdge)) to[i]++;
+
+    item.totalColumns = total;
+    item.left = left[i] / total;
+    item.width = (to[i] + 1 - left[i]) / total;
+  });
 }
 
 export function layoutOverlappingEvents(
@@ -459,10 +537,7 @@ export function layoutOverlappingEvents(
   let clusterMaxEnd = 0;
 
   const flushCluster = () => {
-    const total = columns.length;
-    for (let i = clusterStart; i < result.length; i++) {
-      result[i].totalColumns = total;
-    }
+    spreadCluster(result.slice(clusterStart), columns.length);
   };
 
   for (const item of sorted) {
@@ -477,14 +552,14 @@ export function layoutOverlappingEvents(
     for (let col = 0; col < columns.length; col++) {
       if (columns[col].every((e) => e.end <= item.startMinutes)) {
         columns[col].push({ end: item.endMinutes });
-        result.push({ ...item, column: col, totalColumns: 0 });
+        result.push({ ...item, column: col, totalColumns: 0, left: 0, width: 0 });
         placed = true;
         break;
       }
     }
     if (!placed) {
       columns.push([{ end: item.endMinutes }]);
-      result.push({ ...item, column: columns.length - 1, totalColumns: 0 });
+      result.push({ ...item, column: columns.length - 1, totalColumns: 0, left: 0, width: 0 });
     }
     clusterMaxEnd = Math.max(clusterMaxEnd, item.endMinutes);
   }

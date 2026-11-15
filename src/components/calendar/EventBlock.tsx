@@ -13,9 +13,6 @@ import { EVENT_TIME_LINE_HEIGHT, EVENT_TITLE_LINE_HEIGHT, timedTitleLines } from
 /** Corner radius of event blocks and bars. */
 export const EVENT_RADIUS = 2;
 
-/** Timed blocks this long or longer show their start time under the title. */
-export const TIME_LINE_MIN_MINUTES = 45;
-
 // Corners on a side the event continues past (the day before or after, the
 // week before or after) stay square.
 function corners(

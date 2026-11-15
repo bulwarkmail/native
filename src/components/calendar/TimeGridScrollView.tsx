@@ -30,6 +30,7 @@ import {
   getEventColor,
   isTimedEventFullDayOnDate,
   layoutOverlappingEvents,
+  TIME_LINE_MIN_MINUTES,
   type CalendarWeekSegment,
   type EventDayIndex,
   type TimedEventLayout,
@@ -50,7 +51,7 @@ import {
   windowDays,
   type TimeGridMode,
 } from '../../lib/calendar-time-grid';
-import { AllDayEventBar, TIME_LINE_MIN_MINUTES, TimedEventBlock } from './EventBlock';
+import { AllDayEventBar, TimedEventBlock } from './EventBlock';
 import { AllDayToggle } from './AllDayToggle';
 
 const HOUR_HEIGHT = 48;
@@ -641,10 +642,9 @@ const DayColumn = React.memo(function DayColumn({
       onPress={onTapAt ? handlePress : undefined}
       onLongPress={onLongPressAt ? handleLongPress : undefined}
     >
-      {layouts.map(({ event, column, totalColumns, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
+      {layouts.map(({ event, left, width, startMinutes, endMinutes, continuesBefore, continuesAfter }) => {
         const top = (startMinutes / 60) * HOUR_HEIGHT;
         const height = Math.max(20, ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT - 1);
-        const widthPct = 100 / totalColumns;
         return (
           <TimedEventBlock
             key={event.id}
@@ -664,7 +664,7 @@ const DayColumn = React.memo(function DayColumn({
             accessibilityLabel={eventAccessibilityLabel(event, { t, locale, timeFormat, calendars, currentUserEmails })}
             onPress={() => onSelectEvent?.(event)}
             height={height}
-            style={{ top, left: `${column * widthPct}%`, width: `${widthPct}%` }}
+            style={{ top, left: `${left * 100}%`, width: `${width * 100}%` }}
           />
         );
       })}
