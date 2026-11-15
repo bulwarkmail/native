@@ -64,6 +64,7 @@ import { useSettingsStore } from './src/stores/settings-store';
 import { startPolicySync, usePolicyFeature } from './src/stores/policy-store';
 import { startScreenPrivacySync } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
+import SideColumnTabBar from './src/components/SideColumnTabBar';
 import { useLayout, useTabBarPosition } from './src/lib/use-layout';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
@@ -251,8 +252,11 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   };
   const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
   // Side by side layouts move the tabs into a rail on the left, like the
-  // webmail's navigation rail, where it leaves room for both panes.
-  const rail = useTabBarPosition() === 'left';
+  // webmail's navigation rail, where it leaves room for both panes. With the
+  // status bar in a column on the side (iPhone Duo) they go in that column.
+  const tabBarPosition = useTabBarPosition();
+  const rail = tabBarPosition === 'left';
+  const statusColumn = tabBarPosition === 'right';
   // Appearance > Show Toolbar Labels covers the tab names too (#128). With
   // it off a tab is its icon, centred in the room the name leaves.
   const showTabLabels = useSettingsStore((state) => state.showToolbarLabels);
@@ -262,17 +266,18 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const iconOnlyTabName = (name: string) =>
     (Platform.OS === 'android' && !showTabLabels ? { tabBarAccessibilityLabel: name } : null);
   // A bottom tab bar keeps the screens clear of the gesture bar or taskbar;
-  // with the tabs in a side rail the whole tab area has to.
+  // with the tabs on the side the whole tab area has to.
   const bottomInset = useSafeAreaInsets().bottom;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: rail ? bottomInset : 0 }}>
+    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: rail || statusColumn ? bottomInset : 0 }}>
       <UpdateBanner />
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
       <AppIconBadge />
       <SessionTimeoutGuard />
     <Tab.Navigator
+      tabBar={statusColumn ? (props) => <SideColumnTabBar {...props} /> : undefined}
       screenListeners={perfMarksEnabled() ? ({ route }) => ({
         tabPress: () => perfStart('tab-switch'),
         focus: () => perfEndAfterPaint('tab-switch', { to: route.name }),

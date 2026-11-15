@@ -1,14 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 411, height: 914 }) }));
+vi.mock('react-native', () => ({ Platform: { OS: 'android' }, useWindowDimensions: () => ({ width: 411, height: 914 }) }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 import {
   DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
   mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets, tabBarPositionFor,
+  hasStatusColumn,
 } from '../use-layout';
 
-const NO_INSETS = { left: 0, right: 0 };
+const NO_INSETS = { top: 0, left: 0, right: 0 };
 
 describe('layoutFor', () => {
   it('keeps a phone in portrait on the single-pane layout', () => {
@@ -178,7 +179,7 @@ describe('mailScreenLayoutFor', () => {
 describe('content width', () => {
   it('takes the rail and the side insets off a tab screen of a split window', () => {
     const window = layoutFor(1280, 800);
-    expect(contentWidthFor(1280, window, { left: 24, right: 24 }, true)).toBe(1280 - 48 - TAB_RAIL_WIDTH);
+    expect(contentWidthFor(1280, window, { top: 0, left: 24, right: 24 }, true)).toBe(1280 - 48 - TAB_RAIL_WIDTH);
     // A stack screen has no rail, and a phone shows its tabs at the bottom.
     expect(contentWidthFor(1280, window, NO_INSETS, false)).toBe(1280);
     expect(contentWidthFor(411, layoutFor(411, 914), NO_INSETS, true)).toBe(411);
@@ -231,6 +232,23 @@ describe('iPhone Duo', () => {
     expect(mailTabPanes(951, 669)).toMatchObject({ isSplit: true, hasSidebar: false, listWidth: 320, detailWidth: 545 });
   });
 
+  it('puts the tabs in the status column where iOS keeps one on the right', () => {
+    // The outer display: the status bar down the right edge, no top inset.
+    const column = { top: 0, left: 0, right: 80 };
+    expect(hasStatusColumn(column, 'ios')).toBe(true);
+    expect(tabBarPositionFor(layoutFor(466, 678), 466, column, 'ios')).toBe('right');
+    expect(tabBarPositionFor(layoutFor(951, 669), 951, column, 'ios')).toBe('right');
+    // The column is the inset the screens keep clear of already: no rail to take off.
+    expect(contentWidthFor(466, layoutFor(466, 678), column, true)).toBe(386);
+  });
+
+  it('keeps an iPhone in landscape, an iPad and Android off the status column', () => {
+    expect(hasStatusColumn({ top: 0, left: 59, right: 59 }, 'ios')).toBe(false);
+    expect(hasStatusColumn({ top: 24, left: 0, right: 0 }, 'ios')).toBe(false);
+    expect(hasStatusColumn({ top: 0, left: 0, right: 48 }, 'android')).toBe(false);
+    expect(hasStatusColumn({ top: 0, left: 0, right: 20 }, 'ios')).toBe(false);
+  });
+
   it('keeps one pane on the outer display', () => {
     expect(mailTabPanes(466, 678)).toMatchObject({ isSplit: false, listWidth: 466 });
     expect(mailTabPanes(678, 466)).toMatchObject({ isSplit: false, listWidth: 678 });
@@ -263,6 +281,10 @@ describe('sheetSideInsets', () => {
 describe('floatingCardFrame', () => {
   it('spans a phone with 12 dp margins above the tab bar', () => {
     expect(floatingCardFrame(411, false, { left: 0, right: 0 })).toEqual({ left: 12, right: 12, bottom: 64 });
+  });
+
+  it('comes down to the margin where the tabs are not along the bottom', () => {
+    expect(floatingCardFrame(466, false, { left: 0, right: 80 }, 'right')).toEqual({ left: 12, right: 92, bottom: 12 });
   });
 
   it('sits bottom right above a bottom tab bar on a split layout that keeps one', () => {
