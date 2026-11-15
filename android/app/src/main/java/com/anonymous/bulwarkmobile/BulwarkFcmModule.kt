@@ -97,23 +97,45 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 copiedLabel = options.takeIf { o -> o.hasKey("codeCopiedLabel") }?.getString("codeCopiedLabel") ?: "Code copied",
             )
         }
+        // The account and messages a notification for no one message stands
+        // for (the account's, without content): it carries no accountId, so
+        // that a tap opens the app as it is.
+        val notified = options.takeIf { it.hasKey("notified") }?.getMap("notified")
+        val notifiedAccountId = notified?.getString("accountId") ?: accountId
+        val notifiedIds = notified?.getArray("ids")?.toArrayList()?.filterIsInstance<String>()
+            ?: listOfNotNull(emailId)
 
         // Bitmap fetch + draw off the bridge thread so the caller doesn't
-        // block waiting for the favicon request.
+        // block waiting for the favicon request. Resolves whether it posted:
+        // not when the messages were notified for the account before. A post
+        // that fails rejects, so the caller is never left waiting.
         thread(name = "bulwark-notification") {
-            val largeIcon = iconUrl?.let { fetchBitmap(it) }
-                ?: makeLetterAvatar(initials, bgColorHex)
-            postNotification(
-                reactApplicationContext, notificationId, title, body, preview, largeIcon, bgColorHex,
-                emailId, threadId, subject, accountId, jmapAccountId, groupKey,
-                groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
-                archiveLabel, copyCode,
-            )
-            if (groupKey != null) {
-                postGroupSummary(reactApplicationContext, groupKey, groupTitle, bgColorHex, accountId, withoutContent)
+            try {
+                val largeIcon = iconUrl?.let { fetchBitmap(it) }
+                    ?: makeLetterAvatar(initials, bgColorHex)
+                val posted = postOnceForAccount(reactApplicationContext, notifiedAccountId, notifiedIds) {
+                    postNotification(
+                        reactApplicationContext, notificationId, title, body, preview, largeIcon, bgColorHex,
+                        emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                        groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
+                        archiveLabel, copyCode,
+                    )
+                    if (groupKey != null) {
+                        postGroupSummary(reactApplicationContext, groupKey, groupTitle, bgColorHex, accountId, withoutContent)
+                    }
+                }
+                promise.resolve(posted)
+            } catch (e: Exception) {
+                promise.reject("notification_failed", e)
             }
-            promise.resolve(null)
         }
+    }
+
+    /** Forgets the account's notified message ids, in step with the notifications being posted. */
+    @ReactMethod
+    fun forgetNotifiedIds(accountId: String, promise: Promise) {
+        BulwarkNativePushFetcher.forgetNotifiedIds(reactApplicationContext, accountId)
+        promise.resolve(null)
     }
 
     @ReactMethod
@@ -567,18 +589,35 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             deleteNeedsUnlock: Boolean = true,
             archiveLabel: String? = null,
             copyCode: NotificationCopyCode? = null,
-        ) {
+        ): Boolean {
             val largeIcon = iconUrl?.let { fetchBitmap(it) }
                 ?: makeLetterAvatar(initials, bgColorHex)
-            postNotification(
-                context, notificationId, title, body, preview, largeIcon, bgColorHex,
-                emailId, threadId, subject, accountId, jmapAccountId, groupKey,
-                groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
-                archiveLabel, copyCode,
-            )
-            if (groupKey != null) {
-                postGroupSummary(context, groupKey, groupTitle ?: "Bulwark Mail", bgColorHex, accountId)
+            return postOnceForAccount(context, accountId, listOfNotNull(emailId)) {
+                postNotification(
+                    context, notificationId, title, body, preview, largeIcon, bgColorHex,
+                    emailId, threadId, subject, accountId, jmapAccountId, groupKey,
+                    groupTitle, markReadLabel, deleteLabel, replyLabel, deleteNeedsUnlock,
+                    archiveLabel, copyCode,
+                )
+                if (groupKey != null) {
+                    postGroupSummary(context, groupKey, groupTitle ?: "Bulwark Mail", bgColorHex, accountId)
+                }
             }
+        }
+
+        /**
+         * A notification for messages of an account is posted once per
+         * message, whichever push and runtime brings it
+         * (BulwarkNativePushFetcher.postOnce). One for no message, or for
+         * no account, is posted as it is.
+         */
+        private fun postOnceForAccount(ctx: Context, accountId: String?, ids: List<String>, post: () -> Unit): Boolean {
+            val messageIds = ids.filter { it.isNotBlank() }
+            if (accountId == null || messageIds.isEmpty()) {
+                post()
+                return true
+            }
+            return BulwarkNativePushFetcher.postOnce(ctx, accountId, messageIds, post)
         }
 
         /**

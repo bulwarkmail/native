@@ -34,6 +34,7 @@ import * as Notifications from 'expo-notifications';
 import { jmapClient } from '../../api/jmap-client';
 import { secureFetch } from '../client-cert';
 import { pushBackgroundTask } from '../push-background-task';
+import { showNotificationOnce } from './native-notified-ids';
 
 const LOCAL = 'alice@mail.example.com';
 const WEBMAIL = 'https://webmail.example.com';
@@ -135,7 +136,7 @@ describe('new-mail notifications under devices.pushWithoutContent', () => {
 });
 
 describe('the rule for groups, several messages, older notifications and the cache', () => {
-  const showNotification = vi.fn(async (_opts: Record<string, unknown>) => undefined);
+  const showNotification = vi.fn(showNotificationOnce);
   const OTHER = 'alice@mail.other.org';
   let sessionAccounts: Record<string, unknown>;
   let emails: Array<Record<string, unknown>>;
@@ -229,9 +230,25 @@ describe('the rule for groups, several messages, older notifications and the cac
     expect(shown).toMatchObject({ emailId: '', threadId: '', groupKey: `bulwark-mail:${LOCAL}` });
     expect(shown).not.toHaveProperty('markReadLabel');
     expect(shown).not.toHaveProperty('replyLabel');
+    // The native side records the messages it stands for, newest first, as
+    // it posts it, under the lock the native lookup posts with.
+    expect(shown).toMatchObject({ notified: { accountId: LOCAL, ids: ['m3', 'm2', 'm1'] } });
     // They count as notified: the next push for them shows nothing more.
     await push(['m1', 'm2', 'm3']);
     expect(showNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves recording the messages of the notification without content to the native side', async () => {
+    // A native side that records nothing: whatever is in the ring after the
+    // push, the push task wrote it.
+    showNotification.mockImplementationOnce(async () => true);
+    emails = [message('m1', 'First secret'), message('m2', 'Second secret')];
+    await seedCache({ [LOCAL]: cacheEntry(orgPolicy({ devices: { pushWithoutContent: true } })) });
+    await push(['m1', 'm2']);
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(showNotification.mock.calls[0][0]).toMatchObject({ notified: { accountId: LOCAL, ids: ['m2', 'm1'] } });
+    expect(await AsyncStorage.getItem(`push:notifiedIds:v1:${LOCAL}`)).toBeNull();
+    expect(await AsyncStorage.getItem(`push:lastNotifiedEmailId:v2:${LOCAL}`)).toBeNull();
   });
 
   it('has the account\'s group summary built without lines from other notifications under the rule', async () => {

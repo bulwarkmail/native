@@ -16,6 +16,7 @@ vi.mock('react-native', () => {
       BulwarkFcm: {
         getToken: vi.fn(async () => 'fcm-token-xyz'),
         deleteToken: vi.fn(async () => undefined),
+        forgetNotifiedIds: vi.fn(async () => undefined),
       },
       BulwarkUnifiedPush: {
         getDistributors: vi.fn(async () => ['io.heckel.ntfy']),
@@ -1875,9 +1876,13 @@ describe('teardownPushNotificationsForAccount', () => {
     expect(destroyed).toContain('recorded');
     expect(destroyed).toContain('untracked');
     expect(destroyed).not.toContain('foreign');
-    const native = (NativeModules as { BulwarkFcm: { deleteToken: ReturnType<typeof vi.fn> } }).BulwarkFcm;
+    const native = (NativeModules as {
+      BulwarkFcm: { deleteToken: ReturnType<typeof vi.fn>; forgetNotifiedIds: ReturnType<typeof vi.fn> };
+    }).BulwarkFcm;
     expect(native.deleteToken).not.toHaveBeenCalled();
     expect(await AsyncStorage.getItem(SUB_KEY)).toBeNull();
+    // The notified ids go on the native side, in step with the notifications it posts.
+    expect(native.forgetNotifiedIds).toHaveBeenCalledWith(ACCOUNT_ID);
   });
 
   it('leaves another device\'s subscription alone when it reuses the recorded id', async () => {
