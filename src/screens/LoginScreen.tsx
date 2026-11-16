@@ -635,6 +635,7 @@ export default function LoginScreen({ onLogin, isAddMode = false, onCancel }: Lo
         serverUrl={pairing ? pairingWebmailUrl : serverUrl || knownServerUrl}
         email={pairing || tokenMode ? null : email.trim() || null}
         onCancel={cancelSignIn}
+        sheet={isAddMode}
       />
     );
   }
