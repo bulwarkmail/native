@@ -69,43 +69,53 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 }
 `;
 
+// AppDelegate.swift with the window and React Native's start moved into the
+// scene delegate. Unchanged when it already was; throws when a line it moves
+// is not there, rather than leaving an app that starts black.
+function moveStartToSceneDelegate(contents) {
+  if (contents.includes(MARKER)) return contents;
+  for (const [found, what] of [
+    [WINDOW_RE.test(contents), 'window creation'],
+    [START_RE.test(contents), 'startReactNative call'],
+    [contents.includes(WINDOW_PROPERTY), 'window property'],
+  ]) {
+    if (!found) {
+      throw new Error(`ios-scene-lifecycle: AppDelegate.swift has no ${what}; the Expo template changed`);
+    }
+  }
+  return contents
+    .replace(WINDOW_RE, '    // The window and React Native start in SceneDelegate (plugins/ios-scene-lifecycle).\n    self.launchOptions = launchOptions\n')
+    .replace(START_RE, '')
+    .replace(WINDOW_PROPERTY, `${WINDOW_PROPERTY}  var launchOptions: [UIApplication.LaunchOptionsKey: Any]?\n`)
+    + SCENE_DELEGATE;
+}
+
 function withSceneAppDelegate(config) {
   return withAppDelegate(config, (cfg) => {
-    let contents = cfg.modResults.contents;
-    if (contents.includes(MARKER)) return cfg;
-    for (const [found, what] of [
-      [WINDOW_RE.test(contents), 'window creation'],
-      [START_RE.test(contents), 'startReactNative call'],
-      [contents.includes(WINDOW_PROPERTY), 'window property'],
-    ]) {
-      if (!found) {
-        throw new Error(`ios-scene-lifecycle: AppDelegate.swift has no ${what}; the Expo template changed`);
-      }
-    }
-    contents = contents
-      .replace(WINDOW_RE, '    // The window and React Native start in SceneDelegate (plugins/ios-scene-lifecycle).\n    self.launchOptions = launchOptions\n')
-      .replace(START_RE, '')
-      .replace(WINDOW_PROPERTY, `${WINDOW_PROPERTY}  var launchOptions: [UIApplication.LaunchOptionsKey: Any]?\n`);
-    cfg.modResults.contents = contents + SCENE_DELEGATE;
+    cfg.modResults.contents = moveStartToSceneDelegate(cfg.modResults.contents);
     return cfg;
   });
 }
 
+const SCENE_MANIFEST = {
+  UIApplicationSupportsMultipleScenes: false,
+  UISceneConfigurations: {
+    UIWindowSceneSessionRoleApplication: [
+      {
+        UISceneConfigurationName: 'Default Configuration',
+        UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
+      },
+    ],
+  },
+};
+
 function withSceneManifest(config) {
   return withInfoPlist(config, (cfg) => {
-    cfg.modResults.UIApplicationSceneManifest = {
-      UIApplicationSupportsMultipleScenes: false,
-      UISceneConfigurations: {
-        UIWindowSceneSessionRoleApplication: [
-          {
-            UISceneConfigurationName: 'Default Configuration',
-            UISceneDelegateClassName: '$(PRODUCT_MODULE_NAME).SceneDelegate',
-          },
-        ],
-      },
-    };
+    cfg.modResults.UIApplicationSceneManifest = SCENE_MANIFEST;
     return cfg;
   });
 }
 
 module.exports = (config) => withSceneManifest(withSceneAppDelegate(config));
+// For the tests (src/lib/__tests__/ios-scene-lifecycle.test.ts).
+module.exports.internals = { moveStartToSceneDelegate, SCENE_MANIFEST };
