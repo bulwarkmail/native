@@ -2,7 +2,7 @@
  * What one run (or teardown) of one Android account and authority carries
  * through its phases.
  */
-import type { AccountSyncPrefs, Authority, RunExtras } from '../types';
+import type { AccountSyncPrefs, Authority, CollectionKey, RunExtras } from '../types';
 import type { JmapCaller } from '../jmap/caller';
 import type { CapabilityAccount } from '../jmap/session';
 import type { BatchWriter } from './batch';
@@ -19,6 +19,8 @@ export interface RunEnv {
   readonly mode: 'sync' | 'teardown';
   readonly registryId: string;
   readonly accountName: string;
+  /** The one address book this Android account holds; unset for an app account's own account. */
+  readonly collection?: CollectionKey;
   readonly authority: Authority;
   readonly extras: RunExtras;
   readonly reader: ProviderReader;
@@ -27,7 +29,7 @@ export interface RunEnv {
   readonly checkpoints: Checkpoints;
   readonly store: StateStore;
   readonly jmap: JmapCaller;
-  /** Accounts with the authority's capability, the primary first. */
+  /** Accounts with the authority's capability, the primary first; for the account of one address book, that book's only. */
   readonly accounts: CapabilityAccount[];
   readonly prefs: AccountSyncPrefs;
   now(): number;

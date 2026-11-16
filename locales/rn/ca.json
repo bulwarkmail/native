@@ -961,6 +961,8 @@
       "remove_message": "Els contactes i calendaris del compte s'eliminen d'aquest dispositiu. Els canvis fets aquí que no hagin arribat al servidor es perden.",
       "remove_title": "Voleu eliminar-ho d'aquest dispositiu?",
       "review_deletions": "Revisa les supressions",
+      "separate_books_desc": "Les aplicacions de contactes mostren llavors cada llibreta d'adreces sincronitzada per separat, de manera que hi podeu mostrar o amagar cadascuna.",
+      "separate_books_label": "Cada llibreta d'adreces com a compte propi",
       "shared_by": "Compartit per {name}",
       "sign_in_again": "Torna a iniciar la sessió",
       "status_auth": "El servidor ja no accepta l'inici de sessió. Torneu a iniciar la sessió per continuar sincronitzant.",

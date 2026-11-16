@@ -193,6 +193,12 @@ export interface AndroidAccount {
   name: string;
   /** `AccountEntry.id` of the app account it belongs to, from the account's userData. */
   registryId: string | null;
+  /**
+   * Set on the account of one address book (`<jmapAccountId>/<addressBookId>`),
+   * which an app account has per synced book when it shows each as a contact
+   * source of its own. The app account's own account has none.
+   */
+  collection?: CollectionKey | null;
 }
 
 export interface AuthoritySyncSettings {
@@ -237,6 +243,8 @@ export interface RunPayload {
   runId: string;
   accountName: string;
   registryId: string;
+  /** The address book the Android account holds, when it is the account of one book. */
+  collection?: CollectionKey;
   authority: Authority;
   extras: RunExtras;
   /** Epoch ms after which Kotlin stops waiting; the run must have finished. */
@@ -328,9 +336,11 @@ export interface DeviceSyncNativeModule {
    * Adds the account if missing. Resolves true when it was created, false
    * when it exists for `registryId` already (one left without a registryId
    * is adopted); rejects with code `conflict` when it belongs to another
-   * registry id, whose rows and SyncState it holds.
+   * registry id or address book, whose rows and SyncState it holds. With
+   * `collection` it is the account of that address book and syncs contacts
+   * only.
    */
-  ensureAccount(name: string, registryId: string): Promise<boolean>;
+  ensureAccount(name: string, registryId: string, collection: CollectionKey | null): Promise<boolean>;
   /** Removes the account; the providers drop its rows. */
   removeAccount(name: string): Promise<boolean>;
 
@@ -454,6 +464,10 @@ export interface AccountSyncPrefs {
   /** Where contacts created on the device go; unset means the server's default book. */
   newContactsAddressBook?: CollectionKey;
   reminderOwner: ReminderOwner;
+  /** Every synced address book gets an Android account of its own, so contacts apps list it as a source. */
+  separateAddressBooks?: boolean;
+  /** The Android accounts made for address books, by book: one missing on the device was removed by the user. */
+  addressBookAccounts?: Record<CollectionKey, string>;
 }
 
 /** Last run per authority, as the settings UI shows it. */

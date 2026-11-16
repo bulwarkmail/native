@@ -960,6 +960,8 @@
       "remove_message": "Konta kontakti un kalendāri tiks noņemti no šīs ierīces. Šeit veiktās izmaiņas, kas nav nonākušas serverī, tiks zaudētas.",
       "remove_title": "Vai noņemt no šīs ierīces?",
       "review_deletions": "Pārskatīt dzēšanas",
+      "separate_books_desc": "Kontaktu lietotnes tad katru sinhronizēto adrešu grāmatu rāda atsevišķi, tāpēc katru no tām tur varat parādīt vai paslēpt.",
+      "separate_books_label": "Katra adrešu grāmata kā atsevišķs konts",
       "shared_by": "Kopīgoja: {name}",
       "sign_in_again": "Pierakstīties vēlreiz",
       "status_auth": "Serveris vairs nepieņem pierakstīšanos. Pierakstieties vēlreiz, lai turpinātu sinhronizāciju.",

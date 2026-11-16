@@ -961,6 +961,8 @@
       "remove_message": "Kontakty i kalendarze tego konta zostaną usunięte z tego urządzenia. Zmiany wprowadzone tutaj, które nie dotarły do serwera, zostaną utracone.",
       "remove_title": "Usunąć z tego urządzenia?",
       "review_deletions": "Przejrzyj usunięcia",
+      "separate_books_desc": "Aplikacje do kontaktów pokazują wtedy każdą synchronizowaną książkę adresową osobno, dzięki czemu możesz tam pokazać lub ukryć każdą z nich.",
+      "separate_books_label": "Każda książka adresowa jako osobne konto",
       "shared_by": "Udostępnione przez: {name}",
       "sign_in_again": "Zaloguj się ponownie",
       "status_auth": "Serwer nie akceptuje już logowania. Zaloguj się ponownie, aby dalej synchronizować.",

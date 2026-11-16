@@ -960,6 +960,8 @@
       "remove_message": "此帳號的聯絡人和行事曆將從此裝置移除。在此處所做但尚未傳送到伺服器的變更將會遺失。",
       "remove_title": "要從此裝置移除嗎？",
       "review_deletions": "檢查刪除項目",
+      "separate_books_desc": "聯絡人應用程式會分別列出每個已同步的通訊錄，您可以在其中個別顯示或隱藏。",
+      "separate_books_label": "每個通訊錄作為獨立帳號",
       "shared_by": "由 {name} 分享",
       "sign_in_again": "重新登入",
       "status_auth": "伺服器不再接受登入。請重新登入以繼續同步。",

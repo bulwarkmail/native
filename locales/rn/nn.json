@@ -1095,6 +1095,8 @@
       "remove_message": "Kontaktane og kalendrane til kontoen blir fjerna frå denne eininga. Endringar gjorde her som ikkje har nådd serveren, går tapt.",
       "remove_title": "Fjerne frå denne eininga?",
       "review_deletions": "Sjå gjennom slettingane",
+      "separate_books_desc": "Kontaktappar viser då kvar synkroniserte adressebok for seg, slik at du kan vise eller skjule kvar einskild der.",
+      "separate_books_label": "Kvar adressebok som eigen konto",
       "shared_by": "Delt av {name}",
       "sign_in_again": "Logg inn igjen",
       "status_auth": "Serveren godtek ikkje lenger innlogginga. Logg inn igjen for å halde fram med synkroniseringa.",

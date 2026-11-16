@@ -959,6 +959,8 @@
       "remove_message": "이 계정의 연락처와 캘린더가 이 기기에서 제거돼요. 여기에서 변경한 내용 중 서버에 전달되지 않은 내용은 사라져요.",
       "remove_title": "이 기기에서 제거할까요?",
       "review_deletions": "삭제 항목 검토",
+      "separate_books_desc": "연락처 앱에서 동기화된 주소록이 각각 따로 표시되어, 주소록별로 표시하거나 숨길 수 있어요.",
+      "separate_books_label": "주소록마다 별도의 계정으로 표시",
       "shared_by": "{name} 님이 공유함",
       "sign_in_again": "다시 로그인",
       "status_auth": "서버가 더 이상 로그인을 허용하지 않아요. 계속 동기화하려면 다시 로그인해 주세요.",

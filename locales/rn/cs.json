@@ -961,6 +961,8 @@
       "remove_message": "Kontakty a kalendáře účtu budou z tohoto zařízení odebrány. Změny provedené zde, které se nedostaly na server, budou ztraceny.",
       "remove_title": "Odebrat z tohoto zařízení?",
       "review_deletions": "Zkontrolovat smazání",
+      "separate_books_desc": "Aplikace pro kontakty pak zobrazí každý synchronizovaný adresář zvlášť, takže v nich můžete každý zobrazit nebo skrýt.",
+      "separate_books_label": "Každý adresář jako samostatný účet",
       "shared_by": "Sdílí {name}",
       "sign_in_again": "Znovu se přihlásit",
       "status_auth": "Server už nepřijímá přihlášení. Pro další synchronizaci se znovu přihlaste.",

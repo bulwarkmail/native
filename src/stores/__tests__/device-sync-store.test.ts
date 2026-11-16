@@ -136,6 +136,25 @@ describe('actions', () => {
     expect(m.isKnownState(BOB, 'c', 'ContactCard', 's1')).toBe(false);
   });
 
+  it('keeps the contacts runs of the address books\' accounts apart and shows their summary', async () => {
+    const m = await freshStore();
+    const store = m.useDeviceSyncStore.getState();
+    store.recordAddressBookAccount(ALICE, 'c/b1', 'alice – Flat');
+    store.recordAddressBookAccount(ALICE, 'c/b2', 'alice – Work');
+    store.recordRunStatus(ALICE, CONTACTS_AUTHORITY, run('io'), 'alice – Flat');
+    store.recordRunStatus(ALICE, CONTACTS_AUTHORITY, run('ok'), 'alice – Work');
+    // The failed book shows, although another one synced after it.
+    expect(m.accountDeviceSync(ALICE).lastRun[CONTACTS_AUTHORITY]?.outcome).toBe('io');
+    // Its run goes with its account.
+    store.recordAddressBookAccount(ALICE, 'c/b1', null);
+    expect(m.accountDeviceSync(ALICE).addressBookAccounts).toEqual({ 'c/b2': 'alice – Work' });
+    expect(Object.keys(m.accountDeviceSync(ALICE).contactRuns ?? {})).toEqual(['alice – Work']);
+    // A run of the app account's own account alone (no account per book) replaces them.
+    store.recordRunStatus(ALICE, CONTACTS_AUTHORITY, run('ok'));
+    expect(m.accountDeviceSync(ALICE).contactRuns).toBeUndefined();
+    expect(m.accountDeviceSync(ALICE).lastRun[CONTACTS_AUTHORITY]?.outcome).toBe('ok');
+  });
+
   it('forgets an account entirely', async () => {
     const m = await freshStore();
     m.useDeviceSyncStore.getState().setEnabled(ALICE, CONTACTS_AUTHORITY, true);

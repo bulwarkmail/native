@@ -964,6 +964,8 @@
       "remove_message": "Os contatos e calendários da conta são removidos deste dispositivo. As alterações feitas aqui que não chegaram ao servidor são perdidas.",
       "remove_title": "Remover deste dispositivo?",
       "review_deletions": "Revisar exclusões",
+      "separate_books_desc": "Os apps de contatos passam a listar cada catálogo de endereços sincronizado separadamente, para que você possa mostrar ou ocultar cada um por lá.",
+      "separate_books_label": "Cada catálogo de endereços como uma conta própria",
       "shared_by": "Compartilhado por {name}",
       "sign_in_again": "Fazer login novamente",
       "status_auth": "O servidor não aceita mais o login. Faça login novamente para continuar sincronizando.",

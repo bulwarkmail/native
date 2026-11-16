@@ -962,6 +962,8 @@
       "remove_message": "Hesabın kişileri ve takvimleri bu cihazdan kaldırılır. Burada yapılan ve sunucuya ulaşmamış değişiklikler kaybolur.",
       "remove_title": "Bu cihazdan kaldırılsın mı?",
       "review_deletions": "Silmeleri incele",
+      "separate_books_desc": "Kişiler uygulamaları böylece senkronize edilen her adres defterini ayrı ayrı listeler; her birini orada gösterebilir veya gizleyebilirsiniz.",
+      "separate_books_label": "Her adres defteri ayrı bir hesap olarak",
       "shared_by": "Paylaşan: {name}",
       "sign_in_again": "Tekrar giriş yap",
       "status_auth": "Sunucu artık girişi kabul etmiyor. Senkronizasyona devam etmek için tekrar giriş yapın.",

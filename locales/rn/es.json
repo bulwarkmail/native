@@ -967,6 +967,8 @@
       "remove_message": "Los contactos y calendarios de la cuenta se quitarán de este dispositivo. Los cambios hechos aquí que no hayan llegado al servidor se perderán.",
       "remove_title": "¿Quitar de este dispositivo?",
       "review_deletions": "Revisar eliminaciones",
+      "separate_books_desc": "Las apps de contactos muestran entonces cada libreta de direcciones sincronizada por separado, para que puedas mostrar u ocultar cada una allí.",
+      "separate_books_label": "Cada libreta de direcciones como cuenta propia",
       "shared_by": "Compartido por {name}",
       "sign_in_again": "Volver a iniciar sesión",
       "status_auth": "El servidor ya no acepta el inicio de sesión. Vuelve a iniciar sesión para seguir sincronizando.",

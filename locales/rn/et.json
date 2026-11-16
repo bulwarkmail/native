@@ -789,6 +789,8 @@
       "remove_message": "Konto kontaktid ja kalendrid eemaldatakse sellest seadmest. Siin tehtud muudatused, mis pole veel serverisse jõudnud, lähevad kaotsi.",
       "remove_title": "Eemaldada sellest seadmest?",
       "review_deletions": "Vaata kustutamised üle",
+      "separate_books_desc": "Kontaktirakendused näitavad siis iga sünkroonitud aadressiraamatut eraldi, nii et saad igaüht seal kuvada või peita.",
+      "separate_books_label": "Iga aadressiraamat eraldi kontona",
       "shared_by": "Jagas {name}",
       "sign_in_again": "Logi uuesti sisse",
       "status_auth": "Server ei aktsepteeri enam sisselogimist. Sünkroonimise jätkamiseks logi uuesti sisse.",

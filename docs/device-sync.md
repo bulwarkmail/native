@@ -125,6 +125,25 @@ needs only a UID match on API 23+.
 Other apps see the account (API 26+) when they hold `READ_CONTACTS` and we hold
 a granted `WRITE_CONTACTS`; Contacts apps that list accounts rely on that.
 
+**An account per address book** (issue
+[#155](https://github.com/bulwarkmail/native/issues/155), off by default,
+"Each address book as its own account" in the contacts section). Contacts apps
+build their source list from Android accounts (Fossify Contacts lists the
+AccountManager's accounts and nothing finer), so address books that share one
+account cannot be shown or hidden one by one. With the setting on, every
+synced address book has an Android account of the same type, named `<the app
+account's Android account> – <book name>`; a shared account's book adds the
+owner's name in brackets, and a name that is taken gets a number. Its
+`userData` holds `registryId` and `collection`
+(`<jmapAccountId>/<addressBookId>`), it syncs contacts only (the calendar
+authority is not syncable for it), and it has no periodic sync of its own.
+The app account's own account (no `collection`) stays: it holds the
+calendars, its Contacts switch and schedule govern the books' accounts, and
+its contacts sync keeps those accounts in step with the selection (see [An
+account per address book](#an-account-per-address-book)). `DATA_SET` per book
+was rejected: apps that filter by account alone, Fossify among them, would
+still see one source.
+
 ### Authenticator
 
 `BulwarkAuthenticator` and `BulwarkAuthenticatorService`:
@@ -158,7 +177,8 @@ the system UID.
 `onPerformSync` (see `DeviceSyncAdapter.kt`):
 
 1. Reads `registryId` from the account's userData; a missing one is a hard
-   error (`databaseError`).
+   error (`databaseError`). The `collection` of an address book's account
+   goes into the payload.
 2. Opens a run in `DeviceSyncRuns`: a random `runId`, a latch, a cancel flag.
    Headless task ids restart at 1 with every React context, so they never
    identify a run.
@@ -481,6 +501,55 @@ deadline reports `cancelled` with `moreRecordsToGet`.
    and moves only its time on; after a failed run it shows `ok`, without the
    failure's message. Any other run replaces the status, so a problem shows
    until the next run that does something.
+
+### An account per address book
+
+With "Each address book as its own account" on, the contacts runs of one app
+account are of two kinds, told apart by the payload's `collection`. They share
+the app account's mutex, so they never overlap.
+
+**The own account's run** (`engine/address-books.ts`) syncs no contacts. After
+the preflight:
+
+1. Contacts the account still holds (synced before the setting was turned on,
+   or created in it by a contacts app, which lists it as a source like any
+   other) are uploaded and removed with their SyncState, exactly as when sync
+   is turned off: new contacts go to the address book for new contacts. While
+   one cannot be uploaded, nothing is removed and no book gets an account
+   (both would show the same contacts); the report lists `pendingChanges`,
+   the books that have an account are still asked to sync, and the next run
+   tries again.
+2. It lists the address books. Each one that syncs gets its account, with
+   contacts sync on. An account whose book no longer syncs (deselected, or
+   gone from the server) is emptied the same way and removed; one that still
+   holds changes the server refused stays and is reported. The books of a
+   shared account that refuses to list them are unknown, not gone: their
+   accounts stay.
+3. The app remembers each account it made (`addressBookAccounts`). A
+   remembered account that is missing was removed in Android Settings: its
+   book is deselected instead of coming back.
+4. It asks for a sync of every book's account, handing on `manual`,
+   `expedited` and the two deletion extras. The upload-only sync Android
+   starts for every account after an app write ends in the preflight and
+   asks for nothing.
+
+**A book's run** is an ordinary run with the selection narrowed to its book
+and the JMAP accounts to that book's: it keeps its own SyncState and
+`itemsState`, downloads the account's `/changes` and writes only cards that
+are in its book. Contacts created in the account go to its book, and a
+deletion made there takes the card out of that book only when it is in
+others too, both also while the book is being deselected. It records no
+`knownStates`: the state one book's account reached says nothing about the
+others, so the push of an upload is not skipped as an echo but syncs the
+other books. It reports `disabled` when its own Contacts
+switch is off in Android, when the own account's is, or when the setting is
+off.
+
+With the setting turned off again, the own account's next run empties and
+removes the books' accounts first, then syncs every selected book itself
+(a full reconcile: its SyncState went with its rows). While a book's account
+still holds changes it could not upload, the own account does not sync, so
+no contact shows twice.
 
 `/get` always lists `properties` explicitly: with `properties: null` Stalwart
 leaves out JMAP-only fields such as `useDefaultAlerts`, and `ids: null` returns
@@ -1301,9 +1370,10 @@ writes. A reminder edit that has not reached the server is never overwritten.
 ## Headless payload, report and SyncResult
 
 Payload (`RunPayload` in `src/device-sync/types.ts`):
-`{ runId, accountName, registryId, authority, extras: { manual, upload,
-expedited, ignoreBackoff, overrideTooManyDeletions, discardLocalDeletions },
-deadline }`; only booleans cross from the framework's extras.
+`{ runId, accountName, registryId, collection?, authority, extras: { manual,
+upload, expedited, ignoreBackoff, overrideTooManyDeletions,
+discardLocalDeletions }, deadline }`; only booleans cross from the
+framework's extras, and `collection` is there for an address book's account.
 
 Report (`RunReport`): `{ v: 1, runId, authority, outcome, message?, startedAt,
 durationMs, stats: { downloaded: {created, updated, deleted}, uploaded:
@@ -1343,8 +1413,8 @@ nested maps. Every provider call is scoped to one account of our type.
 | Method | Does |
 |---|---|
 | `getInfo()` | `{ accountType, sdkInt }` |
-| `listAccounts()` | our accounts with their `registryId` |
-| `ensureAccount(name, registryId)` | adds the account (both authorities syncable, automatic off); true when created, false when it exists for the same registry id or without one (it is adopted); rejects (`conflict`) when an account of that name belongs to another registry id |
+| `listAccounts()` | our accounts with their `registryId` and, for an address book's account, its `collection` |
+| `ensureAccount(name, registryId, collection)` | adds the account (both authorities syncable, automatic off; with a `collection`, the account of that address book: contacts only, automatic on); true when created, false when it exists for the same registry id and address book or without a registry id (it is adopted); rejects (`conflict`) when an account of that name belongs to another registry id or address book |
 | `removeAccount(name)` | removes it; the providers drop its rows |
 | `getSyncSettings(name)` | master auto-sync, and per authority: syncable, automatic, periodic seconds, active, pending |
 | `setSyncEnabled(name, authority, on)` | syncable = 1 and `setSyncAutomatically` |
@@ -1463,7 +1533,12 @@ phone's contacts), `newContactsAddressBook`, `reminderOwner`,
 `androidAccountName` (the Android account it uses), `knownStates` (the latest
 states the engine synced, per JMAP account and type, for the echo skip),
 `enabled` (what the user turned on in the app), `removedInAndroidSettings`,
-`suspended` and `primaryJmapAccounts`. Android's `getSyncAutomatically` stays
+`suspended`, `primaryJmapAccounts`, and for an account per address book
+`separateAddressBooks` (the setting), `addressBookAccounts` (the Android
+account the engine made for each book) and `contactRuns` (the last contacts
+run of each Android account; `lastRun` then holds their summary: the latest
+failure, else the latest run with something to report, else the latest).
+With the setting on, `knownStates` holds no `ContactCard` state. Android's `getSyncAutomatically` stays
 the source of truth for whether an authority syncs (see Lifecycle). Headless
 runs await hydration before any `set()` (zustand 5 writes on every `set()`,
 even before hydration, and would overwrite the stored preferences).
@@ -1481,7 +1556,8 @@ native module present). Settings → Contacts and Settings → Calendar each get
   account's on and shared ones (and Trusted Senders) off by default,
   read-only ones marked, and a warning when another signed-in account already
   syncs the same shared collection;
-- contacts: the address book for new contacts;
+- contacts: the address book for new contacts, and "Each address book as its
+  own account" (a change asks for a contacts sync, which moves the contacts);
 - calendar: who reminds you (calendar app or Bulwark);
 - the interval: 15 min, 30 min, 1 h (default), 6 h, manual;
 - "Sync now" (`requestSync` with manual + expedited);
@@ -1520,7 +1596,10 @@ app's system settings when Android no longer asks.
   anyway?" Turning off anyway still makes one short upload attempt (5 s)
   before the rows go; "Keep syncing" turns automatic sync back on. With
   nothing waiting the rows go without a question: the server keeps
-  everything. When both authorities are off the Android account is removed.
+  everything. For contacts the accounts of the address books are emptied the
+  same way after the own account, their waiting changes count into the same
+  question, and they are removed once all are empty. When both authorities
+  are off the Android account is removed.
   Turning calendar sync off also forgets who reminds of synced events, so the
   question comes again the next time. Turning sync on, off and back on for
   one app account runs one step at a time: a turn-on made while a turn-off
@@ -1545,7 +1624,11 @@ app's system settings when Android no longer asks.
   unreadable registry is never acted on.
 - **Account removed in Android Settings:** detected by the accounts listener
   and on foreground; the store marks it, the switches show off, and the app
-  does not recreate the account.
+  does not recreate the account. The accounts of its address books are
+  then emptied like at a turn-off and removed; one whose changes cannot be
+  uploaded stays, unsynced, until the user removes it or turns contacts sync
+  on again. When only a book's account was removed, the reconcile
+  asks for a contacts sync, which deselects that book.
 - The store keeps what the user turned on in the app (`enabled`) next to
   Android's switches, which stay the source of truth: an authority switched
   on in Android Settings is adopted as on, one switched off there shows as
@@ -1640,6 +1723,8 @@ app's system settings when Android no longer asks.
 | JS crash or reload mid-run | task ends without report → soft error | automatic |
 | React fails to start (debug without Metro) | boot fault → soft error in ~2 s | automatic |
 | Account removed in Settings | providers drop rows; app turns sync off | user turns it on again |
+| An address book's account removed in Settings | the provider drops its rows; the next contacts sync deselects the book | user selects the book again |
+| A book's account that is to go still holds changes the server refuses | the account stays, the run lists `pendingChanges` | automatic once they upload; turning contacts sync off asks before losing them |
 | Logout / turning sync off | pending changes uploaded first; if that fails (or deletions exceed the threshold) the user is asked before anything is deleted | — |
 | Provider refuses a batch (`assert`/`tooLarge`/`provider`) | per-item retry / split; an item that still fails goes on `stale` (the state still advances) and uploads nothing until it was fetched again | automatic, or listed in the report |
 | App drops the account from its registry (e.g. after an auth error) | Android account kept, sync off, one "Sign in again" notification without a count of waiting changes; the section lists the account | user signs in again, or removes it from the device |
@@ -1744,6 +1829,13 @@ Decisions made where the brief left a choice (safe defaults):
   it is an email address, else the first identity's address; aliases from
   identities also count as "me".
 
+- An account per address book: a card that is in several synced books has
+  a raw contact in the account of each (Android joins them into one contact);
+  an edit in one reaches the others with their next sync. The app account's
+  own account stays a (normally empty) contact source, since it carries the
+  Contacts switch: a contact created in it goes to the address book for new
+  contacts.
+
 Known limitations:
 
 - Google Contacts may not show or edit third-party accounts (closed source;
@@ -1837,6 +1929,10 @@ Known limitations:
   spans two parts, the server's address keeps the whole line as its street:
   `full` and the components agree, but city, postcode and country are no
   longer separate parts.
+- An address book's account keeps the name it was created with when the book
+  is renamed on the server; deselecting the book and selecting it again
+  renames it. Group memberships and the names in relations only reach cards
+  of the same book, since each account holds one.
 - The settings' status line shows how many items could not be synced, never
   conflicts: those resolve on their own (the server wins), and the stored run
   counts them.
@@ -1934,6 +2030,18 @@ apps or in Stalwart is under [known limitations](#decisions-and-limitations).
   settings. Uninstalling removes the account and its rows; a reinstall syncs
   without duplicates. A sync that can't start React Native stops waiting for
   it, and the row's collection count follows the chooser's fresh list.
+- **An account per address book** (API 36 emulator, Fossify Contacts,
+  Stalwart with two own address books and one shared by another
+  account). Turning the setting on with an edit waiting uploads the edit,
+  empties the own account and gives each book its account; Fossify's filter
+  lists them one by one, next to the empty own account. A card in both
+  books shows in each account. A contact created in a book's account lands
+  in that book on the server. Deselecting a book removes its account, a
+  shared book's account carries the owner's name, turning the setting off
+  brings every contact back under the own account, and turning contacts
+  sync off removes all accounts. Android ran the accounts' syncs one after
+  the other, about 50 s apart (one adapter, no parallel syncs), so the
+  second book's contacts appeared that much later than the first's.
 - **Covered by tests only:** contact groups and memberships; photos too
   large for the device; meetings too big for one transaction; changes put
   back because the server can't take them in read-only collections, answers

@@ -965,6 +965,8 @@
       "remove_message": "Les contacts et calendriers du compte sont supprimés de cet appareil. Les modifications faites ici qui n'ont pas atteint le serveur sont perdues.",
       "remove_title": "Supprimer de cet appareil ?",
       "review_deletions": "Vérifier les suppressions",
+      "separate_books_desc": "Les applications de contacts affichent alors chaque carnet d'adresses synchronisé séparément, ce qui vous permet d'y afficher ou d'y masquer chacun d'eux.",
+      "separate_books_label": "Chaque carnet d'adresses comme un compte distinct",
       "shared_by": "Partagé par {name}",
       "sign_in_again": "Se reconnecter",
       "status_auth": "Le serveur n'accepte plus la connexion. Reconnectez-vous pour continuer la synchronisation.",

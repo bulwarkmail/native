@@ -66,7 +66,8 @@ class DeviceSyncAdapter(context: Context) :
     }
 
     private fun performSync(account: Account, extras: Bundle, authority: String, syncResult: SyncResult) {
-        val registryId = AccountManager.get(context).getUserData(account, DeviceSyncAccounts.USER_DATA_REGISTRY_ID)
+        val manager = AccountManager.get(context)
+        val registryId = manager.getUserData(account, DeviceSyncAccounts.USER_DATA_REGISTRY_ID)
         if (registryId.isNullOrEmpty()) {
             Log.w(TAG, "Sync of $authority skipped: the account has no app account")
             syncResult.databaseError = true
@@ -77,8 +78,10 @@ class DeviceSyncAdapter(context: Context) :
         // from JobScheduler instead of 10; stay inside either.
         val expedited = extras.getBoolean(SYNC_EXTRAS_SCHEDULE_AS_EXPEDITED_JOB, false)
         val deadline = startedAt + if (expedited) EXPEDITED_BUDGET_MS else BUDGET_MS
+        // Set on the account of one address book (#155).
+        val collection = manager.getUserData(account, DeviceSyncAccounts.USER_DATA_COLLECTION)
         val run = DeviceSyncRuns.open(account.name, authority)
-        main.post { startRun(run, account, registryId, authority, extras, deadline) }
+        main.post { startRun(run, account, registryId, collection, authority, extras, deadline) }
         try {
             while (!run.done.await(POLL_MS, TimeUnit.MILLISECONDS)) {
                 val boot = run.boot
@@ -116,6 +119,7 @@ class DeviceSyncAdapter(context: Context) :
         run: DeviceSyncRuns.Run,
         account: Account,
         registryId: String,
+        collection: String?,
         authority: String,
         extras: Bundle,
         deadline: Long,
@@ -142,6 +146,7 @@ class DeviceSyncAdapter(context: Context) :
                     putString("runId", run.runId)
                     putString("accountName", account.name)
                     putString("registryId", registryId)
+                    if (!collection.isNullOrEmpty()) putString("collection", collection)
                     putString("authority", authority)
                     putMap("extras", runExtras(extras))
                     putDouble("deadline", (System.currentTimeMillis() + taskTimeout - JS_SLACK_MS).toDouble())

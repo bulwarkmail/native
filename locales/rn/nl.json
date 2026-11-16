@@ -961,6 +961,8 @@
       "remove_message": "De contacten en agenda's van het account worden van dit apparaat verwijderd. Wijzigingen die hier zijn gemaakt en de server nog niet hebben bereikt, gaan verloren.",
       "remove_title": "Verwijderen van dit apparaat?",
       "review_deletions": "Verwijderingen bekijken",
+      "separate_books_desc": "Contacten-apps tonen dan elk gesynchroniseerd adresboek apart, zodat je ze daar afzonderlijk kunt tonen of verbergen.",
+      "separate_books_label": "Elk adresboek als eigen account",
       "shared_by": "Gedeeld door {name}",
       "sign_in_again": "Opnieuw aanmelden",
       "status_auth": "De server accepteert de aanmelding niet meer. Meld je opnieuw aan om te blijven synchroniseren.",

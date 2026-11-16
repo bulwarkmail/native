@@ -971,6 +971,8 @@
       "remove_message": "Die Kontakte und Kalender des Kontos werden von diesem Gerät entfernt. Hier vorgenommene Änderungen, die den Server noch nicht erreicht haben, gehen verloren.",
       "remove_title": "Von diesem Gerät entfernen?",
       "review_deletions": "Löschungen prüfen",
+      "separate_books_desc": "Kontakte-Apps führen dann jedes synchronisierte Adressbuch einzeln auf, sodass Sie jedes dort ein- oder ausblenden können.",
+      "separate_books_label": "Jedes Adressbuch als eigenes Konto",
       "shared_by": "Von {name} geteilt",
       "sign_in_again": "Erneut anmelden",
       "status_auth": "Der Server akzeptiert die Anmeldung nicht mehr. Melden Sie sich erneut an, um weiter zu synchronisieren.",

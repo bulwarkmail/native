@@ -1289,6 +1289,8 @@
       "remove_message": "The account's contacts and calendars are removed from this device. Changes made here that haven't reached the server are lost.",
       "remove_title": "Remove from this device?",
       "review_deletions": "Review deletions",
+      "separate_books_desc": "Contacts apps then list every synced address book separately, so you can show or hide each one there.",
+      "separate_books_label": "Each address book as its own account",
       "shared_by": "Shared by {name}",
       "sign_in_again": "Sign in again",
       "status_auth": "The server no longer accepts the sign-in. Sign in again to keep syncing.",

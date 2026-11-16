@@ -22,6 +22,8 @@ export interface TeardownOptions {
   timeoutMs?: number;
   /** Delete even when changes could not be uploaded (the user confirmed). */
   force?: boolean;
+  /** The caller is a sync run of the registry account and authority, and holds their lock. */
+  lockHeld?: boolean;
 }
 
 /** Items still waiting for an upload: dirty, deleted, new, and groups deleted by absence. */
@@ -64,10 +66,13 @@ export async function teardownAuthority(
 ): Promise<{ pending: number }> {
   const tuning = tuningOf(deps);
   const key = lockKey(registryId, authority);
-  // A sync holding the lock stops at its next checkpoint instead of running to its deadline.
-  requestStop(key);
-  const release = await acquireLock(key);
-  clearStopRequest(key);
+  let release: (() => void) | null = null;
+  if (!options.lockHeld) {
+    // A sync holding the lock stops at its next checkpoint instead of running to its deadline.
+    requestStop(key);
+    release = await acquireLock(key);
+    clearStopRequest(key);
+  }
   try {
     const reader = new ProviderReader(deps.provider(accountName, authority));
     if (options.uploadFirst !== false) {
@@ -76,6 +81,8 @@ export async function teardownAuthority(
         const { state: stored, readable } = parseSyncState(await reader.readSyncState());
         // Rows written for another registry account are never uploaded to this one.
         if (!stored.owner || stored.owner.registryId === registryId) {
+          // The account of one address book uploads into that book.
+          const collection = (await deps.accounts.list()).find((a) => a.name === accountName)?.collection ?? undefined;
           const connection = await deps.jmap(registryId);
           if (!stored.owner || stored.owner.origin === connection.origin) {
             const report = new ReportBuilder('teardown', authority, started, tuning.maxItemErrors);
@@ -95,6 +102,7 @@ export async function teardownAuthority(
               report,
               stored: readable ? stored : parseSyncState(null).state,
               connection,
+              collection,
             });
             await sync.uploadOnly();
           }

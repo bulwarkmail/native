@@ -14,7 +14,7 @@ const h = vi.hoisted(() => {
     available: true,
     permitted: true,
     master: true,
-    accounts: [] as Array<{ name: string; registryId: string | null; sync: Record<string, Settings> }>,
+    accounts: [] as Array<{ name: string; registryId: string | null; collection?: string; sync: Record<string, Settings> }>,
     log: [] as string[],
     failSetSyncEnabled: false,
   };
@@ -39,7 +39,8 @@ const h = vi.hoisted(() => {
 
 vi.mock('../../native', () => ({
   isDeviceSyncAvailable: () => h.state.available,
-  listAndroidAccounts: vi.fn(async () => h.state.accounts.map((a) => ({ name: a.name, registryId: a.registryId }))),
+  listAndroidAccounts: vi.fn(async () =>
+    h.state.accounts.map((a) => ({ name: a.name, registryId: a.registryId, ...(a.collection ? { collection: a.collection } : {}) }))),
   ensureAndroidAccount: vi.fn(async (name: string, registryId: string) => {
     h.state.log.push(`ensure ${name}`);
     const existing = h.find(name);
@@ -101,6 +102,7 @@ import {
 } from '../../../stores/device-sync-store';
 import {
   changeReminderOwner,
+  changeSeparateAddressBooks,
   changeSyncInterval,
   deviceSyncSignedIn,
   disableDeviceSync,
@@ -587,5 +589,124 @@ describe('settings actions', () => {
     h.state.log = [];
     await changeReminderOwner(ALICE, 'device');
     expect(h.state.log).toEqual([]);
+  });
+});
+
+describe('an Android account per address book', () => {
+  const FLAT = 'alice – Flat';
+  const WORK = 'alice – Work';
+
+  /** Contacts sync on with a source per book, as the engine leaves it after its first sync. */
+  async function separated(): Promise<void> {
+    await enableDeviceSync(ALICE, CONTACTS_AUTHORITY);
+    await changeSeparateAddressBooks(ALICE, true);
+    h.state.accounts.push({ name: FLAT, registryId: ALICE, collection: 'c/b1', sync: {} }, { name: WORK, registryId: ALICE, collection: 'c/b2', sync: {} });
+    useDeviceSyncStore.getState().update(ALICE, { addressBookAccounts: { 'c/b1': FLAT, 'c/b2': WORK } });
+    h.state.log = [];
+  }
+
+  it('asks for a contacts sync when the setting changes, which moves the contacts over', async () => {
+    await enableDeviceSync(ALICE, CONTACTS_AUTHORITY);
+    h.state.log = [];
+    await changeSeparateAddressBooks(ALICE, true);
+    await changeSeparateAddressBooks(ALICE, true);
+    expect(accountDeviceSync(ALICE).separateAddressBooks).toBe(true);
+    await changeSeparateAddressBooks(ALICE, false);
+    expect(accountDeviceSync(ALICE).separateAddressBooks).toBeUndefined();
+    expect(h.state.log).toEqual([
+      `sync alice ${CONTACTS_AUTHORITY} {"manual":true}`,
+      `sync alice ${CONTACTS_AUTHORITY} {"manual":true}`,
+    ]);
+    // Only remembered while contacts do not sync.
+    await changeSeparateAddressBooks(BOB, true);
+    expect(accountDeviceSync(BOB).separateAddressBooks).toBe(true);
+    expect(h.state.log).toHaveLength(2);
+  });
+
+  it('keeps using the app account\'s own account, not a book\'s', async () => {
+    await separated();
+    await enableDeviceSync(ALICE, CALENDAR_AUTHORITY);
+    expect(accountDeviceSync(ALICE).androidAccountName).toBe('alice');
+    expect(h.state.log).not.toContain('ensure alice');
+    expect(h.state.log).toContain(`auto alice ${CALENDAR_AUTHORITY} true`);
+  });
+
+  it('empties and removes the books\' accounts when contacts sync is turned off', async () => {
+    await separated();
+    const result = await disableDeviceSync(ALICE, CONTACTS_AUTHORITY);
+    expect(result).toEqual({ done: true, pending: 0 });
+    const options = `{"uploadFirst":true,"timeoutMs":${TEARDOWN_TIMEOUT_MS}}`;
+    expect(h.state.log).toEqual([
+      `auto alice ${CONTACTS_AUTHORITY} false`,
+      `teardown alice ${CONTACTS_AUTHORITY} ${options}`,
+      `teardown ${FLAT} ${CONTACTS_AUTHORITY} ${options}`,
+      `teardown ${WORK} ${CONTACTS_AUTHORITY} ${options}`,
+      `remove ${FLAT}`,
+      `remove ${WORK}`,
+      'remove alice',
+      'clear alice',
+    ]);
+    expect(accountDeviceSync(ALICE).addressBookAccounts).toBeUndefined();
+    // The choice is kept for the next time contacts sync is turned on.
+    expect(accountDeviceSync(ALICE).separateAddressBooks).toBe(true);
+  });
+
+  it('keeps every account while a book still holds changes the server has not got', async () => {
+    await separated();
+    teardown.mockImplementation(async (registryId, name, authority, options) => {
+      await h.teardown(registryId, name, authority, options);
+      return { pending: name === WORK ? 2 : 0 };
+    });
+    expect(await disableDeviceSync(ALICE, CONTACTS_AUTHORITY)).toEqual({ done: false, pending: 2, failed: undefined });
+    expect(h.state.accounts.map((a) => a.name)).toEqual(['alice', FLAT, WORK]);
+    expect(accountDeviceSync(ALICE).enabled?.[CONTACTS_AUTHORITY]).toBe(true);
+  });
+
+  it('removes nothing when the books\' accounts cannot be listed for their teardown', async () => {
+    await separated();
+    vi.mocked(native.listAndroidAccounts).mockRejectedValueOnce(new Error('bridge down'));
+    expect(await disableDeviceSync(ALICE, CONTACTS_AUTHORITY)).toEqual({ done: false, pending: 0, failed: true });
+    expect(h.state.accounts.map((a) => a.name)).toEqual(['alice', FLAT, WORK]);
+  });
+
+  it('removes the books\' accounts with the app account\'s on sign-out', async () => {
+    await separated();
+    expect(await releaseDeviceSyncBeforeSignOut([ALICE])).toBe(true);
+    expect(h.state.accounts).toEqual([]);
+    expect(h.state.log).toContain(`teardown ${FLAT} ${CONTACTS_AUTHORITY} {"uploadFirst":true,"timeoutMs":${TEARDOWN_TIMEOUT_MS}}`);
+    expect(useDeviceSyncStore.getState().accounts[ALICE]).toBeUndefined();
+  });
+
+  it('removes the books\' accounts once the app account\'s own was removed in Android Settings', async () => {
+    await separated();
+    h.state.accounts = h.state.accounts.filter((a) => a.name !== 'alice');
+    // One of them still holds a change the server has not got: it stays.
+    teardown.mockImplementation(async (registryId, name, authority, options) => {
+      await h.teardown(registryId, name, authority, options);
+      return { pending: name === WORK ? 1 : 0 };
+    });
+    await reconcileDeviceAccounts();
+    expect(h.state.accounts.map((a) => a.name)).toEqual([WORK]);
+    const stored = accountDeviceSync(ALICE);
+    expect(stored.removedInAndroidSettings).toBe(true);
+    expect(stored.addressBookAccounts).toBeUndefined();
+  });
+
+  it('asks for a contacts sync when a book\'s account was removed in Android Settings', async () => {
+    await separated();
+    h.state.accounts = h.state.accounts.filter((a) => a.name !== WORK);
+    await reconcileDeviceAccounts();
+    expect(h.state.log).toEqual([`sync alice ${CONTACTS_AUTHORITY} {}`]);
+    expect(h.state.accounts.map((a) => a.name)).toEqual(['alice', FLAT]);
+  });
+
+  it('suspends only the app account\'s own account when the registry drops it: the books\' follow it', async () => {
+    await separated();
+    await ready([entry(BOB, 'bob')]);
+    await reconcileDeviceAccounts();
+    expect(h.state.accounts.map((a) => a.name)).toEqual(['alice', FLAT, WORK]);
+    expect(h.state.log.filter((line) => line.startsWith('problem'))).toEqual(['problem alice']);
+    await removeSuspendedAccount(ALICE);
+    expect(h.state.accounts).toEqual([]);
   });
 });
