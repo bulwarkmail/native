@@ -184,6 +184,12 @@ Holder has to accept an updated agreement under Business in App Store Connect.
 
 ## What does not work on iOS yet
 
+- **iPhone Duo (#145).** The release is built with Xcode 26, so iOS shows the
+  app at a reduced size there. A build with Xcode 27 needs the scene life
+  cycle: `IOS_SCENE_LIFECYCLE=1` at prebuild adds it
+  (plugins/ios-scene-lifecycle). With it the app starts on the Duo simulator
+  and fills the outer display; links that start the app and push are not yet
+  run under scenes, and nothing is laid out for the inner display.
 - **Client certificates, partly (#3).** The app imports a .p12 into its own
   keychain (plugins/ios-client-cert) and every request of the app answers the
   server's certificate request with it. Two places can't: the notification

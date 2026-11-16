@@ -149,6 +149,8 @@ module.exports = {
           sounds: ['./assets/sounds/involved_notification.wav'],
         },
       ],
+      // Builds with the iOS 27 SDK (Xcode 27) must use the scene life cycle.
+      ...(process.env.IOS_SCENE_LIFECYCLE === '1' ? ['./plugins/ios-scene-lifecycle'] : []),
     ],
     extra: {
       commit: COMMIT,
