@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import StatusColumnBar from '../components/StatusColumnBar';
+import { useFitsStatusColumn } from '../lib/use-layout';
 import { ArrowLeft, Share2, Copy, Check } from '../components/icons';
 import * as Clipboard from 'expo-clipboard';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,6 +24,9 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo's
+  // outer display), the header's buttons go into it; the header keeps the title.
+  const inColumn = useFitsStatusColumn(3);
   // Blobs are account-scoped, so a message from a shared/group mailbox has
   // to be fetched against its owning account.
   const { blobId, subject, jmapAccountId } = route.params;
@@ -65,8 +70,10 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
   };
 
   return (
+    <>
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
+        {!inColumn && (
         <Pressable
           onPress={() => navigation.goBack()}
           style={styles.headerBtn}
@@ -76,9 +83,12 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
         >
           <ArrowLeft size={22} color={c.text} />
         </Pressable>
+        )}
         <Text style={styles.headerTitle} numberOfLines={1}>
           {subject || t('email_viewer.email_source', 'Email Source')}
         </Text>
+        {!inColumn && (
+        <>
         <Pressable
           onPress={onCopy}
           style={styles.headerBtn}
@@ -98,6 +108,8 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
         >
           <Share2 size={20} color={raw ? c.text : c.textMuted} />
         </Pressable>
+        </>
+        )}
       </View>
 
       {!raw && !error ? (
@@ -124,6 +136,25 @@ export default function EmailSourceScreen({ route, navigation }: Props) {
         </ScrollView>
       )}
     </SafeAreaView>
+    {/* Beside the screen's root, which pads for the column: drawn over the column itself. */}
+    {inColumn && (
+      <StatusColumnBar
+        back={{ key: 'back', icon: (size, color) => <ArrowLeft size={size} color={color} />, label: t('common.back', 'Back'), onPress: () => navigation.goBack() }}
+        top={[
+          {
+            key: 'copy',
+            icon: (size, color) => (copied ? <Check size={size} color={c.success} /> : <Copy size={size} color={color} />),
+            label: t('email_viewer.copy_source', 'Copy to clipboard'), onPress: onCopy, disabled: !raw,
+          },
+          {
+            key: 'share', icon: (size, color) => <Share2 size={size} color={color} />,
+            label: t('email_viewer.attachment_actions.share', 'Share'), onPress: onShare, disabled: !raw,
+          },
+        ]}
+        bottom={[]}
+      />
+    )}
+    </>
   );
 }
 

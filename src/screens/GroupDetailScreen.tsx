@@ -3,6 +3,8 @@ import {
   View, Text, StyleSheet, Pressable, FlatList, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import StatusColumnBar from '../components/StatusColumnBar';
+import { useFitsStatusColumn } from '../lib/use-layout';
 import { useInPane } from '../navigation/pane';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -37,6 +39,9 @@ export default function GroupDetailScreen() {
   const route = useRoute<Route>();
   const t = useLocaleStore((s) => s.t);
   const inPane = useInPane();
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo's
+  // outer display), the header's buttons go into it; the header keeps the name.
+  const inColumn = useFitsStatusColumn(3) && !inPane;
   const { groupId } = route.params;
 
   const allContacts = useContactsStore((s) => s.contacts);
@@ -133,10 +138,11 @@ export default function GroupDetailScreen() {
   };
 
   return (
+    <>
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={[styles.header, inPane && styles.headerInPane]}>
+      <View style={[styles.header, (inPane || inColumn) && styles.headerInPane]}>
         {/* In a split view's pane the list is right next to it: no back. */}
-        {!inPane && (
+        {!inPane && !inColumn && (
           <Pressable
             onPress={() => navigation.goBack()}
             style={styles.headerBtn}
@@ -148,6 +154,7 @@ export default function GroupDetailScreen() {
           </Pressable>
         )}
         <Text style={styles.headerTitle} numberOfLines={1}>{name}</Text>
+        {!inColumn && (
         <View style={styles.headerActions}>
           <Pressable
             onPress={() => navigation.navigate('ContactForm', { contactId: group.id, asGroup: true })}
@@ -168,6 +175,7 @@ export default function GroupDetailScreen() {
             <Trash2 size={18} color={c.error} />
           </Pressable>
         </View>
+        )}
       </View>
 
       <View style={styles.hero}>
@@ -262,6 +270,25 @@ export default function GroupDetailScreen() {
         onCancel={() => setRemovingMember(null)}
       />
     </SafeAreaView>
+    {/* Beside the screen's root, which pads for the column: drawn over the column itself. */}
+    {inColumn && (
+      <StatusColumnBar
+        back={{ key: 'back', icon: (size, color) => <ArrowLeft size={size} color={color} />, label: t('common.back', 'Back'), onPress: () => navigation.goBack() }}
+        top={[
+          {
+            key: 'edit', icon: (size, color) => <Edit2 size={size} color={color} />,
+            label: t('contacts.groups.edit', 'Edit Group'),
+            onPress: () => navigation.navigate('ContactForm', { contactId: group.id, asGroup: true }),
+          },
+          {
+            key: 'delete', icon: (size) => <Trash2 size={size} color={c.error} />,
+            label: t('contacts.groups.delete_confirm_title', 'Delete group'), onPress: () => setConfirmDelete(true),
+          },
+        ]}
+        bottom={[]}
+      />
+    )}
+    </>
   );
 }
 

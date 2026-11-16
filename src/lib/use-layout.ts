@@ -173,6 +173,13 @@ export function fitsStatusColumn(
     && STATUS_BAR_RESERVE + buttons * STATUS_COLUMN_BUTTON + STATUS_COLUMN_GAP + insets.bottom + 8 <= height;
 }
 
+/** `fitsStatusColumn` for the current window: whether a stack screen's `buttons` toolbar buttons go into the status column. */
+export function useFitsStatusColumn(buttons: number): boolean {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  return fitsStatusColumn(insets, height, buttons);
+}
+
 /**
  * Where a window's tabs go. Where iOS keeps the status bar in a column on the
  * side (`hasStatusColumn`), the tabs go in that column, as Apple lays out

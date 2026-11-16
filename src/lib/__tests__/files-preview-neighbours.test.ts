@@ -23,11 +23,14 @@ describe('previous / next in the Files preview', () => {
   // No RN renderer in the test env: check the wiring instead.
   it('puts the buttons in the preview header, fed from the listed files it can show', () => {
     const modal = read('../../components/email/AttachmentPreviewModal.tsx');
-    expect(modal).toMatch(/<Text style=\{styles\.title\}[^\n]*<\/Text>\s*\{headerActions\}/);
+    // After the title; in an iPhone Duo's status column instead where the window has one.
+    expect(modal).toMatch(/<Text style=\{styles\.title\}[^\n]*<\/Text>\s*\{!inColumn && \(\s*<>\s*\{headerActions\}/);
+    expect(modal).toMatch(/const columnItems: BarItem\[\] = \[\s*\.\.\.\(columnActions \?\? \[\]\),/);
     const preview = read('../../components/files/FilePreviewModal.tsx');
     expect(preview).toMatch(/accessibilityLabel=\{t\('files\.previous_file', 'Previous file'\)\}/);
     expect(preview).toMatch(/accessibilityLabel=\{t\('files\.next_file', 'Next file'\)\}/);
     expect(preview).toMatch(/headerActions=\{headerActions\}/);
+    expect(preview).toMatch(/columnActions=\{columnActions\}/);
     const screen = read('../../screens/FilesScreen.tsx');
     expect(screen).toMatch(/visibleFiles\.filter\(\(r\) => !isFolder\(r\) && !isSymlink\(r\) && canPreviewInApp\(r\)\)/);
     expect(screen.match(/onPrevious=\{showPrevious\}/g)).toHaveLength(2);
