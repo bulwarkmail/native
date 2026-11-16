@@ -8,12 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { ArrowLeft, X } from '../../components/icons';
 import { spacing, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
+import LoginFrame from './LoginFrame';
 import { LoginLanguagePicker } from './LoginLanguagePicker';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
@@ -46,7 +46,7 @@ export default function LoginShell({
   const t = useLocaleStore((s) => s.t);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <LoginFrame sheet={!!onClose} style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
@@ -97,7 +97,7 @@ export default function LoginShell({
           </View>
         ) : null}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </LoginFrame>
   );
 }
 
