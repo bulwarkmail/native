@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, type TextInputProps } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle } from './icons';
 import Button from './Button';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -57,11 +58,20 @@ export default function Dialog({
   // The card centres in the space above the keyboard (a prompt's field and
   // its confirm button stay visible) and above the navigation bar.
   const bottomInset = useSheetBottomInset(visible);
+  // Clear of the window's side insets too (an iPhone Duo's status column:
+  // the card would reach into it).
+  const sideInsets = useSafeAreaInsets();
   const confirmLabel = confirmText ?? t('common.confirm', 'Confirm');
   const cancelLabel = cancelText ?? t('common.cancel', 'Cancel');
   return (
     <Modal supportedOrientations={MODAL_ORIENTATIONS} visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={[styles.backdrop, { paddingBottom: spacing.lg + bottomInset }]}>
+      <View
+        style={[styles.backdrop, {
+          paddingBottom: spacing.lg + bottomInset,
+          paddingLeft: spacing.lg + sideInsets.left,
+          paddingRight: spacing.lg + sideInsets.right,
+        }]}
+      >
         <View style={styles.dialog}>
           <View style={styles.content}>
             {variant === 'destructive' && (
