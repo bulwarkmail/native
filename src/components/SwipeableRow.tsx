@@ -1,7 +1,9 @@
-import React, { useRef, useState } from 'react';
-import {
-  View, Text, StyleSheet, Animated, PanResponder, Pressable, Dimensions,
-} from 'react-native';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Easing, Extrapolation, FadeIn, FadeOut, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming,
+} from 'react-native-reanimated';
 import {
   Archive, Trash2, ShieldAlert, ShieldCheck, MailOpen, Mail, Star, Pin, PinOff, FolderInput,
   type AppIcon,
@@ -10,11 +12,13 @@ import { typography, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 import { useLocaleStore } from '../stores/locale-store';
 import type { SwipeAction, SwipeMode } from '../stores/settings-store';
+import { haptic } from '../lib/haptics';
 import {
-  shouldClaimGesture, dragOffset, resolveRelease, exitsRow,
+  shouldClaimGesture, dragOffset, resolveRelease, exitsRow, releaseWouldAct, flyDuration,
   COMMIT_THRESHOLD, REVEAL_WIDTH,
   type SwipeConfig,
 } from './swipe-gesture';
+import { SwipeScrollLockContext } from './SwipeLockedFlatList';
 
 interface SwipeableRowProps {
   children: React.ReactNode;
@@ -30,6 +34,7 @@ interface SwipeableRowProps {
    * 'reveal': swipe past ACTIVATION_THRESHOLD reveals an action band that must be tapped.
    */
   mode?: SwipeMode;
+  appearing?: boolean;
 }
 
 export interface SwipeContext {
@@ -75,40 +80,6 @@ function actionIcon(action: Exclude<SwipeAction, 'none'>, context: SwipeContext)
   return ACTION_META[action].icon;
 }
 
-// What the instant-mode bands animate, keyed by the edge the band sits at. It
-// only depends on `dx`, which lives as long as the row, so it is built once
-// per row instead of on every render.
-function makeBandAnimations(dx: Animated.Value) {
-  return {
-    // Holds `rightAction`; shows under a rightward drag.
-    left: {
-      opacity: dx.interpolate({
-        inputRange: [-1, 0, 1],
-        outputRange: [0, 0, 1],
-        extrapolate: 'clamp',
-      }),
-      iconScale: dx.interpolate({
-        inputRange: [0, COMMIT_THRESHOLD],
-        outputRange: [0.85, 1.15],
-        extrapolate: 'clamp',
-      }),
-    },
-    // Holds `leftAction`; shows under a leftward drag.
-    right: {
-      opacity: dx.interpolate({
-        inputRange: [-1, 0, 1],
-        outputRange: [1, 0, 0],
-        extrapolate: 'clamp',
-      }),
-      iconScale: dx.interpolate({
-        inputRange: [-COMMIT_THRESHOLD, 0],
-        outputRange: [1.15, 0.85],
-        extrapolate: 'clamp',
-      }),
-    },
-  };
-}
-
 function sameContext(a: SwipeContext, b: SwipeContext): boolean {
   if (a === b) return true;
   const keys = Object.keys(a) as (keyof SwipeContext)[];
@@ -125,163 +96,182 @@ function sameRowProps(prev: SwipeableRowProps, next: SwipeableRowProps): boolean
   );
 }
 
+const CLAIM_DX = 8;
+const FAIL_DY = 10;
+const FAR = 1e6;
+const SPRING = { damping: 30, stiffness: 400, mass: 1 };
+const ROW_EXIT = FadeOut.duration(150);
+const ROW_ENTER = FadeIn.duration(250);
+const COME_BACK_MS = 1500;
+
 export const SwipeableRow = React.memo(function SwipeableRow({
-  children, leftAction, rightAction, context, onAction, mode = 'instant',
+  children, leftAction, rightAction, context, onAction, mode = 'instant', appearing = false,
 }: SwipeableRowProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
-  const dx = useRef(new Animated.Value(0)).current;
-  const claimed = useRef(false);
+  const tx = useSharedValue(0);
+  const armed = useSharedValue(false);
   const widthRef = useRef(Dimensions.get('window').width);
-  const bandAnimations = React.useMemo(() => makeBandAnimations(dx), [dx]);
-
-  // The action bands (colour, icon and label behind the row) are only mounted
-  // while the row is swiped or sits open, so an idle row renders just its
-  // content. They mount when a drag is granted and go again once the row is
-  // back at rest, where the row covers them anyway.
   const [bandsMounted, setBandsMounted] = useState(false);
   const dragging = useRef(false);
+  const scrollLock = useContext(SwipeScrollLockContext);
+  const scrollLockRef = useRef(scrollLock);
+  scrollLockRef.current = scrollLock;
 
-  // The PanResponder below is built once, so its handlers close over the props
-  // of the render that built it. Reading them through a ref instead keeps the
-  // gesture in step with the row it is actually attached to. Three ways that
-  // went wrong before: changing a swipe action in settings kept firing the old
-  // one; entering selection mode (which passes 'none') still fired actions;
-  // and `onAction` captured a `handleSwipeAction` from before the mailbox ids
-  // had loaded, so on a slow connection swipe did nothing even untouched.
-  // Same idiom as RichTextEditor's callback refs.
   const latest = useRef<SwipeConfig & { onAction: (a: SwipeAction) => void }>({
     leftAction, rightAction, mode, onAction,
   });
   latest.current = { leftAction, rightAction, mode, onAction };
 
-  // Reveal-mode-only state: which side (if any) is currently sitting open.
   const openSideRef = useRef<'left' | 'right' | null>(null);
   const [openSide, setOpenSide] = useState<'left' | 'right' | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const comeBackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const unmountBandsAtRest = () => {
-    if (dragging.current || openSideRef.current !== null) return;
-    setBandsMounted(false);
-  };
-
-  const springTo = (toValue: number) => {
-    Animated.spring(dx, { toValue, useNativeDriver: true, speed: 24, bounciness: 4 }).start(
-      ({ finished }) => {
-        // Not `finished` when a new drag took over from the spring.
-        if (finished && toValue === 0) unmountBandsAtRest();
-      },
-    );
-  };
-  // Spring back to rest without changing which side is open.
-  const settle = () => springTo(0);
-
-  const close = () => {
-    springTo(0);
-    openSideRef.current = null;
-    setOpenSide(null);
-  };
-
-  const openTo = (side: 'left' | 'right') => {
-    springTo(side === 'right' ? REVEAL_WIDTH : -REVEAL_WIDTH);
-    openSideRef.current = side;
-    setOpenSide(side);
-  };
-
-  const fly = (toValue: number, action: SwipeAction) => {
-    // For destructive/move actions: race the row off-screen and fire the
-    // action - the parent will remove the row from the list. For toggle
-    // actions: fire immediately and snap back so the same row can update in
-    // place.
-    if (exitsRow(action)) {
-      Animated.timing(dx, {
-        toValue,
-        duration: 180,
-        useNativeDriver: true,
-      }).start(() => {
-        latest.current.onAction(action);
-        // The row is about to be removed; reset translation in case it isn't
-        // (e.g. the action failed silently) so we don't leave it off-screen.
-        dx.setValue(0);
-        unmountBandsAtRest();
+  const js = React.useMemo(() => {
+    let releaseHeld: (() => void) | null = null;
+    const releaseScroll = () => {
+      releaseHeld?.();
+      releaseHeld = null;
+    };
+    const unmountBandsAtRest = () => {
+      if (dragging.current || openSideRef.current !== null) return;
+      setBandsMounted(false);
+    };
+    const springTo = (toValue: number, velocity = 0) => {
+      tx.value = withSpring(toValue, { ...SPRING, velocity }, (finished) => {
+        if (finished && toValue === 0) runOnJS(unmountBandsAtRest)();
       });
-    } else {
+    };
+    const settle = (velocity = 0) => springTo(0, velocity);
+    const close = (velocity = 0) => {
+      springTo(0, velocity);
+      openSideRef.current = null;
+      setOpenSide(null);
+    };
+    const openTo = (side: 'left' | 'right', velocity = 0) => {
+      springTo(side === 'right' ? REVEAL_WIDTH : -REVEAL_WIDTH, velocity);
+      openSideRef.current = side;
+      setOpenSide(side);
+    };
+    const comeBack = () => {
+      comeBackTimer.current = null;
+      setLeaving(false);
+      springTo(0);
+    };
+    const afterFly = (action: SwipeAction) => {
       latest.current.onAction(action);
-      settle();
-    }
-  };
+      if (comeBackTimer.current) clearTimeout(comeBackTimer.current);
+      comeBackTimer.current = setTimeout(comeBack, COME_BACK_MS);
+    };
+    const fly = (toValue: number, action: SwipeAction, velocity: number) => {
+      if (exitsRow(action)) {
+        setLeaving(true);
+        tx.value = withTiming(toValue, { duration: flyDuration(toValue - tx.value, velocity), easing: Easing.out(Easing.quad) }, () => {
+          runOnJS(afterFly)(action);
+        });
+      } else {
+        latest.current.onAction(action);
+        settle(velocity * 1000);
+      }
+    };
+    const fireFromBandTap = (action: SwipeAction) => {
+      close();
+      if (action === 'none') return;
+      if (exitsRow(action)) {
+        requestAnimationFrame(() => latest.current.onAction(action));
+      } else {
+        latest.current.onAction(action);
+      }
+    };
+    const begin = () => {
+      releaseScroll();
+      releaseHeld = scrollLockRef.current.hold();
+      dragging.current = true;
+      setBandsMounted(true);
+    };
+    const finish = (dx: number, dy: number, vx: number) => {
+      dragging.current = false;
+      const outcome = resolveRelease({ dx, dy, vx }, latest.current, openSideRef.current);
+      switch (outcome.kind) {
+        case 'open':
+          openTo(outcome.side, vx * 1000);
+          break;
+        case 'close':
+          close(vx * 1000);
+          break;
+        case 'fire':
+          haptic(exitsRow(outcome.action) ? 'medium' : 'light');
+          fly(outcome.direction * (widthRef.current || EXIT_DISTANCE), outcome.action, vx);
+          break;
+        case 'settle':
+          settle(vx * 1000);
+          break;
+      }
+    };
+    const cancel = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      if (latest.current.mode === 'reveal') close();
+      else settle();
+    };
+    return { releaseScroll, close, fireFromBandTap, begin, finish, cancel };
+  }, [tx]);
+  const { releaseScroll, close, fireFromBandTap, begin, finish, cancel } = js;
+  useEffect(() => releaseScroll, []);
+  useEffect(() => () => {
+    if (comeBackTimer.current) clearTimeout(comeBackTimer.current);
+  }, []);
 
-  const fireFromBandTap = (action: SwipeAction) => {
-    close();
-    if (action === 'none') return;
-    if (exitsRow(action)) {
-      // Let the row collapse a frame, then fire so the parent's list update
-      // has a clean starting point. Deferred, so read the callback on arrival
-      // rather than capturing today's.
-      requestAnimationFrame(() => latest.current.onAction(action));
-    } else {
-      latest.current.onAction(action);
-    }
-  };
+  const pan = React.useMemo(() => {
+    const config: SwipeConfig = { leftAction, rightAction, mode };
+    const side = openSide;
+    const claims = (dx: number) => shouldClaimGesture({ dx, dy: 0, vx: 0 }, config, side);
+    return Gesture.Pan()
+      .activeOffsetX([claims(-CLAIM_DX) ? -CLAIM_DX : -FAR, claims(CLAIM_DX) ? CLAIM_DX : FAR])
+      .failOffsetY([-FAIL_DY, FAIL_DY])
+      .onStart(() => {
+        armed.value = releaseWouldAct(tx.value, config, side);
+        runOnJS(begin)();
+      })
+      .onUpdate((e) => {
+        const next = dragOffset({ dx: e.translationX, dy: e.translationY, vx: 0 }, config, side);
+        tx.value = next;
+        const nowArmed = releaseWouldAct(next, config, side);
+        if (nowArmed !== armed.value) {
+          armed.value = nowArmed;
+          if (nowArmed) runOnJS(haptic)('selection');
+        }
+      })
+      .onEnd((e, success) => {
+        if (success) runOnJS(finish)(e.translationX, e.translationY, e.velocityX / 1000);
+        else runOnJS(cancel)();
+      })
+      .onFinalize(() => {
+        runOnJS(releaseScroll)();
+      });
+  }, [leftAction, rightAction, mode, openSide, tx, armed, begin, finish, cancel, releaseScroll]);
 
-  // Built once. Every handler reads `latest.current`, so a rebuild would be a
-  // no-op anyway — which is what makes useMemo (free to discard its cache)
-  // safe here.
-  const responder = React.useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, g) => {
-          if (!shouldClaimGesture(g, latest.current, openSideRef.current)) return false;
-          claimed.current = true;
-          return true;
-        },
-        onPanResponderGrant: () => {
-          dragging.current = true;
-          setBandsMounted(true);
-        },
-        onPanResponderMove: (_, g) => {
-          dx.setValue(dragOffset(g, latest.current, openSideRef.current));
-        },
-        onPanResponderRelease: (_, g) => {
-          claimed.current = false;
-          dragging.current = false;
-          const outcome = resolveRelease(g, latest.current, openSideRef.current);
-          switch (outcome.kind) {
-            case 'open':
-              openTo(outcome.side);
-              break;
-            case 'close':
-              close();
-              break;
-            case 'fire':
-              fly(outcome.direction * (widthRef.current || EXIT_DISTANCE), outcome.action);
-              break;
-            case 'settle':
-              settle();
-              break;
-          }
-        },
-        onPanResponderTerminate: () => {
-          dragging.current = false;
-          if (latest.current.mode === 'reveal') close();
-          else settle();
-          claimed.current = false;
-        },
-        onPanResponderTerminationRequest: () => !claimed.current,
-      }),
-    [],
-  );
+  const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateX: tx.value }] }));
+  const leftBandStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-1, 0, 1], [0, 0, 1], Extrapolation.CLAMP),
+  }));
+  const rightBandStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-1, 0, 1], [1, 0, 0], Extrapolation.CLAMP),
+  }));
+  const leftIconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(tx.value, [0, COMMIT_THRESHOLD], [0.85, 1.15], Extrapolation.CLAMP) }],
+  }));
+  const rightIconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(tx.value, [-COMMIT_THRESHOLD, 0], [1.15, 0.85], Extrapolation.CLAMP) }],
+  }));
 
   const onLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
     widthRef.current = e.nativeEvent.layout.width;
   };
 
   if (mode === 'reveal') {
-    // Reveal mode: bands sit at the row edges with a fixed REVEAL_WIDTH and
-    // are tap targets. The row slides over them; releasing past the activation
-    // threshold snaps the row to the open position so the band is fully
-    // visible and tappable.
     const renderRevealBand = (action: SwipeAction, side: 'left' | 'right') => {
       if (action === 'none') return null;
       const meta = ACTION_META[action];
@@ -305,31 +295,34 @@ export const SwipeableRow = React.memo(function SwipeableRow({
     };
 
     return (
-      <View style={styles.wrap} onLayout={onLayout} {...responder.panHandlers}>
-        {bandsMounted ? renderRevealBand(rightAction, 'left') : null}
-        {bandsMounted ? renderRevealBand(leftAction, 'right') : null}
-        <Animated.View style={[styles.content, { transform: [{ translateX: dx }] }]}>
-          {children}
-          {/* When an action is revealed, an overlay absorbs taps on the row so
-              a tap closes the swipe instead of opening the email. */}
-          {openSide ? (
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={close}
-            />
-          ) : null}
+      <GestureDetector gesture={pan}>
+        <Animated.View
+          style={styles.wrap}
+          onLayout={onLayout}
+          entering={appearing ? ROW_ENTER : undefined}
+          exiting={leaving ? ROW_EXIT : undefined}
+        >
+          {bandsMounted ? renderRevealBand(rightAction, 'left') : null}
+          {bandsMounted ? renderRevealBand(leftAction, 'right') : null}
+          <Animated.View style={[styles.content, contentStyle]}>
+            {children}
+            {openSide ? (
+              <Pressable
+                style={StyleSheet.absoluteFill}
+                onPress={() => close()}
+              />
+            ) : null}
+          </Animated.View>
         </Animated.View>
-      </View>
+      </GestureDetector>
     );
   }
 
-  // Instant mode: bands fill the gap behind the row as it's dragged.
   const renderInstantBand = (action: SwipeAction, side: 'left' | 'right') => {
     if (action === 'none') return null;
     const meta = ACTION_META[action];
     const Icon = actionIcon(action, context);
     const label = actionLabel(action, context, t);
-    const { iconScale } = bandAnimations[side];
     return (
       <View
         style={[
@@ -338,7 +331,7 @@ export const SwipeableRow = React.memo(function SwipeableRow({
           side === 'left' ? { justifyContent: 'flex-start' } : { justifyContent: 'flex-end' },
         ]}
       >
-        <Animated.View style={[styles.bandInner, { transform: [{ scale: iconScale }] }]}>
+        <Animated.View style={[styles.bandInner, side === 'left' ? leftIconStyle : rightIconStyle]}>
           <Icon size={22} color="#fff" />
           <Text style={styles.bandLabel}>{label}</Text>
         </Animated.View>
@@ -347,21 +340,28 @@ export const SwipeableRow = React.memo(function SwipeableRow({
   };
 
   return (
-    <View style={styles.wrap} onLayout={onLayout} {...responder.panHandlers}>
-      {bandsMounted ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: bandAnimations.left.opacity }]} pointerEvents="none">
-          {renderInstantBand(rightAction, 'left')}
+    <GestureDetector gesture={pan}>
+      <Animated.View
+        style={styles.wrap}
+        onLayout={onLayout}
+        entering={appearing ? ROW_ENTER : undefined}
+        exiting={leaving ? ROW_EXIT : undefined}
+      >
+        {bandsMounted ? (
+          <Animated.View style={[StyleSheet.absoluteFill, leftBandStyle]} pointerEvents="none">
+            {renderInstantBand(rightAction, 'left')}
+          </Animated.View>
+        ) : null}
+        {bandsMounted ? (
+          <Animated.View style={[StyleSheet.absoluteFill, rightBandStyle]} pointerEvents="none">
+            {renderInstantBand(leftAction, 'right')}
+          </Animated.View>
+        ) : null}
+        <Animated.View style={[styles.content, contentStyle]}>
+          {children}
         </Animated.View>
-      ) : null}
-      {bandsMounted ? (
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: bandAnimations.right.opacity }]} pointerEvents="none">
-          {renderInstantBand(leftAction, 'right')}
-        </Animated.View>
-      ) : null}
-      <Animated.View style={[styles.content, { transform: [{ translateX: dx }] }]}>
-        {children}
       </Animated.View>
-    </View>
+    </GestureDetector>
   );
 }, sameRowProps);
 

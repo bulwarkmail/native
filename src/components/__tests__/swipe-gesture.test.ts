@@ -5,6 +5,10 @@ import {
   resolveRelease,
   restingOffset,
   exitsRow,
+  releaseWouldAct,
+  flyDuration,
+  FLY_MIN_MS,
+  FLY_MAX_MS,
   COMMIT_THRESHOLD,
   ACTIVATION_THRESHOLD,
   REVEAL_WIDTH,
@@ -158,5 +162,31 @@ describe('exitsRow', () => {
 
   it('keeps toggle actions in place', () => {
     expect((['read', 'star', 'pin', 'none'] as const).some(exitsRow)).toBe(false);
+  });
+});
+
+describe('releaseWouldAct', () => {
+  it('arms an instant swipe once the row is past the commit distance on a side with an action', () => {
+    expect(releaseWouldAct(COMMIT_THRESHOLD - 1, instant(), null)).toBe(false);
+    expect(releaseWouldAct(COMMIT_THRESHOLD, instant(), null)).toBe(true);
+    expect(releaseWouldAct(-COMMIT_THRESHOLD, instant(), null)).toBe(true);
+    expect(releaseWouldAct(COMMIT_THRESHOLD, instant({ rightAction: 'none' }), null)).toBe(false);
+  });
+
+  it('arms a reveal swipe once the row is past the activation distance', () => {
+    expect(releaseWouldAct(ACTIVATION_THRESHOLD + 1, reveal(), null)).toBe(true);
+    expect(releaseWouldAct(ACTIVATION_THRESHOLD - 1, reveal(), null)).toBe(false);
+  });
+});
+
+describe('flyDuration', () => {
+  it('lets a fast flick leave the row at the speed it was thrown', () => {
+    expect(flyDuration(300, 3)).toBeCloseTo(200);
+    expect(flyDuration(300, -3)).toBeCloseTo(200);
+  });
+
+  it('keeps a slow release from crawling off and a hard flick from vanishing', () => {
+    expect(flyDuration(300, 0)).toBe(FLY_MAX_MS);
+    expect(flyDuration(300, 50)).toBe(FLY_MIN_MS);
   });
 });

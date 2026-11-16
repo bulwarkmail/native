@@ -15,6 +15,7 @@ import SenderAvatar from '../components/SenderAvatar';
 import MessagePane from '../components/MessagePane';
 import SidebarDrawer from '../components/SidebarDrawer';
 import { SwipeableRow } from '../components/SwipeableRow';
+import { SwipeLockedFlatList } from '../components/SwipeLockedFlatList';
 import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
 import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import {
@@ -774,7 +775,7 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
           </Text>
         </View>
       ) : (
-        <FlatList
+        <SwipeLockedFlatList
           ref={listRef}
           data={emails}
           keyExtractor={rowKey}

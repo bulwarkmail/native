@@ -82,6 +82,7 @@ export function dragOffset(
   config: SwipeConfig,
   openSide: OpenSide,
 ): number {
+  'worklet';
   const reveal = config.mode === 'reveal';
   const overshoot = reveal ? MAX_DRAG_OVERSHOOT_REVEAL : MAX_DRAG_OVERSHOOT_INSTANT;
   const base = reveal ? restingOffset(openSide) : 0;
@@ -90,9 +91,28 @@ export function dragOffset(
 
 /** Where the row sits at rest, given which side is open. */
 export function restingOffset(openSide: OpenSide): number {
+  'worklet';
   if (openSide === 'right') return REVEAL_WIDTH;
   if (openSide === 'left') return -REVEAL_WIDTH;
   return 0;
+}
+
+export function releaseWouldAct(offset: number, config: SwipeConfig, openSide: OpenSide): boolean {
+  'worklet';
+  const reach = config.mode === 'reveal' ? ACTIVATION_THRESHOLD : COMMIT_THRESHOLD;
+  const strict = config.mode === 'reveal';
+  if (offset > 0) return config.rightAction !== 'none' && (strict ? offset > reach : offset >= reach);
+  if (offset < 0) return config.leftAction !== 'none' && (strict ? offset < -reach : offset <= -reach);
+  return false;
+}
+
+export const FLY_MIN_MS = 120;
+export const FLY_MAX_MS = 260;
+
+export function flyDuration(distance: number, velocity: number): number {
+  const speed = Math.abs(velocity);
+  if (speed === 0) return FLY_MAX_MS;
+  return Math.max(FLY_MIN_MS, Math.min(FLY_MAX_MS, (2 * Math.abs(distance)) / speed));
 }
 
 /** What releasing the drag here should do. */

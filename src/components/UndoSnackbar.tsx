@@ -13,6 +13,7 @@ import { useLocaleStore } from '../stores/locale-store';
 import type { RootStackParamList } from '../navigation/types';
 import { announce } from '../lib/announce';
 import { lastingToastDuration } from '../lib/toast-duration';
+import { haptic } from '../lib/haptics';
 
 // At least this long; the "Notification duration" setting can make it
 // longer, or keep the bar until it is replaced (lib/toast-duration).
@@ -129,6 +130,7 @@ export function UndoSnackbar() {
   const onUndo = async () => {
     if (!shown) return;
     if (!shown.send) {
+      haptic('light');
       void undoLast();
       return;
     }
