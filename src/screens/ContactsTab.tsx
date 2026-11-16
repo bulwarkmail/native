@@ -8,7 +8,7 @@ import ContactDetailScreen from './ContactDetailScreen';
 import GroupDetailScreen from './GroupDetailScreen';
 import type { ContactCard } from '../api/types';
 import { isGroup } from '../lib/contact-utils';
-import { useFoldAlignedListWidth } from '../lib/use-fold-panes';
+import { useFoldAlignedListWidth, useLaptopFoldY } from '../lib/use-fold-panes';
 import { paneLayoutFor, usePaneArea } from '../lib/use-layout';
 import { PaneScreen, type PaneTarget } from '../navigation/pane';
 import { useLocaleStore } from '../stores/locale-store';
@@ -40,6 +40,11 @@ export default function ContactsTab() {
   const panes = paneLayoutFor(area.window, area.contentWidth);
   const { isSplit } = panes;
   const listWidth = useFoldAlignedListWidth(panes.listWidth, area.contentWidth);
+  // An iPhone Duo half open like a laptop: the contact on the upright half,
+  // the list on the half lying flat, nothing across the fold. The contact
+  // lies over the top of the row (see MailTab on why not a column).
+  const foldY = useLaptopFoldY();
+  const stacked = isSplit && foldY != null;
   const [open, setOpen] = React.useState<Open | null>(null);
 
   // Narrowed with a contact open: hand it to the stack.
@@ -65,13 +70,14 @@ export default function ContactsTab() {
   // or goes, and the row measures the room it has.
   return (
     <View style={styles.row} onLayout={area.onLayout}>
-      <View style={isSplit ? [styles.listPane, { width: listWidth }] : styles.singlePane}>
+      <View style={stacked ? [styles.singlePane, { marginTop: foldY }] : isSplit ? [styles.listPane, { width: listWidth }] : styles.singlePane}>
         <ContactsScreen
           onOpenContact={isSplit ? (contact) => setOpen(openFor(contact)) : undefined}
           activeContactId={isSplit ? activeId : undefined}
+          belowDetail={stacked}
         />
       </View>
-      {isSplit && <View style={styles.detailPane}>
+      {isSplit && <View style={stacked ? [styles.detailAbove, { height: foldY }] : styles.detailPane}>
         {open ? (
           <PaneScreen
             key={activeId ?? undefined}
@@ -98,6 +104,10 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
+    detailAbove: {
+      position: 'absolute', top: 0, left: 0, right: 0,
+      borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.background,
+    },
     singlePane: { flex: 1 },
     detailPane: { flex: 1 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },

@@ -1,7 +1,7 @@
 import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHalfOpen } from './device-hinge';
-import { TAB_RAIL_WIDTH, foldAlignedPanes, layoutFor, tabBarPositionFor } from './use-layout';
+import { TAB_RAIL_WIDTH, foldAlignedPanes, laptopFoldY, layoutFor, tabBarPositionFor } from './use-layout';
 
 /**
  * The list's width in a tab's list-detail split (Contacts, Settings) on an
@@ -20,4 +20,15 @@ export function useFoldAlignedListWidth(listWidth: number, room: number): number
   const rail = tabBarPositionFor(window, width, { top, left, right }) === 'left' ? TAB_RAIL_WIDTH : 0;
   const split = { ...window, isSplit: true, listWidth, detailWidth: room - listWidth };
   return foldAlignedPanes(split, width, left + rail).listWidth;
+}
+
+/**
+ * Where the fold crosses the window of an iPhone Duo half open like a laptop
+ * (`laptopFoldY`), else null. A tab's list-detail split stacks there instead:
+ * the detail over the top of the row down to the fold, the list below it.
+ */
+export function useLaptopFoldY(): number | null {
+  const halfOpen = useHalfOpen();
+  const { width, height } = useWindowDimensions();
+  return laptopFoldY(halfOpen, width, height);
 }

@@ -120,9 +120,11 @@ interface ContactsScreenProps {
   onOpenContact?: (contact: ContactCard) => void;
   /** The contact open in the detail pane. */
   activeContactId?: string | null;
+  /** Below the open contact (an iPhone Duo half open like a laptop): full width, the status bar not above it. */
+  belowDetail?: boolean;
 }
 
-export default function ContactsScreen({ onOpenContact, activeContactId = null }: ContactsScreenProps = {}) {
+export default function ContactsScreen({ onOpenContact, activeContactId = null, belowDetail = false }: ContactsScreenProps = {}) {
   const c = useColors();
   const collectionNames = useCollectionNames();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -455,7 +457,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
 
   // Beside a contact pane (ContactsTab) the pane keeps clear of the right edge.
   return (
-    <SafeAreaView style={styles.container} edges={onOpenContact ? ['top', 'left'] : ['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={belowDetail ? ['left', 'right'] : onOpenContact ? ['top', 'left'] : ['top', 'left', 'right']}>
       <ContactsSidebarDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <View style={styles.header}>
