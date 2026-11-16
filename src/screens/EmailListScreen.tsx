@@ -512,6 +512,8 @@ interface EmailListScreenProps {
   sidebarDocked?: boolean;
   /** A unified view is shown in this list's place: Back is that view's. */
   covered?: boolean;
+  /** Below the reader (an iPhone Duo half open like a laptop): the status bar is not above it. */
+  belowReader?: boolean;
 }
 
 export default function EmailListScreen({
@@ -521,6 +523,7 @@ export default function EmailListScreen({
   split: isSplit = false,
   sidebarDocked = false,
   covered = false,
+  belowReader = false,
 }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -1631,7 +1634,7 @@ export default function EmailListScreen({
     <View
       ref={rootRef}
       onLayout={reportListColumn}
-      style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: rightInset }]}
+      style={[styles.container, { paddingTop: belowReader ? 0 : insets.top, paddingLeft: insets.left, paddingRight: rightInset }]}
     >
       {/* Header */}
       {selectionMode ? (

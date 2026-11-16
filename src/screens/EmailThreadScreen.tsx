@@ -77,6 +77,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
   embedded?: boolean;
   /** The pager moved to another message (the list highlights it). */
   onActiveChange?: (emailId: string) => void;
+  /**
+   * In the pane of an iPhone Duo half open like a laptop: the fold's place
+   * below the viewer's top. The message ends there and the bars follow below
+   * it, on the half lying flat.
+   */
+  foldAt?: number | null;
 };
 
 // How much of the card above the opened one stays in view when a long
@@ -111,7 +117,7 @@ export default function EmailThreadScreen(props: Props) {
   return <EmailViewer key={instance.current.key} {...props} />;
 }
 
-function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Props) {
+function EmailViewer({ route, navigation, embedded = false, onActiveChange, foldAt = null }: Props) {
   const c = useColors();
   const scaledType = useTypography();
   const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
@@ -892,30 +898,58 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   // else the bars stay as they are.
   const inColumn = !embedded && fitsStatusColumn(insets, windowHeight, 1 + topItems.length + bottomItems.length);
 
+  // An iPhone Duo half open like a laptop (`foldAt`): the message keeps to the
+  // upright half and the bars sit below the fold, on the half lying flat. A
+  // keyboard covers that half, so only what reaches above the fold counts for
+  // the message, and the bars stay where they are under it.
+  const belowFold = foldAt != null;
+  const paneKbObstruction = belowFold ? Math.max(0, kbObstruction - (windowHeight - foldAt)) : kbObstruction;
+  const toolbar = !inColumn && (
+    <View style={[styles.toolbar, embedded && styles.toolbarEmbedded, belowFold && { paddingLeft: insets.left + spacing.sm, paddingRight: insets.right + spacing.sm }]}>
+      {!embedded && (
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.toolbarBack}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
+          <ArrowLeft size={22} color={c.text} />
+        </Pressable>
+      )}
+      <View style={styles.toolbarActions}>
+        {topItems.map((item) => (
+          <ToolbarButton key={item.key} icon={item.icon(18, c.textSecondary)} label={item.label} onPress={item.onPress} />
+        ))}
+      </View>
+    </View>
+  );
+  // Hidden while the keyboard is up so the quick reply stays visible.
+  const bottomBar = (belowFold || kbObstruction === 0) && !inColumn && (
+    <View
+      style={[
+        styles.bottomBar,
+        belowFold && styles.bottomBarBelowFold,
+        { paddingBottom: belowFold ? 4 : Math.max(insets.bottom, 4), paddingLeft: insets.left, paddingRight: insets.right },
+      ]}
+    >
+      {bottomItems.map((item) => (
+        <BottomBarButton
+          key={item.key}
+          icon={item.icon(20, item.key === 'prev' || item.key === 'next' ? c.textMuted : c.textSecondary)}
+          label={item.label}
+          onPress={item.onPress}
+          disabled={item.disabled}
+        />
+      ))}
+    </View>
+  );
+
   return (
     <>
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, belowFold && { flex: 0, height: foldAt }]} edges={['top', 'left', 'right']}>
       {/* Toolbar */}
-      {!inColumn && (
-      <View style={[styles.toolbar, embedded && styles.toolbarEmbedded]}>
-        {!embedded && (
-          <Pressable
-            onPress={() => navigation.goBack()}
-            style={styles.toolbarBack}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', 'Back')}
-          >
-            <ArrowLeft size={22} color={c.text} />
-          </Pressable>
-        )}
-        <View style={styles.toolbarActions}>
-          {topItems.map((item) => (
-            <ToolbarButton key={item.key} icon={item.icon(18, c.textSecondary)} label={item.label} onPress={item.onPress} />
-          ))}
-        </View>
-      </View>
-      )}
+      {!belowFold && toolbar}
 
       {error && !email ? (
         <View style={styles.centered}>
@@ -976,8 +1010,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
                   ensureThread={ensureThread}
                   scheduleMarkRead={scheduleMarkRead}
                   styles={styles}
-                  bottomBarHeight={inColumn ? insets.bottom : bottomBarHeight}
-                  kbObstruction={item.id === activeEmailId ? kbObstruction : 0}
+                  bottomBarHeight={belowFold ? 0 : inColumn ? insets.bottom : bottomBarHeight}
+                  kbObstruction={item.id === activeEmailId ? paneKbObstruction : 0}
                   onToggleStar={toggleStarFor}
                   onAddressPress={setAddressSheet}
                   onEmailPatched={onEmailPatched}
@@ -991,20 +1025,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
           )}
           </View>
 
-          {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
-          {kbObstruction === 0 && !inColumn && (
-            <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4), paddingLeft: insets.left, paddingRight: insets.right }]}>
-              {bottomItems.map((item) => (
-                <BottomBarButton
-                  key={item.key}
-                  icon={item.icon(20, item.key === 'prev' || item.key === 'next' ? c.textMuted : c.textSecondary)}
-                  label={item.label}
-                  onPress={item.onPress}
-                  disabled={item.disabled}
-                />
-              ))}
-            </View>
-          )}
+          {!belowFold && bottomBar}
         </>
       )}
 
@@ -1095,6 +1116,9 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
       <QuickRuleSheet visible={rulesOpen} email={email ?? null} mailboxes={scopedMailboxes} onClose={() => setRulesOpen(false)} />
     </SafeAreaView>
+    {belowFold && toolbar}
+    {/* Not under a message that failed to load: there is nothing to reply to. */}
+    {belowFold && !(error && !email) && bottomBar}
     {/* Beside the screen's root, which pads for the column: drawn over the column itself. */}
     {inColumn && (
       <StatusColumnBar
@@ -1990,6 +2014,8 @@ function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypogra
     borderTopWidth: 1,
     borderTopColor: c.border,
   },
+  // In the flow below the message, not over its foot.
+  bottomBarBelowFold: { position: 'relative' },
   bottomBarBtn: {
     flex: 1,
     alignItems: 'center',

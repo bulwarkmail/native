@@ -6,7 +6,7 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ t
 import {
   DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
   mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets, tabBarPositionFor,
-  hasStatusColumn, foldAlignedPanes, fitsStatusColumn,
+  hasStatusColumn, foldAlignedPanes, fitsStatusColumn, laptopFoldY,
 } from '../use-layout';
 
 const NO_INSETS = { top: 0, left: 0, right: 0 };
@@ -351,5 +351,18 @@ describe('floatingCardFrame', () => {
     expect(1280 - f.left - f.right).toBe(360);
     expect(f.right).toBe(20);
     expect(f.bottom).toBe(20);
+  });
+});
+
+describe('laptopFoldY', () => {
+  it('puts the fold half way down the inner display of a Duo half open and upright', () => {
+    expect(laptopFoldY(true, 669, 951)).toBe(476);
+  });
+
+  it('is nowhere when the Duo is flat, closed, or half open like a book', () => {
+    expect(laptopFoldY(false, 669, 951)).toBeNull();
+    expect(laptopFoldY(false, 466, 678)).toBeNull();
+    // Sideways the fold runs down the window: the panes meet at it instead (foldAlignedPanes).
+    expect(laptopFoldY(true, 951, 669)).toBeNull();
   });
 });

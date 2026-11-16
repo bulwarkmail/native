@@ -221,6 +221,16 @@ export function foldAlignedPanes(layout: PaneLayout, windowWidth: number, listLe
 }
 
 /**
+ * Where the fold crosses the window of an iPhone Duo set down half open like
+ * a laptop (the inner display upright, the hinge partially open): half way
+ * down. Apple asks apps to keep content clear of it, what is read above and
+ * the controls below ("Designing for iPhone Duo"). Null in any other pose.
+ */
+export function laptopFoldY(halfOpen: boolean, width: number, height: number): number | null {
+  return halfOpen && height > width ? Math.round(height / 2) : null;
+}
+
+/**
  * The layout of the mail list and reader, `contentWidth` dp wide (the window
  * less the tab rail and the side insets). With the reading pane off (#93)
  * they keep the phone's single pane, and the folder list its drawer, at any

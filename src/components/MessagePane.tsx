@@ -20,6 +20,11 @@ interface Props {
   onReplace: (params: ThreadParams) => void;
   /** The pager moved to another message. */
   onActiveChange: (emailId: string) => void;
+  /**
+   * An iPhone Duo half open like a laptop: the fold's place below the pane's
+   * top. The message ends there and the viewer's buttons follow below it.
+   */
+  foldAt?: number | null;
 }
 
 /**
@@ -28,7 +33,7 @@ interface Props {
  * navigation that keeps it in the pane: `goBack` means "this message is
  * done", another message replaces it, and other routes go to the stack.
  */
-export default function MessagePane({ message, navigation, onRemoved, onReplace, onActiveChange }: Props) {
+export default function MessagePane({ message, navigation, onRemoved, onReplace, onActiveChange, foldAt = null }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
@@ -57,11 +62,12 @@ export default function MessagePane({ message, navigation, onRemoved, onReplace,
         navigation={paneNavigation as unknown as React.ComponentProps<typeof EmailThreadScreen>['navigation']}
         embedded
         onActiveChange={onActiveChange}
+        foldAt={foldAt}
       />
     );
   }
   return (
-    <View style={styles.empty}>
+    <View style={[styles.empty, foldAt != null && { flex: 0, height: foldAt }]}>
       <Mail size={40} color={c.textMuted} strokeWidth={1.5} />
       <Text style={styles.emptyTitle}>{t('email_viewer.no_email_selected', 'No email selected')}</Text>
       <Text style={styles.emptyText}>
