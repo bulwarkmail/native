@@ -1,11 +1,11 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, Pressable, ScrollView, Linking, Alert, Share,
-  Animated, Dimensions, Easing,
+  Animated, Dimensions, Easing, useWindowDimensions,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useInPane } from '../navigation/pane';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -32,6 +32,8 @@ import { findRelatedContact } from '../lib/contact-related';
 import SenderAvatar from '../components/SenderAvatar';
 import ContactPhoto from '../components/contacts/ContactPhoto';
 import Dialog from '../components/Dialog';
+import StatusColumnBar, { type BarItem } from '../components/StatusColumnBar';
+import { fitsStatusColumn } from '../lib/use-layout';
 import { ContactActivity } from '../components/contacts/ContactActivity';
 import AddressBookPickerSheet from '../components/contacts/AddressBookPickerSheet';
 import { spacing, radius, typography, type ThemePalette } from '../theme/tokens';
@@ -143,6 +145,8 @@ export default function ContactDetailScreen() {
   // Birthdays and anniversaries in the UI language (#1616).
   const uiLocale = useLocaleStore((s) => s.locale);
   const inPane = useInPane();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { contactId } = route.params;
 
   const contact = useContactsStore((s) => s.contacts.find((c) => c.id === contactId));
@@ -379,11 +383,28 @@ export default function ContactDetailScreen() {
     },
   ].filter(Boolean) as MoreItem[];
 
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo's
+  // outer display), the header's buttons go into it, as the message viewer's
+  // do; the header keeps its title.
+  const inColumn = !inPane && fitsStatusColumn(insets, windowHeight, readOnly ? 2 : 3);
+  const columnItems: BarItem[] = [
+    ...(readOnly ? [] : [{
+      key: 'edit', icon: (size: number, color: string) => <Pencil size={size} color={color} />,
+      label: t('contacts.context_menu.edit', 'Edit'),
+      onPress: () => navigation.navigate('ContactForm', { contactId: contact.id }),
+    }]),
+    {
+      key: 'more', icon: (size, color) => <MoreHorizontal size={size} color={color} />,
+      label: t('contacts.detail.more_actions', 'More actions'), onPress: () => setMoreOpen(true),
+    },
+  ];
+
   return (
+    <>
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <View style={[styles.header, inPane && styles.headerInPane]}>
+      <View style={[styles.header, (inPane || inColumn) && styles.headerInPane]}>
         {/* In a split view's pane the list is right next to it: no back. */}
-        {!inPane && (
+        {!inPane && !inColumn && (
           <Pressable
             onPress={() => navigation.goBack()}
             style={styles.headerBtn}
@@ -397,6 +418,7 @@ export default function ContactDetailScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>
           {isGroup(contact) ? t('contacts.group', 'Group') : t('contacts.contact', 'Contact')}
         </Text>
+        {!inColumn && (
         <View style={styles.headerActions}>
           {!readOnly && (
             <Pressable
@@ -419,6 +441,7 @@ export default function ContactDetailScreen() {
             <MoreHorizontal size={20} color={c.text} />
           </Pressable>
         </View>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -816,6 +839,15 @@ export default function ContactDetailScreen() {
         onPick={(id) => { void doMove(id); }}
       />
     </SafeAreaView>
+    {/* Beside the screen's root, which pads for the column: drawn over the column itself. */}
+    {inColumn && (
+      <StatusColumnBar
+        back={{ key: 'back', icon: (size, color) => <ArrowLeft size={size} color={color} />, label: t('common.back', 'Back'), onPress: () => navigation.goBack() }}
+        top={columnItems}
+        bottom={[]}
+      />
+    )}
+    </>
   );
 }
 
