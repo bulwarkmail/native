@@ -16,6 +16,7 @@ import MessagePane from '../components/MessagePane';
 import SidebarDrawer from '../components/SidebarDrawer';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { SwipeLockedFlatList } from '../components/SwipeLockedFlatList';
+import { usePullRefresh } from '../lib/pull-refresh';
 import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
 import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import {
@@ -197,6 +198,8 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
       if (seq === loadSeq.current) setLoading(false);
     }
   }, [accountIds, fetchOpts, reloadTracker, highlight]);
+
+  const pullRefresh = usePullRefresh(load);
 
   const loadMore = React.useCallback(async () => {
     if (loading || loadingMore || !hasMoreRef.current) return;
@@ -781,8 +784,8 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
           keyExtractor={rowKey}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          refreshing={loading}
-          onRefresh={() => { void load(); }}
+          refreshing={pullRefresh.refreshing}
+          onRefresh={pullRefresh.onRefresh}
           onEndReached={() => { void loadMore(); }}
           onEndReachedThreshold={0.3}
           ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: spacing.md }} color={c.primary} /> : null}

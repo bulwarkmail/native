@@ -56,6 +56,7 @@ import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
 import { createDepartures } from '../lib/departures';
+import { usePullRefresh } from '../lib/pull-refresh';
 import { useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -1045,7 +1046,7 @@ export default function EmailListScreen({
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
-  const handleRefresh = React.useCallback(() => { void refreshEmails(); }, [refreshEmails]);
+  const pullRefresh = usePullRefresh(refreshEmails);
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
@@ -2047,8 +2048,8 @@ export default function EmailListScreen({
           onEndReachedThreshold={0.3}
           onScrollBeginDrag={scrollMonitor.start}
           onMomentumScrollEnd={scrollMonitor.stop}
-          refreshing={loading}
-          onRefresh={handleRefresh}
+          refreshing={pullRefresh.refreshing}
+          onRefresh={pullRefresh.onRefresh}
           {...rowHoverListProps}
         />
       )}
