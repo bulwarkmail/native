@@ -270,6 +270,17 @@ describe('fitsStatusColumn', () => {
     expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, 14, 'ios')).toBe(false);
   });
 
+  it("fits the composer's buttons above a keyboard, as long as they clear the status bar", () => {
+    // Close, Discard, Attach, Schedule and Send on the outer display; the
+    // keyboard's height stands in for the bottom inset.
+    const COMPOSER = 5;
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, COMPOSER, 'ios')).toBe(true);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 300 }, 678, COMPOSER, 'ios')).toBe(true);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 310 }, 678, COMPOSER, 'ios')).toBe(false);
+    // Without Schedule (a server that cannot hold mail) one more button's height is free.
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 340 }, 678, COMPOSER - 1, 'ios')).toBe(true);
+  });
+
   it('never puts them in a column that is not there', () => {
     expect(fitsStatusColumn({ top: 59, left: 0, right: 0, bottom: 34 }, 932, MESSAGE, 'ios')).toBe(false);
     expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, MESSAGE, 'android')).toBe(false);
