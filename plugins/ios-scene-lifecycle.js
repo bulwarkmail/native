@@ -38,12 +38,25 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     self.window = window
     // React Native and Expo modules still look for the app delegate's window.
     appDelegate.window = window
+    // With scenes, a link that starts the app arrives in the connection
+    // options, not in the app delegate's launch options. React Native answers
+    // Linking.getInitialURL() from the launch options it was started with,
+    // so the link goes into them.
+    var launchOptions = appDelegate.launchOptions ?? [:]
+    if let url = connectionOptions.urlContexts.first?.url {
+      launchOptions[.url] = url
+    } else if let activity = connectionOptions.userActivities.first(where: { $0.activityType == NSUserActivityTypeBrowsingWeb }) {
+      launchOptions[.userActivityDictionary] = [
+        UIApplication.LaunchOptionsKey.userActivityType.rawValue: activity.activityType,
+        "UIApplicationLaunchOptionsUserActivityKey": activity,
+      ] as [String: Any]
+    }
     factory.startReactNative(
       withModuleName: "main",
       in: window,
-      launchOptions: appDelegate.launchOptions)
-    // With scenes, a link that starts the app arrives here and
-    // application(_:open:options:) is never called.
+      launchOptions: launchOptions)
+    // application(_:open:options:) is never called for that link either:
+    // Expo's subscribers get it here.
     open(connectionOptions.urlContexts)
     for activity in connectionOptions.userActivities {
       self.scene(scene, continue: activity)

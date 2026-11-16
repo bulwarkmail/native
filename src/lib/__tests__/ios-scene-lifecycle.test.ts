@@ -62,8 +62,11 @@ describe('the scene life cycle plugin', () => {
     const scene = out.slice(out.indexOf('class SceneDelegate'));
     expect(scene).toContain('UIWindow(windowScene: windowScene)');
     expect(scene).toContain('appDelegate.window = window');
-    expect(scene).toMatch(/factory\.startReactNative\(\s*withModuleName: "main",\s*in: window,\s*launchOptions: appDelegate\.launchOptions\)/);
-    // A link or activity that starts the app arrives in the connection options.
+    expect(scene).toMatch(/factory\.startReactNative\(\s*withModuleName: "main",\s*in: window,\s*launchOptions: launchOptions\)/);
+    // A link that starts the app arrives in the connection options; it goes
+    // into the launch options, where Linking.getInitialURL() reads it.
+    expect(scene).toContain('var launchOptions = appDelegate.launchOptions ?? [:]');
+    expect(scene).toContain('launchOptions[.url] = url');
     expect(scene).toContain('open(connectionOptions.urlContexts)');
     expect(scene).toContain('for activity in connectionOptions.userActivities');
   });
