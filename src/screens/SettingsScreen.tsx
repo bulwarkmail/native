@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard, Dimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
-import { useLayout } from '../lib/use-layout';
+import { useFoldAlignedListWidth } from '../lib/use-fold-panes';
+import { useLayout, usePaneArea } from '../lib/use-layout';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import {
   Accessibility, ArrowLeft, LogOut, Search, X, ChevronRight,
@@ -227,6 +228,8 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
   const { isSplit } = useLayout();
+  const { contentWidth, onLayout } = usePaneArea(true);
+  const listWidth = useFoldAlignedListWidth(SETTINGS_LIST_WIDTH, contentWidth);
   const [searchQuery, setSearchQuery] = useState('');
   // A tapped search result: its pane scrolls to the setting and flashes it.
   const [pendingHighlight, setPendingHighlight] = useState<{ tab: Tab; label: string } | null>(null);
@@ -673,8 +676,8 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
   if (!isSplit) return shownTab ? renderPage(shownTab) : list;
   return (
-    <View style={styles.splitRow}>
-      <View style={[styles.splitList, { width: SETTINGS_LIST_WIDTH }]}>{list}</View>
+    <View style={styles.splitRow} onLayout={onLayout}>
+      <View style={[styles.splitList, { width: listWidth }]}>{list}</View>
       <View style={styles.splitPage}>{shownTab ? renderPage(shownTab) : null}</View>
     </View>
   );

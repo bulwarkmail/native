@@ -8,6 +8,7 @@ import ContactDetailScreen from './ContactDetailScreen';
 import GroupDetailScreen from './GroupDetailScreen';
 import type { ContactCard } from '../api/types';
 import { isGroup } from '../lib/contact-utils';
+import { useFoldAlignedListWidth } from '../lib/use-fold-panes';
 import { paneLayoutFor, usePaneArea } from '../lib/use-layout';
 import { PaneScreen, type PaneTarget } from '../navigation/pane';
 import { useLocaleStore } from '../stores/locale-store';
@@ -36,7 +37,9 @@ export default function ContactsTab() {
   // List and contact side by side when the contact keeps its minimum width
   // next to the tab rail and the list (#104).
   const area = usePaneArea(true);
-  const { isSplit, listWidth } = paneLayoutFor(area.window, area.contentWidth);
+  const panes = paneLayoutFor(area.window, area.contentWidth);
+  const { isSplit } = panes;
+  const listWidth = useFoldAlignedListWidth(panes.listWidth, area.contentWidth);
   const [open, setOpen] = React.useState<Open | null>(null);
 
   // Narrowed with a contact open: hand it to the stack.
