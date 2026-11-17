@@ -240,17 +240,23 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         }
 
         if (emailId != null && accountId != null) {
-            for (name in mailActions(hasCode = copyCode != null, archive = archiveLabel != null)) {
-                val action = when (name) {
-                    "copyCode" -> copyCodeAction(ctx, notificationId, copyCode!!)
-                    "archive" -> broadcastAction(ctx, ACTION_ARCHIVE, "archive", notificationId, emailId, accountId, jmapAccountId)
-                        .let { NotificationCompat.Action.Builder(0, archiveLabel, it).build() }
-                    "markRead" -> markReadAction(ctx, notificationId, emailId, accountId, jmapAccountId, markReadLabel)
-                    "delete" -> deleteAction(ctx, notificationId, emailId, accountId, jmapAccountId, deleteLabel, deleteNeedsUnlock)
-                    else -> replyAction(ctx, notificationId, emailId, threadId, subject, accountId, jmapAccountId, replyLabel)
-                }
-                builder.addAction(action)
+            fun actionFor(name: String): NotificationCompat.Action = when (name) {
+                "copyCode" -> copyCodeAction(ctx, notificationId, copyCode!!)
+                "archive" -> broadcastAction(ctx, ACTION_ARCHIVE, "archive", notificationId, emailId, accountId, jmapAccountId)
+                    .let { NotificationCompat.Action.Builder(R.drawable.ic_action_archive, archiveLabel, it).build() }
+                "markRead" -> markReadAction(ctx, notificationId, emailId, accountId, jmapAccountId, markReadLabel)
+                "delete" -> deleteAction(ctx, notificationId, emailId, accountId, jmapAccountId, deleteLabel, deleteNeedsUnlock)
+                else -> replyAction(ctx, notificationId, emailId, threadId, subject, accountId, jmapAccountId, replyLabel)
             }
+            for (name in mailActions(hasCode = copyCode != null, archive = archiveLabel != null)) {
+                builder.addAction(actionFor(name))
+            }
+            // A watch shows these in place of the phone's three.
+            val onWatch = NotificationCompat.WearableExtender()
+            for (name in watchActions(archive = archiveLabel != null)) {
+                onWatch.addAction(actionFor(name))
+            }
+            builder.extend(onWatch)
         }
 
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -326,7 +332,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 markReadIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            return NotificationCompat.Action.Builder(0, markReadLabel, markReadPending).build()
+            return NotificationCompat.Action.Builder(R.drawable.ic_action_mark_read, markReadLabel, markReadPending).build()
         }
     }
 
@@ -355,7 +361,7 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
                 deleteIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            return NotificationCompat.Action.Builder(0, deleteLabel, deletePending)
+            return NotificationCompat.Action.Builder(R.drawable.ic_action_delete, deleteLabel, deletePending)
                 // Android 12+: unlock first, so a locked phone can't destroy mail.
                 .setAuthenticationRequired(deleteNeedsUnlock)
                 .build()
@@ -559,6 +565,15 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
             }
             return if (all.size > 3) all.filter { it != "markRead" }.take(3) else all
         }
+
+        /**
+         * The buttons of a mail notification mirrored to a watch: the ones
+         * that finish on the wrist. Reply opens the app and Copy code fills
+         * the phone's clipboard, so neither is offered there, which leaves
+         * room for Mark read beside Archive.
+         */
+        fun watchActions(archive: Boolean): List<String> =
+            if (archive) listOf("archive", "markRead", "delete") else listOf("markRead", "delete")
 
         fun emit(eventName: String, params: WritableMap?) {
             val module = currentInstance ?: return

@@ -120,6 +120,12 @@ class NotificationMailActionsTest {
     }
 
     @Test
+    fun `offers a watch the actions that need no phone`() {
+        assertEquals(listOf("archive", "markRead", "delete"), BulwarkFcmModule.watchActions(archive = true))
+        assertEquals(listOf("markRead", "delete"), BulwarkFcmModule.watchActions(archive = false))
+    }
+
+    @Test
     fun `reads the archive gate and the settings the actions follow`() {
         assertTrue(BulwarkNativePushFetcher.isArchiveEnabledForAccount(JSONObject()))
         assertFalse(BulwarkNativePushFetcher.isArchiveEnabledForAccount(JSONObject().put("archiveEnabled", false)))
