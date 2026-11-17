@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { jmapClient, type ServerProblem } from '../api/jmap-client';
 import { useNetworkStore } from './network-store';
+import { clearRefreshBackoff } from '../lib/oauth';
 
 /**
  * How long requests have to keep failing, with none answered in between,
@@ -54,9 +55,12 @@ jmapClient.onServerStatus((problem, accountId) => {
 });
 
 // Back online: the run of failures starts over rather than showing what
-// went wrong before the drop.
+// went wrong before the drop. The refresh waits go too: a wait started by a
+// captive portal or a proxy page on the last network must not hold back the
+// first refresh on this one.
 useNetworkStore.subscribe((state, previous) => {
   if (state.online && !previous.online) {
+    clearRefreshBackoff();
     useServerStatusStore.setState({ problem: null, since: null, failures: 0, shown: false });
   }
 });

@@ -1,4 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const { clearRefreshBackoff } = vi.hoisted(() => ({ clearRefreshBackoff: vi.fn() }));
+vi.mock('../../lib/oauth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/oauth')>()),
+  clearRefreshBackoff,
+}));
+
 import { SHOW_AFTER_MS, useServerStatusStore } from '../server-status-store';
 import { useNetworkStore } from '../network-store';
 
@@ -54,5 +61,15 @@ describe('server status store (#167)', () => {
     report('a', 'unreachable', SHOW_AFTER_MS + 1);
     report('a', 'unreachable', SHOW_AFTER_MS + 2);
     expect(useServerStatusStore.getState().shown).toBe(false);
+  });
+
+  it('lets the first refresh on a network that came back go out at once', () => {
+    clearRefreshBackoff.mockClear();
+    useNetworkStore.setState({ online: true, connected: true });
+    expect(clearRefreshBackoff).not.toHaveBeenCalled();
+    useNetworkStore.setState({ online: false, connected: false });
+    expect(clearRefreshBackoff).not.toHaveBeenCalled();
+    useNetworkStore.setState({ online: true, connected: true });
+    expect(clearRefreshBackoff).toHaveBeenCalledTimes(1);
   });
 });
