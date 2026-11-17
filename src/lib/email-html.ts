@@ -21,7 +21,7 @@
 // class-based colours (native #46/#49). When external content is blocked the
 // sheet is scrubbed of url()/@import/@font-face references instead.
 
-import { DARK_PENDING_CLASS, emailColorScheme, emailDarkModeCss, resolveColorSchemeMedia } from './email-dark-mode';
+import { DARK_PENDING_CLASS, emailColorScheme, emailDarkCanvas, emailDarkModeCss, resolveColorSchemeMedia } from './email-dark-mode';
 import { mailFontStack, readingFontFaceCss, type AppFont } from '../theme/reading-fonts';
 import { decodeCharacterReferences } from './structured-mail/html-parser';
 
@@ -864,6 +864,7 @@ export interface WrapOptions {
   /** When true, the host renders in dark mode: the head gets the dark
    *  fallback colours and the body stays hidden until the recolour pass ran. */
   isDark?: boolean;
+  darkCanvas?: string;
   messageSpacing?: MessageSpacing;
 }
 
@@ -909,7 +910,7 @@ function buildCsp(strict: boolean): string {
  * decision was native #49).
  */
 export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): PreparedEmailHtml {
-  const { blockRemoteImages = false, cidMap, isDark = true, messageSpacing = 'auto' } = options;
+  const { blockRemoteImages = false, cidMap, isDark = true, darkCanvas, messageSpacing = 'auto' } = options;
   const cleaned = stripDangerousTags(innerHtml);
   const withCids = cidMap ? replaceCidRefs(cleaned, cidMap) : cleaned;
   let processed = withCids;
@@ -927,7 +928,7 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
   // email-viewer.tsx recolorDark).
   const recolorDark = isDark;
   const colorScheme = emailColorScheme(isDark, hasNativeDark);
-  const darkCss = recolorDark ? emailDarkModeCss() : '';
+  const darkCss = recolorDark ? emailDarkModeCss(emailDarkCanvas(darkCanvas)) : '';
   const rootClass = recolorDark ? ` class="${DARK_PENDING_CLASS}"` : '';
 
   const word = isWordHtml(processed);

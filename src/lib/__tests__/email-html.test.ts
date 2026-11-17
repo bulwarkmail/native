@@ -259,12 +259,13 @@ describe('prepareEmailHtml', () => {
   // 7401ea665: the head only sets fallback colours and hides the body until
   // the pass ran.
   it('recolours a mail shown dark instead of inverting it', () => {
-    const plain = prepareEmailHtml('<p>x</p>', { isDark: true });
+    const plain = prepareEmailHtml('<p>x</p>', { isDark: true, darkCanvas: '#2e3440' });
     expect(plain.recolorDark).toBe(true);
     expect(plain.html).not.toContain('invert(1)');
     expect(plain.html).toContain('<html class="bulwark-dark-pending"');
-    expect(plain.html).toContain('body { color: #e6e6e6; background: #141414; }');
+    expect(plain.html).toContain('html.bulwark-dark-pending body { background-color: rgb(46, 52, 64) !important; }');
     expect(plain.html).toContain('animation: bulwark-dark-reveal 0s 1.5s forwards');
+    expect(plain.html).not.toContain('#141414');
 
     const light = prepareEmailHtml('<p>x</p>', { isDark: false });
     expect(light.recolorDark).toBe(false);

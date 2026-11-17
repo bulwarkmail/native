@@ -59,6 +59,20 @@ describe('bodyDocument', () => {
     expect(plain.html).not.toContain('Lexend');
   });
 
+  it('takes the dark theme background as the mail canvas and rebuilds when it changes', () => {
+    const nord = bodyDocument(input({ isDark: true, darkCanvas: '#2e3440' }));
+    expect(nord.html).toContain('background-color: rgb(46, 52, 64) !important');
+    const mocha = bodyDocument(input({ isDark: true, darkCanvas: '#1e1e2e' }));
+    expect(mocha).not.toBe(nord);
+    expect(mocha.html).toContain('background-color: rgb(30, 30, 46) !important');
+  });
+
+  it('puts an empty message on the dark theme background too', () => {
+    const empty = bodyDocument(input({ rawHtml: null, text: null, isDark: true, darkCanvas: '#2e3440' }));
+    expect(empty.html).toContain('(No body content available)');
+    expect(empty.html).toContain('background-color: rgb(46, 52, 64) !important');
+  });
+
   it('keeps messages apart by key', () => {
     const a = bodyDocument(input({ key: '|e1' }));
     const b = bodyDocument(input({ key: 'group|e1' }));
