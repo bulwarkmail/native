@@ -224,6 +224,55 @@ describe('archive and undo in quick succession', () => {
     expect(useEmailStore.getState().pendingUndo?.kind).toBe('archive');
   });
 
+  it('sends a move or a not-spam of the same mail only after the undo reached the server', async () => {
+    const mockMove = emailApi.moveEmail as ReturnType<typeof vi.fn>;
+    const mockUndoSpam = emailApi.undoSpam as ReturnType<typeof vi.fn>;
+    mockMove.mockResolvedValue(undefined);
+    mockUndoSpam.mockResolvedValue(undefined);
+    await useEmailStore.getState().archiveEmail('b');
+    const server = deferred();
+    mockRestore.mockReturnValueOnce(server.promise);
+
+    const undo = useEmailStore.getState().undoLast();
+    await flush();
+    const move = useEmailStore.getState().moveToMailbox('b', 'mb-1', 'mb-arch');
+    const notSpam = useEmailStore.getState().unmarkSpam(['b']);
+    await flush();
+    expect(mockMove).not.toHaveBeenCalled();
+    expect(mockUndoSpam).not.toHaveBeenCalled();
+
+    server.resolve();
+    await Promise.all([undo, move, notSpam]);
+    expect(mockMove).toHaveBeenCalledTimes(1);
+    expect(mockRestore.mock.invocationCallOrder[0]).toBeLessThan(mockMove.mock.invocationCallOrder[0]);
+  });
+
+  it('waits for every undo still out, not only the last one', async () => {
+    useEmailStore.setState({ pendingUndo: null });
+    await useEmailStore.getState().archiveEmail('a');
+    const first = deferred();
+    mockRestore.mockReturnValueOnce(first.promise);
+    const undoA = useEmailStore.getState().undoLast();
+    await flush();
+
+    // A second undo starts and finishes while the first is still out.
+    useEmailStore.setState({
+      pendingUndo: {
+        kind: 'archive', label: 'x', createdAt: Date.now(), accountId: TEST_ACCOUNT_ID,
+        items: [{ email: mail('c', 8), originalMailboxIds: { 'mb-1': true } }],
+      } as any,
+    });
+    await useEmailStore.getState().undoLast();
+
+    const again = useEmailStore.getState().archiveEmail('a');
+    await flush();
+    expect(mockArchive).toHaveBeenCalledTimes(1);
+
+    first.resolve();
+    await Promise.all([undoA, again]);
+    expect(mockArchive).toHaveBeenCalledTimes(2);
+  });
+
   it('restores once when undo is tapped twice', async () => {
     await useEmailStore.getState().archiveEmail('b');
 

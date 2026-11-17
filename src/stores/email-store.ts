@@ -1763,6 +1763,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   unmarkSpam: async (emailIds, viewed) => {
+    await undoReachedServer;
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1808,6 +1809,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   moveToMailbox: async (emailId, fromMailboxId, toMailboxId, viewed) => {
+    await undoReachedServer;
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -2443,7 +2445,10 @@ export const useEmailStore = create<EmailState>()(
       else byAccount.set(accountId ?? '', { accountId, items: [it] });
     }
     let reached!: () => void;
-    undoReachedServer = new Promise<void>((resolve) => { reached = resolve; });
+    // Chained: an undo started while another is still out must not let a
+    // following action overtake the first one.
+    const thisUndo = new Promise<void>((resolve) => { reached = resolve; });
+    undoReachedServer = Promise.all([undoReachedServer, thisUndo]).then(() => undefined);
     try {
       await applyOrQueueBatch(
         entry.items.map((it): OutboxOp => ({
