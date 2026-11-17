@@ -890,6 +890,12 @@
     "send_cancelled": "Sendinga er avbroten",
     "send_now_failed": "Klarte ikkje sende no"
   },
+  "server_status": {
+    "unreachable": "Får ikkje kontakt med {host}. Ny e-post kjem kanskje ikkje fram.",
+    "server_error": "{host} har problem. Ny e-post kjem kanskje ikkje fram.",
+    "rate_limited": "{host} avgrensar talet på førespurnader. Ny e-post kan bli forseinka.",
+    "sign_in_failing": "Innlogginga til {host} kan ikkje fornyast. Ny e-post kjem ikkje fram før ho er fornya."
+  },
   "settings": {
     "about": {
       "check_now": "Sjekk no",

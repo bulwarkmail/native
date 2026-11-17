@@ -1963,5 +1963,11 @@
       "unsupported": "不支援外出自動回覆",
       "until": "直到 {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "無法連線至 {host}。新郵件可能無法送達。",
+    "server_error": "{host} 發生問題。新郵件可能無法送達。",
+    "rate_limited": "{host} 正在限制請求。新郵件可能會延遲。",
+    "sign_in_failing": "無法續期您在 {host} 的登入。續期成功前不會收到新郵件。"
   }
 }

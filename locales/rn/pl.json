@@ -1964,5 +1964,11 @@
       "unsupported": "Automatyczne odpowiedzi są niedostępne",
       "until": "Do {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Nie można połączyć się z {host}. Nowe wiadomości mogą nie docierać.",
+    "server_error": "{host} ma problemy. Nowe wiadomości mogą nie docierać.",
+    "rate_limited": "{host} ogranicza liczbę żądań. Nowe wiadomości mogą przychodzić z opóźnieniem.",
+    "sign_in_failing": "Nie można odnowić logowania do {host}. Nowe wiadomości nie będą docierać, dopóki się to nie uda."
   }
 }

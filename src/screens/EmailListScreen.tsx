@@ -28,6 +28,7 @@ import { TagSheet } from '../components/TagSheet';
 import { useTagUndoGroup } from '../lib/tag-undo-group';
 import { selectAllA11y } from '../lib/select-all-a11y';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { ServerStatusBanner } from '../components/ServerStatusBanner';
 import { TrashRecoveryLink } from '../components/email/TrashRecoveryLink';
 import { RetentionNotice } from '../components/email/RetentionNotice';
 import {
@@ -1936,6 +1937,14 @@ export default function EmailListScreen({
       )}
 
       <OfflineBanner hint={emails.length > 0 ? t('email_list.showing_cached', 'Showing cached mail') : undefined} />
+      <ServerStatusBanner
+        onRetry={() => {
+          // As the error view's Retry: with no folder selected refreshEmails()
+          // returns at once.
+          if (mailboxes.length === 0 || !currentMailboxId) void fetchMailboxes();
+          else void refreshEmails();
+        }}
+      />
 
       {failedOps.length > 0 && (
         <View style={[styles.emptyFolderBanner, { borderColor: c.error }]}>

@@ -1967,5 +1967,11 @@
       "unsupported": "As respostas automáticas não estão disponíveis",
       "until": "Até {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Não foi possível acessar {host}. Novos e-mails podem não chegar.",
+    "server_error": "{host} está com problemas. Novos e-mails podem não chegar.",
+    "rate_limited": "{host} está limitando as solicitações. Novos e-mails podem atrasar.",
+    "sign_in_failing": "Não foi possível renovar o login em {host}. Novos e-mails não vão chegar até que ele seja renovado."
   }
 }

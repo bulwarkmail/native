@@ -1883,5 +1883,11 @@
       "unsupported": "Äraolekuteated pole saadaval",
       "until": "Kuni {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "{host} pole kättesaadav. Uued kirjad ei pruugi kohale jõuda.",
+    "server_error": "Serveril {host} on probleeme. Uued kirjad ei pruugi kohale jõuda.",
+    "rate_limited": "{host} piirab päringuid. Uued kirjad võivad hilineda.",
+    "sign_in_failing": "Sisselogimist serverisse {host} ei saa uuendada. Uued kirjad ei jõua kohale enne, kui see õnnestub."
   }
 }

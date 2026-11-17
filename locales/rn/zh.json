@@ -1963,5 +1963,11 @@
       "unsupported": "不支持外出自动回复",
       "until": "直到 {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "无法连接 {host}。新邮件可能无法送达。",
+    "server_error": "{host} 出现问题。新邮件可能无法送达。",
+    "rate_limited": "{host} 正在限制请求。新邮件可能会延迟。",
+    "sign_in_failing": "无法续期您在 {host} 的登录。续期成功前不会收到新邮件。"
   }
 }

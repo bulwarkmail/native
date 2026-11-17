@@ -1963,5 +1963,11 @@
       "unsupported": "Automatické odpovede nie sú dostupné",
       "until": "Do {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "{host} nie je dostupný. Nová pošta nemusí prísť.",
+    "server_error": "{host} má problémy. Nová pošta nemusí prísť.",
+    "rate_limited": "{host} obmedzuje počet požiadaviek. Nová pošta môže prísť s oneskorením.",
+    "sign_in_failing": "Prihlásenie do {host} sa nedá obnoviť. Nová pošta nepríde, kým sa neobnoví."
   }
 }

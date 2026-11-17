@@ -794,6 +794,14 @@ function noteTransientFailure(refreshToken: string, retryAfterMs: number | null)
   refreshBackoff.set(refreshToken, { failures, until: Date.now() + wait });
 }
 
+/**
+ * Drop every wait, for a Retry the user asked for: one refresh at a person's
+ * pace spares the server as well, and the server may be back.
+ */
+export function clearRefreshBackoff(): void {
+  refreshBackoff.clear();
+}
+
 /** `Retry-After` in ms (seconds or an HTTP date), null when absent or unusable. */
 function retryAfterMs(header: string | null): number | null {
   if (!header) return null;

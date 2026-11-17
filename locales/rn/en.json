@@ -1084,6 +1084,12 @@
     "send_cancelled": "Send cancelled",
     "send_now_failed": "Could not send now"
   },
+  "server_status": {
+    "unreachable": "Can't reach {host}. New mail may not arrive.",
+    "server_error": "{host} is having problems. New mail may not arrive.",
+    "rate_limited": "{host} is limiting requests. New mail may be late.",
+    "sign_in_failing": "Your sign-in to {host} can't be renewed. New mail won't arrive until it is."
+  },
   "settings": {
     "about": {
       "check_now": "Check now",

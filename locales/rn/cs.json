@@ -1964,5 +1964,11 @@
       "unsupported": "Automatické odpovědi nejsou dostupné",
       "until": "Do {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "{host} není dostupný. Nová pošta nemusí dorazit.",
+    "server_error": "{host} má potíže. Nová pošta nemusí dorazit.",
+    "rate_limited": "{host} omezuje počet požadavků. Nová pošta může přijít se zpožděním.",
+    "sign_in_failing": "Přihlášení k {host} nelze obnovit. Nová pošta nedorazí, dokud se neobnoví."
   }
 }

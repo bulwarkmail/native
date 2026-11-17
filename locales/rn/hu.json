@@ -1960,5 +1960,11 @@
       "unsupported": "Az automatikus válaszok nem érhetők el",
       "until": "Eddig: {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "A(z) {host} nem érhető el. Előfordulhat, hogy az új levelek nem érkeznek meg.",
+    "server_error": "A(z) {host} hibásan működik. Előfordulhat, hogy az új levelek nem érkeznek meg.",
+    "rate_limited": "A(z) {host} korlátozza a kéréseket. Az új levelek késhetnek.",
+    "sign_in_failing": "A(z) {host} bejelentkezése nem újítható meg. Új levelek addig nem érkeznek, amíg ez nem sikerül."
   }
 }

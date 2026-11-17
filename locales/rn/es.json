@@ -1970,5 +1970,11 @@
       "unsupported": "Las respuestas automáticas no están disponibles",
       "until": "Hasta el {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "No se puede conectar con {host}. Es posible que no llegue el correo nuevo.",
+    "server_error": "{host} tiene problemas. Es posible que no llegue el correo nuevo.",
+    "rate_limited": "{host} está limitando las solicitudes. El correo nuevo puede llegar con retraso.",
+    "sign_in_failing": "No se puede renovar el inicio de sesión en {host}. El correo nuevo no llegará hasta que se renueve."
   }
 }

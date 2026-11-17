@@ -1964,5 +1964,11 @@
       "unsupported": "Les respostes automàtiques no estan disponibles",
       "until": "Fins al {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "No es pot connectar amb {host}. És possible que no arribi el correu nou.",
+    "server_error": "{host} té problemes. És possible que no arribi el correu nou.",
+    "rate_limited": "{host} està limitant les sol·licituds. El correu nou pot arribar amb retard.",
+    "sign_in_failing": "No es pot renovar l'inici de sessió a {host}. El correu nou no arribarà fins que es renovi."
   }
 }

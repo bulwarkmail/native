@@ -1965,5 +1965,11 @@
       "unsupported": "Afwezigheidsantwoorden zijn niet beschikbaar",
       "until": "Tot {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "{host} is niet bereikbaar. Nieuwe e-mail komt mogelijk niet aan.",
+    "server_error": "{host} heeft problemen. Nieuwe e-mail komt mogelijk niet aan.",
+    "rate_limited": "{host} beperkt het aantal verzoeken. Nieuwe e-mail kan vertraagd binnenkomen.",
+    "sign_in_failing": "De inlog bij {host} kan niet worden vernieuwd. Nieuwe e-mail komt pas binnen als dat lukt."
   }
 }
