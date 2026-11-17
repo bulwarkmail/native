@@ -574,8 +574,8 @@ describe('the mail canvas in every dark theme', () => {
   it("is fed from the active theme's dark palette by the body view, which paints it behind the mail", () => {
     const view = fs.readFileSync(path.resolve(__dirname, '../../components/EmailBodyView.tsx'), 'utf8');
     expect(view).toMatch(/const darkCanvas = resolvePalette\('dark', activeThemeId\)\.background;/);
-    expect(view).toMatch(/isDark: renderAsDark,\n\s*darkCanvas,\n/);
-    expect(view).toMatch(/shouldBlock, cidMap, renderAsDark, darkCanvas,\n\s*messageSpacing,/);
+    expect(view).toMatch(/isDark: renderAsDark,\r?\n\s*darkCanvas,\r?\n/);
+    expect(view).toMatch(/shouldBlock, cidMap, renderAsDark, darkCanvas,\r?\n\s*messageSpacing,/);
     expect(view).toMatch(/\[prepared\.isHtml, prepared\.recolorDark, shouldBlock, darkCanvas, quoteLabels,/);
     expect(view).toMatch(/buildEmailDarkModeScript\(\{ remoteContentAllowed: !shouldBlock, canvas: emailDarkCanvas\(darkCanvas\) \}\)/);
     expect(view).toMatch(/const darkSurface = prepared\.recolorDark \? \{ backgroundColor: emailDarkCanvasColor\(darkCanvas\) \} : undefined;/);

@@ -52,8 +52,23 @@ describe('scripts/sync-dark-mode-engine.mjs', () => {
     const changed = EMAIL_DARK_MODE_LIB.replace("'use strict';", "'use strict';\n  var changed = 1;");
     const { target, run } = checkout(engineFile(changed));
     expect(run().status).toBe(0);
-    expect(fs.readFileSync(target, 'utf8')).toContain('export const EMAIL_DARK_MODE_LIB = String.raw`' + changed + '`;');
+    expect(fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n')).toContain('export const EMAIL_DARK_MODE_LIB = String.raw`' + changed + '`;');
     expect(run('--check').status).toBe(0);
+  });
+
+  it('reads an engine and an app file with other line endings as the same, and keeps the app file\'s', () => {
+    const lf = fs.readFileSync(VENDORED, 'utf8').replace(/\r\n/g, '\n');
+    const same = checkout(engineFile(EMAIL_DARK_MODE_LIB).replace(/\n/g, '\r\n'));
+    fs.writeFileSync(same.target, lf);
+    expect(same.run('--check').stdout).toContain('up to date');
+
+    const changed = EMAIL_DARK_MODE_LIB.replace("'use strict';", "'use strict';\n  var changed = 1;");
+    const crlf = checkout(engineFile(changed));
+    fs.writeFileSync(crlf.target, lf.replace(/\n/g, '\r\n'));
+    expect(crlf.run().status).toBe(0);
+    const written = fs.readFileSync(crlf.target, 'utf8');
+    expect(written).toContain('var changed = 1;');
+    expect(written).not.toMatch(/[^\r]\n/);
   });
 
   it('fails the check when there is no webmail engine to compare with', () => {

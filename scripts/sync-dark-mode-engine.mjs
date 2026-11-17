@@ -23,7 +23,9 @@ if (!existsSync(SOURCE)) {
   process.exit(0);
 }
 
-const engineFile = readFileSync(SOURCE, 'utf8');
+// Line endings follow each checkout's git settings, not the engine: compare
+// without them and write the app file back with its own.
+const engineFile = readFileSync(SOURCE, 'utf8').replace(/\r\n/g, '\n');
 const EXPORT = 'export default ';
 const from = engineFile.indexOf(EXPORT);
 if (from < 0) {
@@ -42,7 +44,9 @@ if (typeof lib.apply !== 'function') {
 }
 
 const START = 'export const EMAIL_DARK_MODE_LIB = String.raw`';
-const target = readFileSync(TARGET, 'utf8');
+const targetRaw = readFileSync(TARGET, 'utf8');
+const eol = targetRaw.includes('\r\n') ? '\r\n' : '\n';
+const target = targetRaw.replace(/\r\n/g, '\n');
 const a = target.indexOf(START);
 const b = a < 0 ? -1 : target.indexOf('`;', a + START.length);
 if (a < 0 || b < 0) {
@@ -57,6 +61,6 @@ if (next === target) {
   console.log(`OUT OF DATE ${TARGET} (run node scripts/sync-dark-mode-engine.mjs)`);
   process.exit(1);
 } else {
-  writeFileSync(TARGET, next);
+  writeFileSync(TARGET, next.replace(/\n/g, eol));
   console.log(`wrote       ${TARGET}`);
 }
