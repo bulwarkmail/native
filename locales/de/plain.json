@@ -11,6 +11,7 @@
       "totp_required": "Ihr Konto braucht zur Anmeldung einen zweiten Code. Öffnen Sie Ihre Authenticator-App und geben Sie unten den 6-stelligen Code ein.",
       "totp_invalid": "Dieser Code ist falsch oder zu alt. Geben Sie den Code ein, den Ihre Authenticator-App gerade anzeigt.",
       "oauth_discovery_failed": "Die Anmeldung über Ihre Organisation funktioniert gerade nicht. Versuchen Sie es später noch einmal oder fragen Sie Ihre Administration.",
+      "oauth_issuer_mismatch": "Die Anmeldung über Ihre Organisation ist nicht richtig eingerichtet. Bitte sagen Sie Ihrer Administration Bescheid.",
       "token_exchange_failed": "Passwort und Code sind richtig, aber der Mailserver hat diese App nicht hereingelassen. Bitten Sie Ihre Administration, die Anmelde-Einstellungen für diese App zu prüfen."
     },
     "token_hint": "Manche Mailanbieter geben Ihnen ein Token statt eines Passworts. Erstellen Sie es in den Einstellungen Ihres Mailanbieters, kopieren Sie es und fügen Sie es hier ein.",
@@ -154,6 +155,10 @@
       "hide_account_switcher": {
         "description": "Die Kontoauswahl oben in der Ordnerliste ausblenden. Sie können das Konto weiterhin unten in der linken Leiste wechseln."
       },
+      "compose_placement": {
+        "description": "Wo der Knopf für eine neue Nachricht auf einem Computer ist. Auf dem Handy ist er immer über der Nachrichtenliste.",
+        "rail": "Oben in der linken Leiste"
+      },
       "show_rail_account_list": {
         "label": "Ihre Konten in der linken Leiste zeigen",
         "description": "Unten in der linken Leiste für jedes Konto einen Kreis zeigen, damit Sie schnell wechseln können. Darunter ist ein Knopf zum Abmelden."
@@ -254,7 +259,7 @@
     },
     "email_behavior": {
       "inbox_type": {
-        "description": "Bei „Ungelesene zuerst“ stehen Ihre 25 neuesten ungelesenen E-Mails oben im Posteingang"
+        "description": "Bei „Ungelesene zuerst“ stehen Ihre neuesten ungelesenen E-Mails oben im Posteingang"
       },
       "clear_search_on_folder_change": {
         "description": "Wenn Sie einen anderen Ordner öffnen, endet Ihre Suche und Sie sehen den ganzen Ordner. Ist das aus, sucht die Suche im neuen Ordner weiter."
@@ -756,5 +761,8 @@
   },
   "recover_deleted": {
     "load_failed": "Gelöschte E-Mails konnten nicht geladen werden. Versuchen Sie es noch einmal."
+  },
+  "mail_p3_conv": {
+    "sidebar_account_switcher_description": "Die Kontoliste über den Ordnern zeigen. Ausgeschaltet wechseln Sie das Konto über Ihr Bild in der linken Leiste."
   }
 }

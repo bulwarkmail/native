@@ -41,6 +41,11 @@ const ADDRESS_HEADERS = new Set([
   'from', 'sender', 'reply-to', 'to', 'cc', 'bcc',
   'resent-from', 'resent-sender', 'resent-reply-to', 'resent-to', 'resent-cc', 'resent-bcc',
 ]);
+const RAW_ONLY_HEADERS = new Set([
+  'date', 'resent-date', 'message-id', 'resent-message-id', 'in-reply-to', 'references',
+  'return-path', 'received',
+  'list-help', 'list-unsubscribe', 'list-subscribe', 'list-post', 'list-owner', 'list-archive',
+]);
 const TEXT_COMPARATORS = new Set<FilterCondition['comparator']>([
   'contains', 'not_contains', 'is', 'not_is', 'starts_with', 'ends_with', 'matches', 'address_is', 'domain_is',
 ]);
@@ -227,6 +232,8 @@ export function retroProperties(rule: FilterRule): string[] {
       // for headers it parses as structured (List-Id).
       if (header && ADDRESS_HEADERS.has(header.toLowerCase())) {
         properties.add(`header:${header}:asAddresses:all`);
+      } else if (header && RAW_ONLY_HEADERS.has(header.toLowerCase())) {
+        properties.add(`header:${header}:all`);
       } else if (header) {
         properties.add(`header:${header}:asText:all`);
         properties.add(`header:${header}:all`);
@@ -251,6 +258,13 @@ export function toRetroMessage(record: Record<string, unknown>): RetroMessage {
       // One entry per occurrence, each read back as `Name <email>, ...`.
       headers[addresses[1].toLowerCase()] = asList(value)
         .map(list => asList(list).map(formatAddress).filter((v): v is string => v !== null).join(', '));
+      continue;
+    }
+    const rawOnly = /^header:([^:]+):all$/.exec(key);
+    if (rawOnly && !(`header:${rawOnly[1]}:asText:all` in record)) {
+      headers[rawOnly[1].toLowerCase()] = asList(value)
+        .map(unfoldHeader)
+        .filter((v): v is string => v !== null);
       continue;
     }
     const m = /^header:(.+):asText:all$/.exec(key);

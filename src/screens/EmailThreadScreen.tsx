@@ -1097,7 +1097,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       />
 
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
-      <QuickRuleSheet visible={rulesOpen} email={email ?? null} mailboxes={scopedMailboxes} onClose={() => setRulesOpen(false)} />
+      <QuickRuleSheet visible={rulesOpen} email={email ?? null} mailboxes={scopedMailboxes} sourceMailboxId={sourceMailbox?.id ?? null} onClose={() => setRulesOpen(false)} />
     </SafeAreaView>
   );
 }

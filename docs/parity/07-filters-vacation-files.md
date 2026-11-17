@@ -42,6 +42,20 @@ Filters: RN carries a byte-for-byte port of WEB's Sieve parser/generator/tests a
   - What RN does: `src/lib/sieve/__tests__/{parser,generator,external-rules}.test.ts` start with a UTF-8 BOM and contain "â†’" (double-encoded arrow) at e.g. `external-rules.test.ts:257`, `:343`, `generator.test.ts:369`, `parser.test.ts:104`. Cosmetic, but it shows the files were copied through a wrong encoding; re-copy from WEB when porting the 1.7.3 changes and add tests for list values / `:mime`.
   - Fix hint: rewrite the three files as UTF-8 without BOM from the WEB copies.
 
+- [x] **Body comparisons written as `body :contains` whatever they said** — `P1` — `bugfix-parity` (webmail #1735)
+  - What WEB does: "does not contain", "is not", "starts with", "ends with" and "matches" on the body become `not body :contains`, `not body :is` and `body :matches "x*"` / `"*x"` / `"x"`; the parser reads them back the same way and leaves a negated `:matches` / `:regex` (body or header) to the raw fallback.
+  - What RN did: the generator wrote all of them as a positive `body :contains`, so "Body does not contain unsubscribe" acted on exactly the mail that contains it; the parser read `not body :contains` as "contains".
+  - Fixed the same way, with webmail's tests and a fixture the webmail generator wrote (`fixtures/webmail/editor-rules.sieve`) that the phone must save back byte for byte.
+
+- [x] **"Delivered to" condition** — `P1` — `missing` (webmail #726)
+  - What WEB does: `envelope "to"` with `:is`, `:domain :is` or `:contains`, metadata version 2, no preview and no Apply to.
+  - What RN did: no such field; the generator refuses unknown fields, so saving any filter on the phone failed once a webmail rule used it.
+
+- [x] **Rule editor of webmail #1737/#1749** — `P2` — `missing`
+  - What WEB does: "If all/any of these conditions apply" with numbered conditions, a Then checklist with Continue and Skip, an optional auto-name, "Has an attachment" as its own condition, sizes in KB/MB, a live count and list of matching mail, Apply to (new mail / folder / all mail) with a Trash question for a discarding rule, and checks for comma-only values, extensionless attachment types and contradicting actions.
+  - What RN does now: `components/filters/RuleEditorSheet.tsx`, a full-screen sheet with native pickers (action sheets, the folder sheet, the system date and time pickers for a period) and Apply to next to Save. Its behaviour lives in `use-rule-editor.ts`; `lib/sieve/rule-editor-model.ts`, `rule-preview.ts` and `rule-scope.ts` are webmail's files, and `api/email-fields.ts` is `queryEmailFields`. Used from Filter settings (Inbox) and "Create rule…" on a message (the message's folder). The old `FilterRuleModal` is gone.
+  - Not ported: the suggestion chips of webmail's "Create rule…", and "Run rules" on a folder, which the phone has no menu for yet.
+
 ### Vacation responder
 
 - [x] **fromDate/toDate sent without timezone designator (not a JMAP UTCDate)** — fixed in b538a0e — `P2` — `rn-only-bug` — not verified live against stw-test; RFC 8621 UTCDate semantics implemented

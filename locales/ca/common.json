@@ -22,6 +22,7 @@
       "totp_required": "Cal un codi d'autenticació de dos factors. Introduïu-lo a continuació.",
       "totp_invalid": "El codi d'autenticació no és vàlid. Comproveu l'aplicació d'autenticació i torneu-ho a provar.",
       "oauth_discovery_failed": "El SSO està activat, però no s'ha pogut contactar amb el proveïdor d'identitat. Comproveu la configuració d'OAuth.",
+      "oauth_issuer_mismatch": "L'inici de sessió amb aquest proveïdor no està ben configurat. L'administrador n'ha de definir l'adreça de l'emissor (issuer).",
       "token_exchange_failed": "La contrasenya i el codi s'han acceptat, però el servidor de correu s'ha negat a iniciar una sessió per a aquesta aplicació. Demaneu a l'administrador que revisi la configuració del client OAuth."
     },
     "show_password": "Mostra la contrasenya",
@@ -157,6 +158,7 @@
     "settings": "Configuració",
     "admin": "Administració",
     "files": "Fitxers",
+    "tasks": "Tasques",
     "loading_mailboxes": "Carregant les bústies...",
     "push_connected": "Actualitzacions en temps real actives",
     "push_disconnected": "Actualitzacions en temps real inactives",
@@ -338,6 +340,14 @@
     "show_on_mobile": "Mostra al mòbil"
   },
   "email_list": {
+    "date_groups": {
+      "today": "Avui",
+      "yesterday": "Ahir",
+      "last_week": "La setmana passada",
+      "last_month": "El mes passat",
+      "older": "Més antics"
+    },
+    "group_by_date": "Agrupa per data",
     "sections": {
       "unread": "No llegits",
       "everything_else": "Tota la resta",
@@ -1219,6 +1229,7 @@
       "clear_formatting": "Neteja el format",
       "undo": "Desfés",
       "redo": "Refés",
+      "cell_background": "Fons de cel·la",
       "add_row_above": "Afegeix una fila a sobre",
       "add_row_below": "Afegeix una fila a sota",
       "add_column_before": "Afegeix una columna abans",
@@ -1324,6 +1335,7 @@
     "success": "Correcte",
     "cancel": "Cancel·la",
     "save": "Desa",
+    "ready_to_save": "Llest per desar",
     "delete": "Suprimeix",
     "edit": "Edita",
     "close": "Tanca",
@@ -1720,6 +1732,13 @@
         "label": "Selector de comptes a la part superior de la barra lateral",
         "description": "Mostra el selector de comptes damunt de les carpetes i el botó rodó Redacta damunt de la llista de missatges. Desactiveu-ho per posar Redacta damunt de les carpetes."
       },
+      "compose_placement": {
+        "label": "Botó Redacta",
+        "description": "On és el botó Redacta en un ordinador. Al mòbil sempre és sobre la llista de missatges.",
+        "floating": "Sobre la llista de missatges",
+        "sidebar": "A dalt de la barra de carpetes",
+        "rail": "A dalt de la barra de navegació"
+      },
       "show_rail_account_list": {
         "label": "Mostra els avatars dels comptes a la barra de navegació",
         "description": "Mostra cercles individuals per a cada compte a la part inferior de la barra de navegació per canviar-hi ràpidament, amb un botó de tancament de sessió a sota."
@@ -1809,6 +1828,8 @@
       "title": "Etiquetes de correu",
       "description": "Creeu etiquetes per ordenar els missatges. Les etiquetes es desen amb els missatges al servidor.",
       "add_keyword": "Afegeix una etiqueta",
+      "sort_az": "Ordena A–Z",
+      "sorted": "Etiquetes ordenades de la A a la Z",
       "empty": "Encara no hi ha cap etiqueta.",
       "label_field": "Nom mostrat",
       "label_placeholder": "p. ex. Feina, Personal, Urgent",
@@ -1999,9 +2020,19 @@
     "email_behavior": {
       "inbox_type": {
         "label": "Tipus de safata d'entrada",
-        "description": "«Primer els no llegits» mostra els 25 missatges no llegits més recents en una secció a sobre de la resta de la safata",
+        "description": "«Primer els no llegits» mostra els missatges no llegits més recents en una secció a sobre de la resta de la safata",
         "default": "Per defecte",
         "unread_first": "Primer els no llegits"
+      },
+      "unread_section_size": {
+        "label": "Missatges no llegits mostrats",
+        "description": "Quants dels missatges no llegits més recents mostra la secció «Primer els no llegits»",
+        "5": "5 missatges",
+        "10": "10 missatges",
+        "15": "15 missatges",
+        "20": "20 missatges",
+        "25": "25 missatges",
+        "50": "50 missatges"
       },
       "clear_search_on_folder_change": {
         "label": "Esborra la cerca en canviar de carpeta",
@@ -2099,6 +2130,10 @@
       "show_attachment_chips": {
         "label": "Mostra els fitxers adjunts a la llista",
         "description": "Mostra els fitxers adjunts sota cada missatge per obrir-los des de la llista. El clip es mostra igualment."
+      },
+      "show_tag_chips": {
+        "label": "Mostra les etiquetes a la llista",
+        "description": "Mostra les etiquetes al costat del remitent o assumpte a la llista de missatges"
       },
       "plain_text_mode": {
         "label": "Només text sense format",
@@ -2289,6 +2324,10 @@
       "rtl_editing": {
         "label": "Compatibilitat amb edició de dreta a esquerra",
         "description": "Afegeix un botó de direcció a la barra d'eines del redactor perquè pugueu establir els paràgrafs d'esquerra a dreta o de dreta a esquerra"
+      },
+      "group_by_date": {
+        "label": "Agrupa per data",
+        "description": "Mostra els missatges sota capçaleres de data com Avui, Ahir i La setmana passada. Només s'aplica quan la llista està ordenada per data."
       },
       "group_conversations": {
         "label": "Agrupa els missatges per conversa",
@@ -2545,6 +2584,7 @@
         "enable_tooltip": "Activa el xifratge amb aquesta clau",
         "configure_title": "Activa el xifratge amb aquesta clau",
         "enable_button": "Activa",
+        "in_use": "En ús",
         "disable_tooltip": "Desactiva el xifratge",
         "disable_title": "Voleu desactivar el xifratge en repòs?",
         "disable_message": "A partir d'ara, el correu nou es desa sense xifrar.",
@@ -2787,7 +2827,9 @@
       },
       "settings_sync": {
         "label": "Sincronització de la configuració",
-        "description": "Sincronitzeu la configuració entre navegadors i dispositius"
+        "description": "Sincronitzeu la configuració entre navegadors i dispositius",
+        "replaced": "{count, plural, one {# paràmetre d'aquest navegador segueix} other {# paràmetres d'aquest navegador segueixen}} ara el vostre compte.",
+        "keep_mine": "Utilitza els d'aquest navegador"
       },
       "sender_favicons": {
         "label": "Icones dels remitents",
@@ -2991,6 +3033,7 @@
         "from": "De",
         "to": "Per a",
         "cc": "CC",
+        "delivered_to": "Lliurat a",
         "subject": "Assumpte",
         "header": "Capçalera personalitzada",
         "size": "Mida",
@@ -3130,7 +3173,44 @@
       "apply_existing_none": "Encara cap missatge de {folder} no compleix aquesta regla.",
       "period_status_scheduled": "programada",
       "period_status_active": "activa",
-      "period_status_expired": "caducada"
+      "period_status_expired": "caducada",
+      "editor": {
+        "if": "Si es compleix",
+        "match_all": "cadascuna",
+        "match_any": "alguna",
+        "of_conditions": "d'aquestes condicions",
+        "match_type": "Quines condicions s'han de complir",
+        "condition_number": "Condició {number}",
+        "comparison": "Comparació",
+        "size_unit": "Unitat",
+        "has_attachment": "Té un fitxer adjunt",
+        "attachment_type": "Adjunt del tipus",
+        "size_units": {
+          "bytes": "bytes",
+          "kb": "kB",
+          "mb": "MB"
+        },
+        "continue_rules": "Continua aplicant les altres regles",
+        "skip_rule": "Omet aquesta regla",
+        "matching": "{count, plural, =0 {Cap missatge coincideix} one {# missatge coincideix} other {# missatges coincideixen}}",
+        "matching_partial": "{count, plural, =0 {Cap missatge recent coincideix} other {#+ missatges coincideixen}}",
+        "checking": "S'està cercant el correu que coincideix…",
+        "tags": "Etiquetes",
+        "attachment_type_invalid": "Escriviu una extensió de fitxer, com ara pdf",
+        "action_conflict": "Descarta i Rebutja no es poden combinar amb Mou, Copia o Mantén, ni entre si",
+        "apply_to": "Aplica a",
+        "apply_new": "Només el correu nou",
+        "apply_folder": "El correu nou i {folder}",
+        "apply_folder_count": "El correu nou i {folder} ({count})",
+        "apply_all": "El correu nou i tot el correu",
+        "apply_all_count": "El correu nou i tot el correu ({count})",
+        "applying": "S'està aplicant «{name}»…",
+        "trash_title": "Voleu moure el correu existent a la paperera?",
+        "trash_confirm": "{count, plural, one {Això mou # missatge existent a la paperera.} other {Això mou # missatges existents a la paperera.}}",
+        "trash_confirm_partial": "{count, plural, =0 {Això mou a la paperera tots els missatges existents que coincideixen amb la regla.} other {Això mou #+ missatges existents a la paperera.}}",
+        "trash_button": "Desa i mou a la paperera",
+        "delivered_to_new_only": "Aquesta regla només s'aplica al correu nou. El correu lliurat no conserva l'adreça a la qual es va lliurar."
+      }
     },
     "templates": {
       "title": "Plantilles de correu",
@@ -3951,6 +4031,9 @@
       "block": "{count, plural, one {Bloca el remitent} other {Bloca # remitents}}",
       "no_junk": "Aquest compte no té carpeta de correu brossa",
       "create": "Crea una regla…",
+      "add_sender_to_rule": "Afegeix {sender} a una regla",
+      "sender_already_present": "Ja és en aquesta regla",
+      "no_rule_fits": "No hi ha cap regla on afegir-lo",
       "manage": "Gestiona les regles",
       "senders_count": "{count, plural, one {# remitent} other {# remitents}}",
       "cross_account": "Selecciona missatges d'un sol compte",
@@ -3959,6 +4042,7 @@
       "load_failed": "No s'han pogut carregar les regles",
       "none": "Encara no hi ha regles",
       "new_mail_only": "Només per a missatges nous",
+      "cannot_run": "Només les regles que mouen, copien, marquen com a llegit, destaquen, etiqueten o descarten es poden aplicar a missatges existents, i només si no comproven el cos, «Lliurat a» ni una expressió regular.",
       "running": "S'està executant «{name}» a {folder}…"
     },
     "find_emails_from": "Cerca correus de {name}"
@@ -3995,6 +4079,8 @@
     "mark_all_confirm_message": "Voleu marcar tots els missatges no llegits del vostre compte personal com a llegits?",
     "empty_all_confirm_title": "Buida la paperera de tots els comptes",
     "empty_all_confirm_message": "Vols suprimir per sempre {count, plural, one {el missatge} other {els # missatges}} de la paperera de tots els teus comptes? No es pot desfer.",
+    "empty_all_confirm_shared": "Això inclou els comptes compartits {accounts}.",
+    "empty_all_confirm_kept": "La paperera de {accounts} es queda com està, perquè no hi pots eliminar res.",
     "toast_emptied_all": "S’ha buidat la paperera de tots els comptes",
     "toast_error_empty_all_partial": "S’ha buidat la paperera, però alguns comptes han fallat",
     "toast_error_empty_all": "No s’ha pogut buidar la paperera",
@@ -4120,7 +4206,7 @@
     "return_to_list_follows_layout": "Mentre no ho canviïs, segueix el disseny: desactivat quan la llista i el missatge són l'un al costat de l'altre, activat en els altres casos."
   },
   "mail_p3_conv": {
-    "sidebar_account_switcher_description": "Mostra el selector de comptes damunt de les carpetes, amb Redacta a sota. Desactiveu-ho per posar Redacta al seu lloc."
+    "sidebar_account_switcher_description": "Mostra el selector de comptes sobre les carpetes. Desactiva-ho per canviar de compte amb el teu avatar a la barra de navegació."
   },
   "mail_p2_conv": {
     "show_message": "Mostra el missatge",
@@ -4491,6 +4577,8 @@
       "role_label": "Funció",
       "language_label": "Idioma",
       "related_default_label": "Relacionat",
+      "related_unknown": "Contacte desconegut",
+      "related_remove": "Treu dels contactes relacionats",
       "more_actions": "Més accions",
       "age_years": "{count, plural, one {1 any} other {# anys}}",
       "years_since": "{count, plural, one {1 any} other {# anys}}"
@@ -4857,6 +4945,22 @@
       "end_time": "Hora de finalització",
       "all_day_event": "Esdeveniment de tot el dia",
       "calendar_select": "Calendari",
+      "show_as": "Mostra com a",
+      "show_as_busy": "Ocupat",
+      "show_as_free": "Lliure",
+      "shown_free": "Es mostra com a lliure",
+      "visibility": "Visibilitat",
+      "visibility_public": "Públic",
+      "visibility_private": "Privat",
+      "visibility_secret": "Ocult",
+      "visibility_hint_public": "Les persones amb qui comparteixes el calendari en veuen els detalls.",
+      "visibility_hint_private": "Les persones amb qui comparteixes el calendari només en veuen l'hora.",
+      "visibility_hint_secret": "Les persones amb qui comparteixes el calendari no veuen l'esdeveniment, i no bloqueja l'hora.",
+      "visibility_series": "S'aplica a totes les repeticions.",
+      "color_calendar": "Usa el color del calendari",
+      "overlap": "Se superposa amb {title} ({details})",
+      "overlap_plain": "Se superposa amb {title}",
+      "overlap_more": "I {count} més",
       "save": "Desa",
       "cancel": "Cancel·la",
       "color": "Color"
@@ -5042,6 +5146,8 @@
       "enable_tasks_desc": "Mostra una vista de tasques al calendari per gestionar pendents",
       "show_tasks_on_calendar": "Mostra les tasques al calendari",
       "show_tasks_on_calendar_desc": "Mostra les tasques a les vistes de mes, setmana i dia del calendari",
+      "show_tasks_app": "Tasques com a app pròpia",
+      "show_tasks_app_desc": "Les tasques tenen la seva pròpia icona a la barra d'apps en lloc d'una vista del calendari",
       "hover_preview": "Previsualització en passar el cursor",
       "hover_preview_desc": "Mostra una finestra emergent de detalls en passar el cursor per sobre dels esdeveniments",
       "hover_preview_instant": "Instantània",
@@ -5379,7 +5485,12 @@
     "task_list_not_in_calendar": "{name} (llista de tasques, no es mostra al calendari)",
     "copy_to_account": "Copia a {address}",
     "copied_to_account": "S'ha copiat a {address}",
-    "delete_original": "Suprimeix l'original"
+    "delete_original": "Suprimeix l'original",
+    "copy_to_calendar": "Copia a un calendari…",
+    "copy_to_calendar_title": "Copia a un calendari",
+    "copy_to_calendar_hint": "La còpia és un esdeveniment vostre. Els canvis a l'original no l'afecten.",
+    "copy_button": "Copia",
+    "copied_to_calendar": "S'ha copiat a {calendar}"
   },
   "calendar_offline": {
     "split_needs_server": "Aquest canvi necessita connexió amb el servidor. Canvia només aquest esdeveniment de moment, o torna-ho a provar quan tornis a estar connectat."
@@ -6136,6 +6247,13 @@
   "unified_mailbox": {
     "search_unavailable": "La cerca no està disponible a la vista unificada"
   },
+  "account_routing": {
+    "group_members_one_account": "Un grup només pot contenir contactes d'un sol compte.",
+    "link_names_no_account": "Aquest enllaç no indica en quin compte és el missatge, així que no s'ha obert.",
+    "group_member_gone": "Un dels contactes triats ja no existeix. Torna a triar els membres.",
+    "invitation_other_account": "Aquesta invitació és en un altre compte. Canvia a aquell compte per respondre-la o afegir-la a un calendari.",
+    "tab_names_no_account": "Aquesta pestanya es va desar sense el seu compte, així que no s'ha obert. Tanca-la i torna-la a obrir des del compte al qual pertany."
+  },
   "mail_import": {
     "menu_import": "Importa correu…",
     "settings_label": "Importa correu",
@@ -6833,6 +6951,10 @@
         "title": "Connectar-se a altres llocs web",
         "body": "Enviar peticions a aquests llocs. Qualsevol cosa que el connector pugui llegir s'hi pot enviar:"
       },
+      "links_check": {
+        "title": "Comprovar els enllaços que obriu",
+        "body": "Veure cada enllaç web que obriu, amb el seu text, i aturar-lo o obrir una altra adreça en el seu lloc."
+      },
       "admin_config": {
         "title": "Llegir la configuració que li ha posat l'administrador",
         "body": "Llegir la configuració que l'administrador ha desat per a aquest connector."
@@ -6939,7 +7061,7 @@
       },
       "ui_notifications": {
         "title": "Mostrar notificacions",
-        "body": "Mostrar notificacions al dispositiu, o dins l'aplicació si no les heu permeses. Cadascuna indica el nom del connector."
+        "body": "Mostrar notificacions al dispositiu, o dins l'aplicació si no les heu permeses. Cadascuna indica el nom del connector. El connector també veu els avisos que l'aplicació us mostra."
       },
       "ui_message_list": {
         "title": "Afegir elements a la llista de missatges",
@@ -7089,6 +7211,14 @@
     "not_available_title": "Aquesta pàgina no està disponible",
     "not_available_description": "El connector que l'ha afegida està desactivat o ja no està instal·lat.",
     "back_to_mail": "Torna al correu"
+  },
+  "plugin_surfaces": {
+    "dropdown_list": "Llista del connector {name}",
+    "dropdown_list_labelled": "{label}, llista del connector {name}",
+    "oauth_failed": "El servei no ha completat l'inici de sessió. Tanqueu aquesta finestra i torneu-ho a provar.",
+    "banners_more": "Més bàners ({count}): {names}",
+    "banners_fewer": "Menys bàners",
+    "opened_by_plugin": "Obert pel connector {name}"
   },
   "command_palette": {
     "title": "Paleta d'ordres",
@@ -7291,6 +7421,14 @@
       "added_from": "Afegit des d’un correu de {domain}",
       "added_from_subject": "Afegit des del correu «{subject}» de {domain}"
     }
+  },
+  "sender_trust": {
+    "cancel_not_organizer": "Aquesta cancel·lació s'ha enviat des de {sender}, però l'organitzador d'aquest esdeveniment al vostre calendari és {organizer}. Només l'organitzador el pot cancel·lar. Elimineu-lo vosaltres mateixos si confieu en aquest missatge.",
+    "cancel_unverified": "No s'ha pogut verificar que aquesta cancel·lació vingui de l'organitzador. Elimineu l'esdeveniment vosaltres mateixos si confieu en aquest missatge.",
+    "card_sender": "de {domain}",
+    "card_sender_title": "Aquest missatge ha superat la comprovació del remitent del servidor de correu per a {domain}.",
+    "outside_link": "Un altre lloc",
+    "outside_link_title": "Aquest enllaç porta a {host}, fora de {domain}, el domini del remitent."
   },
   "proofreading": {
     "kind": {
@@ -8298,5 +8436,9 @@
   "impersonation": {
     "return_notice": "Has obert {mailbox} mitjançant una suplantació.",
     "return_button": "Torna al meu compte"
+  },
+  "admin_access": {
+    "label": "Els superusuaris d’aquest servidor poden obrir el tauler d’administració",
+    "help": "Els superusuaris d’aquest servidor inicien la sessió al tauler d’administració sense la contrasenya d’administrador, com els del servidor JMAP principal. Activa-ho només per a un servidor que gestionis tu mateix."
   }
 }

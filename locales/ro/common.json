@@ -22,6 +22,7 @@
       "totp_required": "Este necesar un cod de autentificare în doi pași. Vă rugăm să introduceți codul mai jos.",
       "totp_invalid": "Cod de autentificare invalid. Vă rugăm să verificați aplicația de autentificare și să încercați din nou.",
       "oauth_discovery_failed": "SSO este activată, dar furnizorul de identitate nu a putut fi contactat. Verificați configurația OAuth.",
+      "oauth_issuer_mismatch": "Autentificarea prin acest furnizor nu este configurată corect. Administratorul trebuie să seteze adresa emitentului (issuer) acestuia.",
       "token_exchange_failed": "Parola și codul au fost acceptate, dar serverul de e-mail a refuzat să pornească o sesiune pentru această aplicație. Cereți administratorului să verifice setările clientului OAuth."
     },
     "show_password": "Afișează parola",
@@ -157,6 +158,7 @@
     "settings": "Setări",
     "admin": "Admin",
     "files": "Fișiere",
+    "tasks": "Sarcini",
     "loading_mailboxes": "Se încarcă căsuțele poștale...",
     "push_connected": "Actualizări în timp real active",
     "push_disconnected": "Actualizări în timp real inactive",
@@ -338,6 +340,14 @@
     "show_on_mobile": "Afișare pe mobil"
   },
   "email_list": {
+    "date_groups": {
+      "today": "Astăzi",
+      "yesterday": "Ieri",
+      "last_week": "Săptămâna trecută",
+      "last_month": "Luna trecută",
+      "older": "Mai vechi"
+    },
+    "group_by_date": "Grupează după dată",
     "sections": {
       "unread": "Necitite",
       "everything_else": "Toate celelalte",
@@ -1219,6 +1229,7 @@
       "clear_formatting": "Șterge formatarea",
       "undo": "Anulează",
       "redo": "Refă",
+      "cell_background": "Fundalul celulei",
       "add_row_above": "Adaugă rând deasupra",
       "add_row_below": "Adaugă rând dedesubt",
       "add_column_before": "Adaugă coloană înainte",
@@ -1324,6 +1335,7 @@
     "success": "Succes",
     "cancel": "Anulează",
     "save": "Salvare",
+    "ready_to_save": "Gata de salvare",
     "delete": "Șterge",
     "edit": "Editare",
     "close": "Închide",
@@ -1720,6 +1732,13 @@
         "label": "Comutator de conturi în partea de sus a barei laterale",
         "description": "Afișează comutatorul de conturi deasupra folderelor și butonul rotund Compune peste lista de mesaje. Dezactivați pentru a pune Compune deasupra folderelor."
       },
+      "compose_placement": {
+        "label": "Butonul Compune",
+        "description": "Unde stă butonul Compune pe un computer. Pe telefon este mereu deasupra listei de mesaje.",
+        "floating": "Deasupra listei de mesaje",
+        "sidebar": "Sus în bara de dosare",
+        "rail": "Sus în bara de navigare"
+      },
       "show_rail_account_list": {
         "label": "Afișați avatarurile conturilor în bara de navigare",
         "description": "Afișați cercurile conturilor individuale în partea de jos a barei de navigare pentru comutarea rapidă, cu un buton de deconectare sub acestea."
@@ -1809,6 +1828,8 @@
       "title": "Etichete de e-mail",
       "description": "Creați etichete pentru a vă sorta mesajele. Etichetele sunt salvate împreună cu mesajele pe server.",
       "add_keyword": "Adăugați etichetă",
+      "sort_az": "Sortați A–Z",
+      "sorted": "Etichetele au fost sortate A–Z",
       "empty": "Încă nu există etichete.",
       "label_field": "Nume afișat",
       "label_placeholder": "de ex. Serviciu, Personal, Urgent",
@@ -1999,9 +2020,19 @@
     "email_behavior": {
       "inbox_type": {
         "label": "Tipul inboxului",
-        "description": "„Întâi necitite” afișează cele mai noi 25 de mesaje necitite într-o secțiune deasupra restului inboxului",
+        "description": "„Întâi necitite” afișează cele mai noi mesaje necitite într-o secțiune deasupra restului inboxului",
         "default": "Implicit",
         "unread_first": "Întâi necitite"
+      },
+      "unread_section_size": {
+        "label": "Mesaje necitite afișate",
+        "description": "Câte dintre cele mai noi mesaje necitite afișează secțiunea „Întâi necitite”",
+        "5": "5 mesaje",
+        "10": "10 mesaje",
+        "15": "15 mesaje",
+        "20": "20 de mesaje",
+        "25": "25 de mesaje",
+        "50": "50 de mesaje"
       },
       "clear_search_on_folder_change": {
         "label": "Șterge căutarea la schimbarea folderului",
@@ -2099,6 +2130,10 @@
       "show_attachment_chips": {
         "label": "Afișează atașamentele în listă",
         "description": "Afișează fișierele atașate sub fiecare mesaj, ca să le puteți deschide direct din listă. Agrafa apare oricum."
+      },
+      "show_tag_chips": {
+        "label": "Afișează etichetele în listă",
+        "description": "Afișează etichetele lângă expeditor sau subiect în lista de mesaje"
       },
       "plain_text_mode": {
         "label": "Numai text simplu",
@@ -2289,6 +2324,10 @@
       "rtl_editing": {
         "label": "Suport pentru editare de la dreapta la stânga",
         "description": "Adaugă un buton de direcție în bara de instrumente a editorului, cu care paragrafele pot fi setate de la stânga la dreapta sau de la dreapta la stânga"
+      },
+      "group_by_date": {
+        "label": "Grupează după dată",
+        "description": "Afișează mesajele sub antete de dată precum Astăzi, Ieri și Săptămâna trecută. Se aplică doar când lista este sortată după dată."
       },
       "group_conversations": {
         "label": "Grupează mesajele pe conversații",
@@ -2545,6 +2584,7 @@
         "enable_tooltip": "Activați criptarea cu această cheie",
         "configure_title": "Activați criptarea cu această cheie",
         "enable_button": "Activați",
+        "in_use": "În uz",
         "disable_tooltip": "Dezactivați criptarea",
         "disable_title": "Dezactivați criptarea datelor stocate?",
         "disable_message": "E-mailurile noi vor fi stocate de acum fără criptare.",
@@ -2787,7 +2827,9 @@
       },
       "settings_sync": {
         "label": "Sincronizarea setărilor",
-        "description": "Sincronizați-vă setările între browsere și dispozitive"
+        "description": "Sincronizați-vă setările între browsere și dispozitive",
+        "replaced": "{count, plural, one {# setare din acest browser urmează} few {# setări din acest browser urmează} other {# de setări din acest browser urmează}} acum contul dvs.",
+        "keep_mine": "Folosește-le pe ale acestui browser"
       },
       "sender_favicons": {
         "label": "Favicon-uri ale expeditorului",
@@ -2991,6 +3033,7 @@
         "from": "De la",
         "to": "Către",
         "cc": "Cc",
+        "delivered_to": "Livrat la",
         "subject": "Subiect",
         "header": "Antet personalizat",
         "size": "Dimensiune",
@@ -3130,7 +3173,44 @@
       "apply_existing_none": "Niciun mesaj din {folder} nu se potrivește încă acestei reguli.",
       "period_status_scheduled": "programată",
       "period_status_active": "activă",
-      "period_status_expired": "expirată"
+      "period_status_expired": "expirată",
+      "editor": {
+        "if": "Dacă este îndeplinită",
+        "match_all": "fiecare",
+        "match_any": "oricare",
+        "of_conditions": "dintre aceste condiții",
+        "match_type": "Ce condiții trebuie îndeplinite",
+        "condition_number": "Condiția {number}",
+        "comparison": "Comparație",
+        "size_unit": "Unitate",
+        "has_attachment": "Are un atașament",
+        "attachment_type": "Atașament de tipul",
+        "size_units": {
+          "bytes": "octeți",
+          "kb": "KB",
+          "mb": "MB"
+        },
+        "continue_rules": "Continuă să aplici celelalte reguli",
+        "skip_rule": "Omite această regulă",
+        "matching": "{count, plural, =0 {Niciun mesaj nu se potrivește} one {Se potrivește # mesaj} few {Se potrivesc # mesaje} other {Se potrivesc # de mesaje}}",
+        "matching_partial": "{count, plural, =0 {Niciun mesaj recent nu se potrivește} other {Se potrivesc #+ mesaje}}",
+        "checking": "Se caută mesajele care se potrivesc…",
+        "tags": "Etichete",
+        "attachment_type_invalid": "Introduceți o extensie de fișier, de exemplu pdf",
+        "action_conflict": "Ignorarea și respingerea nu se pot combina cu mutarea, copierea sau păstrarea și nici între ele",
+        "apply_to": "Aplică la",
+        "apply_new": "Doar corespondența nouă",
+        "apply_folder": "Corespondența nouă și {folder}",
+        "apply_folder_count": "Corespondența nouă și {folder} ({count})",
+        "apply_all": "Corespondența nouă și toată corespondența",
+        "apply_all_count": "Corespondența nouă și toată corespondența ({count})",
+        "applying": "Se aplică „{name}”…",
+        "trash_title": "Mutați corespondența existentă în Coșul de gunoi?",
+        "trash_confirm": "{count, plural, one {Astfel, # mesaj existent este mutat în Coșul de gunoi.} few {Astfel, # mesaje existente sunt mutate în Coșul de gunoi.} other {Astfel, # de mesaje existente sunt mutate în Coșul de gunoi.}}",
+        "trash_confirm_partial": "{count, plural, =0 {Astfel, fiecare mesaj existent care se potrivește regulii este mutat în Coșul de gunoi.} other {Astfel, #+ mesaje existente sunt mutate în Coșul de gunoi.}}",
+        "trash_button": "Salvați și mutați în Coșul de gunoi",
+        "delivered_to_new_only": "Această regulă funcționează doar pentru corespondența nouă. Corespondența livrată nu păstrează adresa la care a fost livrată."
+      }
     },
     "templates": {
       "title": "Șabloane de e-mail",
@@ -3951,6 +4031,9 @@
       "block": "{count, plural, one {Blochează expeditorul} few {Blochează # expeditori} other {Blochează # de expeditori}}",
       "no_junk": "Acest cont nu are un dosar de spam",
       "create": "Creați o regulă…",
+      "add_sender_to_rule": "Adaugă la o regulă: {sender}",
+      "sender_already_present": "Este deja în această regulă",
+      "no_rule_fits": "Nu există reguli la care să adăugați",
       "manage": "Gestionați regulile",
       "senders_count": "{count, plural, one {# expeditor} few {# expeditori} other {# de expeditori}}",
       "cross_account": "Selectați mesaje dintr-un singur cont",
@@ -3959,6 +4042,7 @@
       "load_failed": "Regulile nu au putut fi încărcate",
       "none": "Nicio regulă încă",
       "new_mail_only": "Doar pentru mesajele noi",
+      "cannot_run": "Doar regulile care mută, copiază, marchează ca citit, marchează cu stea, etichetează sau ignoră pot fi aplicate mesajelor existente, și doar dacă nu verifică corpul mesajului, „Livrat la” sau o expresie regulată.",
       "running": "Se rulează „{name}” în {folder}…"
     },
     "find_emails_from": "Găsește e-mailurile de la {name}"
@@ -3995,6 +4079,8 @@
     "mark_all_confirm_message": "Doriți să marcați toate mesajele necitite din contul dvs. personal ca fiind citite?",
     "empty_all_confirm_title": "Golește coșul de gunoi pentru toate conturile",
     "empty_all_confirm_message": "Ștergeți definitiv {count, plural, one {mesajul} few {toate cele # mesaje} other {toate cele # de mesaje}} din coșul de gunoi al tuturor conturilor dvs.? Nu se poate anula.",
+    "empty_all_confirm_shared": "Sunt incluse și conturile partajate {accounts}.",
+    "empty_all_confirm_kept": "Coșul de gunoi din {accounts} rămâne cum este, pentru că nu poți șterge acolo.",
     "toast_emptied_all": "Coșul de gunoi a fost golit pe toate conturile",
     "toast_error_empty_all_partial": "Coșul de gunoi a fost golit, dar unele conturi au eșuat",
     "toast_error_empty_all": "Golirea coșului de gunoi a eșuat",
@@ -4120,7 +4206,7 @@
     "return_to_list_follows_layout": "Cât timp nu îl modificați, urmează aspectul: dezactivat când lista și mesajul sunt unul lângă altul, activat în rest."
   },
   "mail_p3_conv": {
-    "sidebar_account_switcher_description": "Afișează comutatorul de conturi deasupra folderelor, cu Compune sub el. Dezactivați pentru a pune Compune în locul lui."
+    "sidebar_account_switcher_description": "Afișează comutatorul de conturi deasupra dosarelor. Dezactivați pentru a schimba contul din avatarul de pe bara de navigare."
   },
   "mail_p2_conv": {
     "show_message": "Afișează mesajul",
@@ -4491,6 +4577,8 @@
       "role_label": "Rol",
       "language_label": "Limba",
       "related_default_label": "Legat de",
+      "related_unknown": "Contact necunoscut",
+      "related_remove": "Elimină din contactele asociate",
       "more_actions": "Alte acțiuni",
       "age_years": "{count, plural, one {1 an} few {# ani} other {# de ani}}",
       "years_since": "{count, plural, one {1 an} few {# ani} other {# de ani}}"
@@ -4857,6 +4945,22 @@
       "end_time": "Ora de încheiere",
       "all_day_event": "Eveniment pe toată durata zilei",
       "calendar_select": "Calendar",
+      "show_as": "Afișează ca",
+      "show_as_busy": "Ocupat",
+      "show_as_free": "Liber",
+      "shown_free": "Afișat ca liber",
+      "visibility": "Vizibilitate",
+      "visibility_public": "Public",
+      "visibility_private": "Privat",
+      "visibility_secret": "Ascuns",
+      "visibility_hint_public": "Persoanele cu care partajezi calendarul văd detaliile.",
+      "visibility_hint_private": "Persoanele cu care partajezi calendarul văd doar ora.",
+      "visibility_hint_secret": "Persoanele cu care partajezi calendarul nu văd evenimentul, iar intervalul rămâne liber.",
+      "visibility_series": "Se aplică tuturor repetărilor.",
+      "color_calendar": "Folosește culoarea calendarului",
+      "overlap": "Se suprapune cu {title} ({details})",
+      "overlap_plain": "Se suprapune cu {title}",
+      "overlap_more": "Și încă {count}",
       "save": "Salvare",
       "cancel": "Anulează",
       "color": "Culoare"
@@ -5042,6 +5146,8 @@
       "enable_tasks_desc": "Afișați o vizualizare a sarcinilor în calendar pentru gestionarea sarcinilor de îndeplinit",
       "show_tasks_on_calendar": "Afișați sarcinile în calendar",
       "show_tasks_on_calendar_desc": "Afișați sarcinile în vizualizările lunare, săptămânale și zilnice ale calendarului",
+      "show_tasks_app": "Sarcini ca aplicație separată",
+      "show_tasks_app_desc": "Sarcinile au propria pictogramă în bara de aplicații în loc de o vizualizare în calendar",
       "hover_preview": "Previzualizare la trecerea cursorului peste elemente",
       "hover_preview_desc": "Afișați o fereastră pop-up cu detalii atunci când treceți cu mouse-ul peste evenimentele din calendar",
       "hover_preview_instant": "Instant",
@@ -5379,7 +5485,12 @@
     "task_list_not_in_calendar": "{name} (listă de sarcini, nu apare în calendar)",
     "copy_to_account": "Copiază în {address}",
     "copied_to_account": "Copiat în {address}",
-    "delete_original": "Șterge originalul"
+    "delete_original": "Șterge originalul",
+    "copy_to_calendar": "Copiază în calendar…",
+    "copy_to_calendar_title": "Copiază în calendar",
+    "copy_to_calendar_hint": "Copia este evenimentul dvs. Modificările originalului nu o schimbă.",
+    "copy_button": "Copiază",
+    "copied_to_calendar": "Copiat în {calendar}"
   },
   "calendar_offline": {
     "split_needs_server": "Această modificare are nevoie de conexiune la server. Modifică deocamdată doar acest eveniment sau încearcă din nou când ești din nou online."
@@ -6136,6 +6247,13 @@
   "unified_mailbox": {
     "search_unavailable": "Funcția de căutare nu este disponibilă în vizualizarea unificată"
   },
+  "account_routing": {
+    "group_members_one_account": "Un grup poate conține doar contacte dintr-un singur cont.",
+    "link_names_no_account": "Acest link nu spune în ce cont se află mesajul, așa că nu a fost deschis.",
+    "group_member_gone": "Unul dintre contactele alese nu mai există. Alegeți din nou membrii.",
+    "invitation_other_account": "Această invitație se află în alt cont. Treci la acel cont ca să răspunzi la ea sau să o adaugi într-un calendar.",
+    "tab_names_no_account": "Această filă a fost salvată fără contul ei, așa că nu a fost deschisă. Închide-o și deschide-o din nou din contul de care ține."
+  },
   "mail_import": {
     "menu_import": "Importă e-mailuri…",
     "settings_label": "Importă e-mailuri",
@@ -6833,6 +6951,10 @@
         "title": "Conectarea la alte site-uri",
         "body": "Trimite cereri către aceste site-uri. Orice poate citi pluginul poate fi trimis acolo:"
       },
+      "links_check": {
+        "title": "Verificarea linkurilor pe care le deschideți",
+        "body": "Vede fiecare link web pe care îl deschideți, împreună cu textul lui, și îl poate opri sau poate deschide în loc o altă adresă."
+      },
       "admin_config": {
         "title": "Citirea setărilor de la administrator",
         "body": "Citește setările pe care administratorul le-a salvat pentru acest plugin."
@@ -6939,7 +7061,7 @@
       },
       "ui_notifications": {
         "title": "Afișarea notificărilor",
-        "body": "Afișează notificări pe dispozitiv sau în aplicație, dacă nu le-ați permis. Fiecare indică numele pluginului."
+        "body": "Afișează notificări pe dispozitiv sau în aplicație, dacă nu le-ați permis. Fiecare indică numele pluginului. Pluginul vede și notificările pe care vi le afișează aplicația."
       },
       "ui_message_list": {
         "title": "Adăugarea în lista de mesaje",
@@ -7089,6 +7211,14 @@
     "not_available_title": "Această pagină nu este disponibilă",
     "not_available_description": "Pluginul care a adăugat-o este dezactivat sau nu mai este instalat.",
     "back_to_mail": "Înapoi la e-mail"
+  },
+  "plugin_surfaces": {
+    "dropdown_list": "Listă de la pluginul {name}",
+    "dropdown_list_labelled": "{label}, listă de la pluginul {name}",
+    "oauth_failed": "Serviciul nu a finalizat conectarea. Închide această fereastră și încearcă din nou.",
+    "banners_more": "Mai multe bannere ({count}): {names}",
+    "banners_fewer": "Mai puține bannere",
+    "opened_by_plugin": "Deschis de pluginul {name}"
   },
   "command_palette": {
     "title": "Paleta de comenzi",
@@ -7291,6 +7421,14 @@
       "added_from": "Adăugat dintr-un e-mail de la {domain}",
       "added_from_subject": "Adăugat din e-mailul „{subject}” de la {domain}"
     }
+  },
+  "sender_trust": {
+    "cancel_not_organizer": "Această anulare a fost trimisă de la {sender}, dar organizatorul acestui eveniment din calendarul dumneavoastră este {organizer}. Doar organizatorul îl poate anula. Eliminați-l singur dacă aveți încredere în acest mesaj.",
+    "cancel_unverified": "Nu s-a putut verifica faptul că această anulare vine de la organizator. Eliminați singur evenimentul dacă aveți încredere în acest mesaj.",
+    "card_sender": "de la {domain}",
+    "card_sender_title": "Acest mesaj a trecut verificarea expeditorului făcută de serverul de e-mail pentru {domain}.",
+    "outside_link": "Alt site",
+    "outside_link_title": "Acest link duce la {host}, în afara {domain}, domeniul expeditorului."
   },
   "proofreading": {
     "kind": {
@@ -8298,5 +8436,9 @@
   "impersonation": {
     "return_notice": "Ați deschis {mailbox} prin impersonare.",
     "return_button": "Înapoi la contul meu"
+  },
+  "admin_access": {
+    "label": "Superutilizatorii acestui server pot deschide panoul de administrare",
+    "help": "Superutilizatorii acestui server se conectează la panoul de administrare fără parola de administrator, la fel ca cei ai serverului JMAP principal. Activați această opțiune doar pentru un server pe care îl administrați dumneavoastră."
   }
 }

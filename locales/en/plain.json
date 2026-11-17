@@ -11,6 +11,7 @@
       "totp_required": "Your account needs a second code to sign in. Open your authenticator app and type the 6-digit code below.",
       "totp_invalid": "This code is wrong or too old. Type the code your authenticator app shows right now.",
       "oauth_discovery_failed": "Sign-in through your organisation does not work right now. Try again later or ask your administrator.",
+      "oauth_issuer_mismatch": "Sign-in through your organisation is not set up correctly. Ask your administrator to fix it.",
       "token_exchange_failed": "Your password and code are correct, but the mail server did not let this app in. Ask your administrator to check the sign-in settings for this app."
     },
     "token_hint": "Some mail providers give you a token instead of a password. Create one in your mail provider's settings, copy it, and paste it here.",
@@ -155,6 +156,10 @@
       "hide_account_switcher": {
         "description": "Hide the account list at the top of the folder list. You can still change accounts at the bottom of the left bar."
       },
+      "compose_placement": {
+        "description": "Where the button to write a new message is on a computer. On a phone it is always over the message list.",
+        "rail": "Top of the left bar"
+      },
       "show_rail_account_list": {
         "label": "Show your accounts in the left bar",
         "description": "Show a circle for each account at the bottom of the left bar, so you can change accounts quickly. A button to sign out is below them."
@@ -255,7 +260,7 @@
     },
     "email_behavior": {
       "inbox_type": {
-        "description": "With \"Unread first\", your 25 newest unread messages are shown at the top of the inbox"
+        "description": "With \"Unread first\", your newest unread messages are shown at the top of the inbox"
       },
       "clear_search_on_folder_change": {
         "description": "When you open another folder, your search ends and you see the whole folder. When this is off, the search continues in the new folder."
@@ -764,5 +769,8 @@
   },
   "global_search": {
     "account_error": "{account} could not be searched"
+  },
+  "mail_p3_conv": {
+    "sidebar_account_switcher_description": "Show the account list above the folders. Turn this off to change accounts with your picture in the left bar."
   }
 }

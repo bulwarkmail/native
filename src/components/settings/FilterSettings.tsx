@@ -17,16 +17,19 @@ import { getMailboxes } from '../../api/email';
 import type { Mailbox } from '../../api/types';
 import { ownMailboxes } from '../../lib/mailbox-tree';
 import { useLocaleStore } from '../../stores/locale-store';
-import { FilterRuleModal } from '../filters/FilterRuleModal';
+import { RuleEditorSheet } from '../filters/RuleEditorSheet';
 import { SieveEditorSheet } from '../filters/SieveEditorSheet';
 import type { FilterRule } from '../../lib/sieve/types';
 import { formatConditionValue, summarizeRule } from '../../lib/sieve/condition-value';
 import { periodStatus, supportsPeriods } from '../../lib/sieve/period';
 import { supportsRegex } from '../../lib/sieve/regex';
-import { applyRuleToMailbox, planRuleOnMailbox } from '../../lib/sieve/retroactive-run';
+import { previewRule } from '../../lib/sieve/rule-preview';
+import { applyRuleToScope, type ApplyScope } from '../../lib/sieve/rule-scope';
+import { ownMailTarget } from '../../api/email-fields';
+import { jmapClient } from '../../api/jmap-client';
 import { localizeMailboxName } from '../../lib/mailbox-label';
 import { toast } from '../../stores/toast-store';
-import { rulesForwardLimit } from '../../lib/sieve/forward-limit';
+import { forwardsOfEditedRule, rulesForwardLimit } from '../../lib/sieve/forward-limit';
 import { deleteFilterRuleWithUndo } from '../../lib/settings-undo';
 import Badge from '../Badge';
 
@@ -205,20 +208,16 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     }
   }, [saveFilters, t]);
 
-  // A rule only sees new mail. Its editor offers to sort what is already in
-  // the Inbox too, as Gmail's "Also apply filter to matching conversations"
-  // does: for the user's own account, where the Inbox can be searched.
   const inboxOffer = useMemo(() => {
     if (managedAccountId) return null;
     const inbox = allMailboxes.find((m) => m.role === 'inbox' && !m.isShared);
     if (!inbox) return null;
-    const id = inbox.originalId || inbox.id;
-    return {
-      id,
-      folder: localizeMailboxName(inbox.role, inbox.name, t),
-      count: async (rule: FilterRule) => (await planRuleOnMailbox(rule, id)).ids.length,
-    };
+    return { inbox, target: ownMailTarget(jmapClient, ownMailboxes(allMailboxes)), folder: localizeMailboxName(inbox.role, inbox.name, t) };
   }, [managedAccountId, allMailboxes, t]);
+  const forwardsAroundEdited = useMemo(
+    () => forwardsOfEditedRule(rules, vacationForward, editingRule?.id),
+    [rules, vacationForward, editingRule?.id],
+  );
 
   const handleToggle = useCallback((ruleId: string) => {
     toggleRule(ruleId);
@@ -238,20 +237,23 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
     [rules, vacationForward, sieveCapabilities],
   );
 
-  const handleSaveRule = useCallback((rule: FilterRule, options?: { applyToExisting: boolean }) => {
+  const handleSaveRule = useCallback((rule: FilterRule, options?: { applyTo: ApplyScope }) => {
     const previous = useFilterStore.getState().rules;
     if (editingRule) updateRule(rule.id, rule);
     else addRule(rule);
     setShowRuleModal(false);
     setEditingRule(undefined);
     void persist(() => useFilterStore.setState({ rules: previous })).then(async (saved) => {
-      // The switch in the editor: run the saved rule over the Inbox now.
-      if (!saved || !options?.applyToExisting || !inboxOffer) return;
+      const scope = options?.applyTo ?? 'new';
+      if (!saved || scope === 'new' || !inboxOffer) return;
+      const progress = toast.info(t('settings.filters.editor.applying', undefined, { name: rule.name }));
       try {
-        const count = await applyRuleToMailbox(rule, inboxOffer.id);
+        const count = await applyRuleToScope(inboxOffer.target, rule, scope, inboxOffer.inbox.id);
+        toast.dismiss(progress);
         toast.success(t('notifications.rule_applied', '{count, plural, =0 {No messages needed changes} one {Rule applied to # message} other {Rule applied to # messages}}', { count }), rule.name);
         void useEmailStore.getState().refreshEmails();
       } catch (err) {
+        toast.dismiss(progress);
         toast.error(t('notifications.rule_apply_failed', 'Could not apply the rule to existing messages'), err instanceof Error ? err.message : undefined);
       }
     });
@@ -542,14 +544,27 @@ export function FilterSettings({ onOpenVacation }: FilterSettingsProps = {}) {
         </View>
       </View>
 
-      <FilterRuleModal
+      <RuleEditorSheet
         visible={showRuleModal}
         rule={editingRule}
         mailboxes={mailboxes}
+        maxRedirects={sieveCapabilities?.maxNumberRedirects}
+        forwardsBefore={forwardsAroundEdited.before}
+        forwardsAfter={forwardsAroundEdited.after}
         periodsSupported={periodsSupported}
         regexSupported={regexSupported}
-        applyExisting={inboxOffer ?? undefined}
+        previewMatches={inboxOffer
+          ? (rule, options) => previewRule(inboxOffer.target, rule, { ...options, folderId: inboxOffer.inbox.id })
+          : undefined}
+        offerApplyToExisting={!!inboxOffer}
+        applyExistingFolder={inboxOffer?.folder}
         onSave={handleSaveRule}
+        onDelete={editingRule ? () => {
+          const rule = editingRule;
+          setShowRuleModal(false);
+          setEditingRule(undefined);
+          handleDelete(rule);
+        } : undefined}
         onClose={() => { setShowRuleModal(false); setEditingRule(undefined); }}
       />
 

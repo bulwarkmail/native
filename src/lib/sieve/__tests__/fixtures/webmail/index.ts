@@ -37,6 +37,7 @@ export const WEBMAIL_FIXTURES: WebmailFixture[] = [
   // "is the address" / "has the domain", "all messages", stop after discard
   // and reject, names with runs of spaces.
   { file: 'address-comparators.sieve', extensions: STALWART_EXTENSIONS },
+  { file: 'editor-rules.sieve', extensions: STALWART_EXTENSIONS },
 ];
 
 export function readWebmailFixture(file: string): string {

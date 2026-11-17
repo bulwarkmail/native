@@ -23,6 +23,7 @@ export interface SieveCapabilities {
 export type FilterConditionField =
   | 'from' | 'to' | 'cc' | 'subject' | 'header' | 'size' | 'body'
   | 'attachment'
+  | 'delivered_to'
   // Every message (Sieve `true`): no value, and always the comparator 'any'.
   | 'all';
 
