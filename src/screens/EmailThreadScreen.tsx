@@ -50,7 +50,7 @@ import { shareEmailEml } from '../lib/email-export';
 import { useKeywordsStore, useAccountKeywordDefs, keywordToken, type KeywordDef } from '../stores/keywords-store';
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
-import { useLayout } from '../lib/use-layout';
+import { fitsStatusColumn, useLayout } from '../lib/use-layout';
 import { useLocaleStore } from '../stores/locale-store';
 import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
@@ -68,6 +68,8 @@ import type { RootStackParamList } from '../navigation/types';
 import { MODAL_ORIENTATIONS } from '../lib/modal-orientations';
 import { useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
+import StatusColumnBar, { type BarItem } from '../components/StatusColumnBar';
+import { setStackViewerMessage } from '../lib/stack-viewer';
 import { Watermark } from '../components/Watermark';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
@@ -75,6 +77,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EmailThread'> & {
   embedded?: boolean;
   /** The pager moved to another message (the list highlights it). */
   onActiveChange?: (emailId: string) => void;
+  /**
+   * In the pane of an iPhone Duo half open like a laptop: the fold's place
+   * below the viewer's top. The message ends there and the bars follow below
+   * it, on the half lying flat.
+   */
+  foldAt?: number | null;
 };
 
 // How much of the card above the opened one stays in view when a long
@@ -109,7 +117,7 @@ export default function EmailThreadScreen(props: Props) {
   return <EmailViewer key={instance.current.key} {...props} />;
 }
 
-function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Props) {
+function EmailViewer({ route, navigation, embedded = false, onActiveChange, foldAt = null }: Props) {
   const c = useColors();
   const scaledType = useTypography();
   const styles = React.useMemo(() => makeStyles(c, scaledType), [c, scaledType]);
@@ -126,8 +134,15 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
   const onActiveChangeRef = React.useRef(onActiveChange);
   onActiveChangeRef.current = onActiveChange;
   React.useEffect(() => { onActiveChangeRef.current?.(activeEmailId); }, [activeEmailId]);
+  // On the stack, the Mail tab may take the message into its pane when the
+  // window widens (lib/use-message-pane): it needs the page on show.
+  React.useEffect(() => {
+    if (embedded) return;
+    setStackViewerMessage(route.key, activeEmailId);
+    return () => setStackViewerMessage(route.key, null);
+  }, [embedded, route.key, activeEmailId]);
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // Pages are as wide as the pager itself, which is the window on a phone
   // but only the detail pane in a split view. Measured, so a rotation or a
   // pane resize re-sizes them. The pages render only once it is measured:
@@ -835,76 +850,106 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
     ? (themeOverrides[email.id] ? themeOverrides[email.id] === 'dark' : !emailAlwaysLightMode && resolvedTheme === 'dark')
     : false;
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Toolbar */}
-      <View style={[styles.toolbar, embedded && styles.toolbarEmbedded]}>
-        {!embedded && (
-          <Pressable
-            onPress={() => navigation.goBack()}
-            style={styles.toolbarBack}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={t('common.back', 'Back')}
-          >
-            <ArrowLeft size={22} color={c.text} />
-          </Pressable>
-        )}
-        <View style={styles.toolbarActions}>
-          {relocatedActions.map((id) => {
-            const def = quickActionRegistry[id];
-            return (
-              <ToolbarButton
-                key={id}
-                icon={def.icon(18, c.textSecondary)}
-                label={def.label}
-                onPress={def.onPress}
-              />
-            );
-          })}
-          <ToolbarButton
-            icon={<Trash2 size={18} color={c.textSecondary} />}
-            label={t('email_viewer.delete', 'Delete')}
-            onPress={onDelete}
-          />
-          {showArchive && (
-            <ToolbarButton
-              icon={<Archive size={18} color={c.textSecondary} />}
-              label={t('email_viewer.archive', 'Archive')}
-              onPress={onArchive}
-            />
-          )}
-          {showMarkUnread && (
-            <ToolbarButton
-              icon={
-                unread ? (
-                  <MailOpen size={18} color={c.textSecondary} />
-                ) : (
-                  <Mail size={18} color={c.textSecondary} />
-                )
-              }
-              label={unread ? t('email_viewer.read', 'Read') : t('email_viewer.unread', 'Unread')}
-              onPress={onToggleUnread}
-            />
-          )}
-          <ToolbarButton
-            icon={
-              <Star
-                size={18}
-                color={starred ? c.starred : c.textSecondary}
-                fill={starred ? c.starred : 'transparent'}
-              />
-            }
-            label={starred ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star')}
-            onPress={onToggleStar}
-          />
-          <ToolbarButton
-            icon={<MoreVertical size={18} color={c.textSecondary} />}
-            label={t('email_viewer.more', 'More')}
-            onPress={() => setMoreMenuOpen(true)}
-          />
-        </View>
+  // The toolbar's and the bottom bar's buttons, in order.
+  const topItems: BarItem[] = [
+    ...relocatedActions.map((id) => {
+      const def = quickActionRegistry[id];
+      return { key: id, icon: def.icon, label: def.label, onPress: def.onPress };
+    }),
+    { key: 'delete', icon: (size, color) => <Trash2 size={size} color={color} />, label: t('email_viewer.delete', 'Delete'), onPress: onDelete },
+    ...(showArchive ? [{
+      key: 'archive', icon: (size: number, color: string) => <Archive size={size} color={color} />,
+      label: t('email_viewer.archive', 'Archive'), onPress: onArchive,
+    }] : []),
+    ...(showMarkUnread ? [{
+      key: 'unread',
+      icon: (size: number, color: string) => (unread ? <MailOpen size={size} color={color} /> : <Mail size={size} color={color} />),
+      label: unread ? t('email_viewer.read', 'Read') : t('email_viewer.unread', 'Unread'),
+      onPress: onToggleUnread,
+    }] : []),
+    {
+      key: 'star',
+      icon: (size, color) => (
+        <Star size={size} color={starred ? c.starred : color} fill={starred ? c.starred : 'transparent'} />
+      ),
+      label: starred ? t('email_viewer.unstar', 'Unstar') : t('email_viewer.star', 'Star'),
+      onPress: onToggleStar,
+    },
+    { key: 'more', icon: (size, color) => <MoreVertical size={size} color={color} />, label: t('email_viewer.more', 'More'), onPress: () => setMoreMenuOpen(true) },
+  ];
+  const bottomItems: BarItem[] = [
+    {
+      key: 'prev', icon: (size, color) => <ChevronLeft size={size} color={color} />, label: t('email_viewer.previous', 'Prev'),
+      onPress: prevEmail ? () => goToIndex(currentIndex - 1) : undefined, disabled: !prevEmail,
+    },
+    ...bottomActions.map((id) => {
+      const def = quickActionRegistry[id];
+      return { key: id, icon: def.icon, label: def.label, onPress: def.available ? def.onPress : undefined, disabled: !def.available };
+    }),
+    {
+      key: 'next', icon: (size, color) => <ChevronRight size={size} color={color} />, label: t('email_viewer.next', 'Next'),
+      onPress: nextEmail ? () => goToIndex(currentIndex + 1) : undefined, disabled: !nextEmail,
+    },
+  ];
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo), the
+  // bars go into it as Apple lays them out: Back and the toolbar at the top,
+  // the bottom bar's buttons below, and the message gets the whole height.
+  // Only on the stack, and where every button fits below the status bar;
+  // else the bars stay as they are.
+  const inColumn = !embedded && fitsStatusColumn(insets, windowHeight, 1 + topItems.length + bottomItems.length);
+
+  // An iPhone Duo half open like a laptop (`foldAt`): the message keeps to the
+  // upright half and the bars sit below the fold, on the half lying flat. A
+  // keyboard covers that half, so only what reaches above the fold counts for
+  // the message, and the bars stay where they are under it.
+  const belowFold = foldAt != null;
+  const paneKbObstruction = belowFold ? Math.max(0, kbObstruction - (windowHeight - foldAt)) : kbObstruction;
+  const toolbar = !inColumn && (
+    <View style={[styles.toolbar, embedded && styles.toolbarEmbedded, belowFold && { paddingLeft: insets.left + spacing.sm, paddingRight: insets.right + spacing.sm }]}>
+      {!embedded && (
+        <Pressable
+          onPress={() => navigation.goBack()}
+          style={styles.toolbarBack}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('common.back', 'Back')}
+        >
+          <ArrowLeft size={22} color={c.text} />
+        </Pressable>
+      )}
+      <View style={styles.toolbarActions}>
+        {topItems.map((item) => (
+          <ToolbarButton key={item.key} icon={item.icon(18, c.textSecondary)} label={item.label} onPress={item.onPress} />
+        ))}
       </View>
+    </View>
+  );
+  // Hidden while the keyboard is up so the quick reply stays visible.
+  const bottomBar = (belowFold || kbObstruction === 0) && !inColumn && (
+    <View
+      style={[
+        styles.bottomBar,
+        belowFold && styles.bottomBarBelowFold,
+        { paddingBottom: belowFold ? 4 : Math.max(insets.bottom, 4), paddingLeft: insets.left, paddingRight: insets.right },
+      ]}
+    >
+      {bottomItems.map((item) => (
+        <BottomBarButton
+          key={item.key}
+          icon={item.icon(20, item.key === 'prev' || item.key === 'next' ? c.textMuted : c.textSecondary)}
+          label={item.label}
+          onPress={item.onPress}
+          disabled={item.disabled}
+        />
+      ))}
+    </View>
+  );
+
+  return (
+    <>
+    <SafeAreaView style={[styles.container, belowFold && { flex: 0, height: foldAt }]} edges={['top', 'left', 'right']}>
+      {/* Toolbar */}
+      {!belowFold && toolbar}
 
       {error && !email ? (
         <View style={styles.centered}>
@@ -965,8 +1010,8 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
                   ensureThread={ensureThread}
                   scheduleMarkRead={scheduleMarkRead}
                   styles={styles}
-                  bottomBarHeight={bottomBarHeight}
-                  kbObstruction={item.id === activeEmailId ? kbObstruction : 0}
+                  bottomBarHeight={belowFold ? 0 : inColumn ? insets.bottom : bottomBarHeight}
+                  kbObstruction={item.id === activeEmailId ? paneKbObstruction : 0}
                   onToggleStar={toggleStarFor}
                   onAddressPress={setAddressSheet}
                   onEmailPatched={onEmailPatched}
@@ -980,35 +1025,7 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
           )}
           </View>
 
-          {/* Bottom action bar (hidden while keyboard is up so quick reply stays visible) */}
-          {kbObstruction === 0 && (
-            <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 4), paddingLeft: insets.left, paddingRight: insets.right }]}>
-              <BottomBarButton
-                icon={<ChevronLeft size={20} color={c.textMuted} />}
-                label={t('email_viewer.previous', 'Prev')}
-                onPress={prevEmail ? () => goToIndex(currentIndex - 1) : undefined}
-                disabled={!prevEmail}
-              />
-              {bottomActions.map((id) => {
-                const def = quickActionRegistry[id];
-                return (
-                  <BottomBarButton
-                    key={id}
-                    icon={def.icon(20, c.textSecondary)}
-                    label={def.label}
-                    onPress={def.available ? def.onPress : undefined}
-                    disabled={!def.available}
-                  />
-                );
-              })}
-              <BottomBarButton
-                icon={<ChevronRight size={20} color={c.textMuted} />}
-                label={t('email_viewer.next', 'Next')}
-                onPress={nextEmail ? () => goToIndex(currentIndex + 1) : undefined}
-                disabled={!nextEmail}
-              />
-            </View>
-          )}
+          {!belowFold && bottomBar}
         </>
       )}
 
@@ -1099,6 +1116,18 @@ function EmailViewer({ route, navigation, embedded = false, onActiveChange }: Pr
       <AddressActionSheet address={addressSheet} onClose={() => setAddressSheet(null)} />
       <QuickRuleSheet visible={rulesOpen} email={email ?? null} mailboxes={scopedMailboxes} onClose={() => setRulesOpen(false)} />
     </SafeAreaView>
+    {belowFold && toolbar}
+    {/* Not under a message that failed to load: there is nothing to reply to. */}
+    {belowFold && !(error && !email) && bottomBar}
+    {/* Beside the screen's root, which pads for the column: drawn over the column itself. */}
+    {inColumn && (
+      <StatusColumnBar
+        back={{ key: 'back', icon: (size, color) => <ArrowLeft size={size} color={color} />, label: t('common.back', 'Back'), onPress: () => navigation.goBack() }}
+        top={topItems}
+        bottom={bottomItems}
+      />
+    )}
+    </>
   );
 }
 
@@ -1985,6 +2014,8 @@ function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypogra
     borderTopWidth: 1,
     borderTopColor: c.border,
   },
+  // In the flow below the message, not over its foot.
+  bottomBarBelowFold: { position: 'relative' },
   bottomBarBtn: {
     flex: 1,
     alignItems: 'center',

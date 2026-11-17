@@ -45,9 +45,19 @@ describe('reading pane setting wiring', () => {
 
   it('lets the open message go when the setting turned the split off, and keeps it when the room did', () => {
     for (const screen of ['screens/MailTab.tsx', 'screens/UnifiedInboxScreen.tsx']) {
-      expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, readingPane === 'off'\)/);
+      expect(read(screen)).toMatch(/useMessagePane\(navigation, layout\.isSplit, readingPane === 'off', rowOf\)/);
     }
-    expect(read('lib/use-message-pane.ts')).toMatch(/if \(!turnedOff\) navigation\.navigate\('EmailThread', openRef\.current\.params\);\s+close\(\);/);
+    expect(read('lib/use-message-pane.ts')).toMatch(/if \(!turnedOff\) openOnStack\(openRef\.current\.params\);\s+close\(\);/);
+  });
+
+  it('takes the message back into the pane when the room comes back with its viewer on show', () => {
+    const src = read('lib/use-message-pane.ts');
+    expect(src).toMatch(/if \(isSplit\) \{\s+const viewer = handedOffViewer\(navigation\.getState\(\), handedOffRef\.current, stackViewerMessage\);/);
+    expect(src).toMatch(/navigation\.goBack\(\);\s+show\(rowOfRef\.current\(viewer\.emailId, viewer\.params\)/);
+    // Forgotten once the tabs are back on top, so a viewer opened from elsewhere stays put.
+    expect(src).toMatch(/navigation\.addListener\('focus', \(\) => \{ handedOffRef\.current = null; \}\)/);
+    // The stack viewer reports the page on show.
+    expect(read('screens/EmailThreadScreen.tsx')).toMatch(/if \(embedded\) return;\s+setStackViewerMessage\(route\.key, activeEmailId\);/);
   });
 
   it('is offered under Settings > Layout', () => {

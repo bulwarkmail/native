@@ -1,6 +1,8 @@
 import React from 'react';
+import type { NavigationState } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
+import { stackViewerMessage } from './stack-viewer';
 
 export type ThreadParams = RootStackParamList['EmailThread'];
 
@@ -33,23 +35,58 @@ export function rowAfterRemoval<T>(
 }
 
 /**
+ * The viewer the list or the pane put on the stack (`handedOff`), if it is
+ * still the screen on show, right over the tabs: its params and the message
+ * it shows now (`shownIn`: the viewer pages without changing its params).
+ */
+export function handedOffViewer(
+  state: Pick<NavigationState, 'index' | 'routes'>,
+  handedOff: ThreadParams | null,
+  shownIn: (routeKey: string) => string | undefined,
+): { params: ThreadParams; emailId: string } | null {
+  const top = state.routes[state.index];
+  if (!handedOff || top?.name !== 'EmailThread' || state.routes[state.index - 1]?.name !== 'MainTabs') return null;
+  const params = top.params as ThreadParams | undefined;
+  if (params?.emailId !== handedOff.emailId) return null;
+  return { params, emailId: shownIn(top.key) ?? params.emailId };
+}
+
+/**
  * The message shown next to a list where there is room (`mailLayoutFor`),
  * for the Mail tab and the unified views; `MessagePane` draws it. When the
  * room gets too narrow (split-screen, a fold, a rotation) with a message
- * open, the message moves to the stack so it stays on screen. `turnedOff`: the reading pane
- * setting turned the split off (#93), from Settings, so the screen is not on
- * show, and the message is let go instead.
+ * open, the message moves to the stack so it stays on screen. When the room
+ * comes back with a message on the stack that the list opened there
+ * (`openOnStack`) or the pane moved there, and still on show, the message
+ * goes into the pane beside the list: Apple's Mail on the iPhone Duo shows
+ * the message when closed and the list beside it when opened. `turnedOff`: the reading pane setting turned the split off
+ * (#93), from Settings, so the screen is not on show, and the message is let
+ * go instead. `rowOf` gives a message's row as the pane shows it (params, key
+ * and place in the list; `openedWith`, the params the viewer was opened
+ * with), null when the list no longer has it.
+ *
+ * The screen under the viewer keeps rendering (native-stack on Fabric does
+ * not freeze the screen right below the focused one), which is what lets the
+ * pane notice the window widen while the viewer is on top.
  */
 export function useMessagePane(
-  navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate'>,
+  navigation: Pick<NativeStackNavigationProp<RootStackParamList>, 'navigate' | 'getState' | 'goBack' | 'addListener'>,
   isSplit: boolean,
   turnedOff: boolean,
+  rowOf: (emailId: string, openedWith: ThreadParams) => PaneMessage | null = () => null,
 ) {
   const [open, setOpen] = React.useState<PaneMessage | null>(null);
   // The pager in the pane can move to another message; the list follows it.
   const [activeKey, setActiveKey] = React.useState<string | null>(null);
   const openRef = React.useRef(open);
   openRef.current = open;
+  // The message the list opened on the stack, or the pane moved there.
+  const handedOffRef = React.useRef<ThreadParams | null>(null);
+  const rowOfRef = React.useRef(rowOf);
+  rowOfRef.current = rowOf;
+  // Back on the tabs, the viewer is gone: a later one opened from elsewhere
+  // (a notification, search) is not the list's to take.
+  React.useEffect(() => navigation.addListener('focus', () => { handedOffRef.current = null; }), [navigation]);
 
   const show = React.useCallback((message: PaneMessage) => {
     setOpen(message);
@@ -59,16 +96,30 @@ export function useMessagePane(
     setOpen(null);
     setActiveKey(null);
   }, []);
+  // One pane: the message opens on the stack.
+  const openOnStack = React.useCallback((params: ThreadParams) => {
+    navigation.navigate('EmailThread', params);
+    handedOffRef.current = params;
+  }, [navigation]);
   // The viewer opened another message itself: it takes the open one's place.
   const replace = React.useCallback((params: ThreadParams) => {
     setOpen({ params, rowKey: params.emailId, index: openRef.current?.index ?? 0 });
   }, []);
 
   React.useEffect(() => {
-    if (isSplit || !openRef.current) return;
-    if (!turnedOff) navigation.navigate('EmailThread', openRef.current.params);
+    if (isSplit) {
+      const viewer = handedOffViewer(navigation.getState(), handedOffRef.current, stackViewerMessage);
+      handedOffRef.current = null;
+      if (!viewer) return;
+      navigation.goBack();
+      show(rowOfRef.current(viewer.emailId, viewer.params)
+        ?? { params: { ...viewer.params, emailId: viewer.emailId }, rowKey: viewer.emailId, index: 0 });
+      return;
+    }
+    if (!openRef.current) return;
+    if (!turnedOff) openOnStack(openRef.current.params);
     close();
-  }, [isSplit, turnedOff, navigation, close]);
+  }, [isSplit, turnedOff, navigation, show, close, openOnStack]);
 
-  return { open, openRef, activeKey, setActiveKey, show, close, replace };
+  return { open, openRef, activeKey, setActiveKey, show, close, replace, openOnStack };
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'react-native';
 import {
   DarkTheme, DefaultTheme, NavigationContainer, createNavigationContainerRef, useIsFocused,
@@ -64,7 +64,10 @@ import { useSettingsStore } from './src/stores/settings-store';
 import { startPolicySync, usePolicyFeature } from './src/stores/policy-store';
 import { startScreenPrivacySync } from './src/lib/screen-privacy';
 import { useLocaleStore } from './src/stores/locale-store';
-import { useLayout } from './src/lib/use-layout';
+import DeskInbox from './src/components/DeskInbox';
+import SideColumnTabBar from './src/components/SideColumnTabBar';
+import { useTent } from './src/lib/device-hinge';
+import { useLayout, useTabBarPosition } from './src/lib/use-layout';
 import { toast } from './src/stores/toast-store';
 import { useNetworkStore } from './src/stores/network-store';
 import { useUpdatesStore } from './src/stores/updates-store';
@@ -251,8 +254,12 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   };
   const unavailable = (name: string) => t('sidebar.tab_unavailable', '{name} (unavailable)', { name });
   // Side by side layouts move the tabs into a rail on the left, like the
-  // webmail's navigation rail.
-  const { isSplit } = useLayout();
+  // webmail's navigation rail, where it leaves room for both panes. With the
+  // status bar in a column on the side (iPhone Duo) they go in that column.
+  const tabBarPosition = useTabBarPosition();
+  const tent = useTent();
+  const rail = tabBarPosition === 'left';
+  const statusColumn = tabBarPosition === 'right';
   // Appearance > Show Toolbar Labels covers the tab names too (#128). With
   // it off a tab is its icon, centred in the room the name leaves.
   const showTabLabels = useSettingsStore((state) => state.showToolbarLabels);
@@ -262,17 +269,19 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
   const iconOnlyTabName = (name: string) =>
     (Platform.OS === 'android' && !showTabLabels ? { tabBarAccessibilityLabel: name } : null);
   // A bottom tab bar keeps the screens clear of the gesture bar or taskbar;
-  // with the tabs in a side rail the whole tab area has to.
+  // with the tabs on the side the whole tab area has to.
   const bottomInset = useSafeAreaInsets().bottom;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: isSplit ? bottomInset : 0 }}>
+    <View style={{ flex: 1, backgroundColor: c.background, paddingBottom: rail || statusColumn ? bottomInset : 0 }}>
       <UpdateBanner />
       <OfflineCacheBanner />
       <PushOnboardingPrompt />
       <AppIconBadge />
       <SessionTimeoutGuard />
+    <View style={{ flex: 1 }}>
     <Tab.Navigator
+      tabBar={statusColumn ? (props) => <SideColumnTabBar {...props} /> : undefined}
       screenListeners={perfMarksEnabled() ? ({ route }) => ({
         tabPress: () => perfStart('tab-switch'),
         focus: () => perfEndAfterPaint('tab-switch', { to: route.name }),
@@ -281,16 +290,16 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         headerShown: false,
         // Tabs out of view stop re-rendering until they are shown again.
         freezeOnBlur: true,
-        tabBarPosition: isSplit ? 'left' : 'bottom',
-        tabBarVariant: isSplit ? 'material' : 'uikit',
+        tabBarPosition: rail ? 'left' : 'bottom',
+        tabBarVariant: rail ? 'material' : 'uikit',
         tabBarShowLabel: showTabLabels,
         tabBarItemStyle: tabItemStyle,
         // A narrow rail (icon over label), not a wide sidebar with labels
         // beside the icons.
-        ...(isSplit ? { tabBarLabelPosition: 'below-icon' as const } : null),
+        ...(rail ? { tabBarLabelPosition: 'below-icon' as const } : null),
         tabBarActiveTintColor: c.text,
         tabBarInactiveTintColor: c.textSecondary,
-        tabBarStyle: isSplit ? {
+        tabBarStyle: rail ? {
           backgroundColor: c.secondary,
           borderRightColor: c.border,
           borderRightWidth: 1,
@@ -399,6 +408,9 @@ function MainTabsNavigator({ navigation }: NativeStackScreenProps<RootStackParam
         {() => <SettingsScreen onLogout={logout} />}
       </Tab.Screen>
     </Tab.Navigator>
+      {/* An iPhone Duo standing on a desk as a tent shows the inbox in large rows. */}
+      {tent && <DeskInbox navigation={navigation} />}
+    </View>
     </View>
   );
 }
@@ -925,7 +937,11 @@ export default function App() {
     return (
       <>
         <StatusBar style={statusBarStyle} />
-        <LoginScreen />
+        {/* No navigator here to provide the window's insets (LoginFrame). The
+            provider draws nothing until it has them: its background fills that frame. */}
+        <SafeAreaProvider style={{ backgroundColor: background }}>
+          <LoginScreen />
+        </SafeAreaProvider>
       </>
     );
   }

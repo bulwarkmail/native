@@ -30,7 +30,8 @@ import { useEmailStore } from '../stores/email-store';
 import { ownMailboxes } from '../lib/mailbox-tree';
 import { useContactsStore, type RecipientSuggestion } from '../stores/contacts-store';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
-import { useLayout } from '../lib/use-layout';
+import { fitsStatusColumn, useLayout } from '../lib/use-layout';
+import StatusColumnBar, { type BarItem } from '../components/StatusColumnBar';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { createAfterDismissQueue } from '../lib/after-modal-dismiss';
 import { useLocaleStore } from '../stores/locale-store';
@@ -403,12 +404,19 @@ export default function ComposeScreen({ route, navigation }: Props) {
   // Track the visible keyboard obstruction so the format bar stays above it.
   const kbObstruction = useKeyboardObstruction(insets.bottom, () => editorRef.current?.blur());
   const { shortHeight, isSplit } = useLayout();
+  // The stack presents the composer as a sheet or as a panel (App.tsx) when
+  // it opens, and iOS keeps a sheet a sheet while it is open: one opened on
+  // a folded iPhone Duo keeps the sheet's layout after unfolding and does
+  // not draw the panel inside the sheet. Android has no sheet of its own, so
+  // there the layout follows the window as before.
+  const openedAsPanel = React.useRef(isSplit).current;
+  const asPanel = isSplit && (openedAsPanel || Platform.OS !== 'ios');
   const typingInShortWindow = shortHeight && kbObstruction > 0;
   // When the keyboard is up it covers the bottom safe area, so we don't
   // need to add it on top — pad by whichever is larger.
   // On a tablet the composer is a centred panel that stops PANEL_MARGIN
   // short of the screen bottom; the keyboard covers that much less of it.
-  const bottomPad = isSplit
+  const bottomPad = asPanel
     ? Math.max(0, kbObstruction - PANEL_MARGIN)
     : Math.max(kbObstruction, insets.bottom);
   const replyTo = route.params?.replyTo;
@@ -721,8 +729,11 @@ export default function ComposeScreen({ route, navigation }: Props) {
   }), [t]);
   // The label column grows with the system font size: at 1.3 "Betreff"
   // wrapped into "Betref" / "f" in a fixed 56 dp column.
-  const { fontScale, height: windowHeight } = useWindowDimensions();
+  const { fontScale, width: windowWidth, height: windowHeight } = useWindowDimensions();
   const fieldLabelWidth = React.useMemo(() => ({ width: Math.round(56 * Math.max(1, fontScale)) }), [fontScale]);
+  // The composer's laid-out width, to tell a sheet that reaches the window's
+  // edges from a narrower one; unknown until the first layout.
+  const [composerWidth, setComposerWidth] = React.useState<number | null>(null);
   const subjectRef = React.useRef<TextInput>(null);
   const plainBodyRef = React.useRef<TextInput>(null);
   const [subjectFocused, setSubjectFocused] = React.useState(false);
@@ -3295,10 +3306,49 @@ export default function ComposeScreen({ route, navigation }: Props) {
     );
   };
 
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo), the
+  // header's buttons go into it, as the message viewer's do: Close, Discard,
+  // Attach and Schedule, then Send at its foot, above the keyboard. Only
+  // where the composer reaches the window's edges (iOS draws the sheet a
+  // few points in from them; a sheet it centres in a wider window leaves the
+  // column to the screen behind it) and the buttons fit between the status
+  // bar and the keyboard; else the header keeps them.
+  const canSchedule = jmapClient.hasDelayedSend();
+  const columnFoot = Math.max(insets.bottom, kbObstruction);
+  const sheetInset = composerWidth === null ? 0 : (Math.round(windowWidth) - composerWidth) / 2;
+  const inColumn = !asPanel && sheetInset >= 0 && sheetInset <= SHEET_EDGE_MAX
+    && fitsStatusColumn({ ...insets, bottom: columnFoot }, windowHeight, canSchedule ? 5 : 4);
+  const columnItems: BarItem[] = [
+    {
+      key: 'discard', icon: (size, color) => <Trash2 size={size} color={color} />,
+      label: t('email_composer.discard', 'Discard'), onPress: onDiscard, disabled: savingDraft,
+    },
+    {
+      key: 'attach', icon: (size, color) => <Paperclip size={size} color={color} />,
+      label: t('email_composer.attach', 'Attach'), onPress: () => setAttachMenuOpen(true),
+    },
+    ...(canSchedule ? [{
+      key: 'schedule', icon: (size: number, color: string) => <Clock size={size} color={color} />,
+      label: t('email_composer.schedule_send', 'Schedule send'), onPress: () => setScheduleSheetOpen(true), disabled: !canSend,
+    }] : []),
+  ];
+  const columnSend: BarItem = {
+    key: 'send',
+    icon: (size) => (sending ? <ActivityIndicator color={c.primary} size="small" /> : <Send size={size} color={c.primary} />),
+    label: sending ? t('email_composer.sending', 'Sending...') : t('email_composer.send', 'Send'),
+    onPress: onSend,
+    disabled: !canSend,
+  };
+
   const composer = (
-    <SafeAreaView style={styles.container} edges={isSplit ? [] : ['top', 'left', 'right']}>
+    <SafeAreaView
+      style={styles.container}
+      edges={asPanel ? [] : ['top', 'left', 'right']}
+      onLayout={(e) => setComposerWidth(Math.round(e.nativeEvent.layout.width))}
+    >
       {/* The Maestro flows wait for this id: a new message has no title to wait for. */}
-      <View style={[styles.header, typingInShortWindow && styles.headerCompact]} testID="compose-header">
+      <View style={[styles.header, typingInShortWindow && styles.headerCompact, inColumn && styles.headerInColumn]} testID="compose-header">
+        {!inColumn && (
         <Pressable
           onPress={onClose}
           style={styles.headerBtn}
@@ -3308,6 +3358,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
         >
           {savingDraft ? <ActivityIndicator size="small" color={c.text} /> : <X size={22} color={c.text} />}
         </Pressable>
+        )}
         <View
           style={[styles.headerTitleWrap, !headerTitle && styles.headerTitleWrapUntitled]}
           // No visible title on a new message: screen readers still hear
@@ -3324,6 +3375,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <Text style={styles.headerSubtitle} numberOfLines={1}>{draftStatusText}</Text>
           )}
         </View>
+        {!inColumn && (
         <View style={styles.headerRight}>
           <Pressable
             onPress={onDiscard}
@@ -3345,7 +3397,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             <Paperclip size={20} color={c.text} />
           </Pressable>
           {/* Only offer scheduling when the server can hold the message (webmail parity). */}
-          {jmapClient.hasDelayedSend() && (
+          {canSchedule && (
             <Pressable
               onPress={() => setScheduleSheetOpen(true)}
               style={styles.headerBtn}
@@ -3377,6 +3429,7 @@ export default function ComposeScreen({ route, navigation }: Props) {
             {sending ? t('email_composer.sending', 'Sending...') : t('email_composer.send', 'Send')}
           </Button>
         </View>
+        )}
       </View>
 
       <View style={[styles.flex, { paddingBottom: bottomPad }]}>
@@ -4148,16 +4201,49 @@ export default function ComposeScreen({ route, navigation }: Props) {
       <AttachmentPreviewModal {...filePreview.modalProps} />
     </SafeAreaView>
   );
-  if (!isSplit) return composer;
-  // Tablet: a centred panel over the dimmed screen it was opened from.
+  if (!asPanel) {
+    return (
+      <>
+        {composer}
+        {/* Beside the composer, which pads for the column: drawn over the column itself. */}
+        {inColumn && (
+          <StatusColumnBar
+            back={{
+              key: 'close',
+              icon: (size, color) => (savingDraft ? <ActivityIndicator size="small" color={color} /> : <X size={size} color={color} />),
+              label: t('common.close', 'Close'),
+              onPress: onClose,
+              disabled: savingDraft,
+            }}
+            top={columnItems}
+            bottom={[columnSend]}
+            footInset={columnFoot}
+            width={insets.right - sheetInset}
+          />
+        )}
+      </>
+    );
+  }
+  // Tablet: a centred panel over the dimmed screen it was opened from, clear
+  // of the side insets (the iPhone Duo's status column).
   return (
-    <View style={[styles.panelBackdrop, { paddingTop: insets.top + PANEL_MARGIN, paddingBottom: insets.bottom + PANEL_MARGIN }]}>
+    <View
+      style={[styles.panelBackdrop, {
+        paddingTop: insets.top + PANEL_MARGIN,
+        paddingBottom: insets.bottom + PANEL_MARGIN,
+        paddingLeft: insets.left + PANEL_MARGIN,
+        paddingRight: insets.right + PANEL_MARGIN,
+      }]}
+    >
       <View style={styles.panel}>{composer}</View>
     </View>
   );
 }
 
 const SELECTION_START = { start: 0, end: 0 };
+
+/** The most iOS insets a full-width sheet from the window's edges (8 pt on the iPhone Duo's outer display). */
+const SHEET_EDGE_MAX = 16;
 
 /** Gap between the tablet composer panel and the screen edges. */
 const PANEL_MARGIN = 24;
@@ -4170,7 +4256,6 @@ function makeStyles(c: ThemePalette) {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
-    paddingHorizontal: PANEL_MARGIN,
   },
   panel: {
     flex: 1,
@@ -4205,6 +4290,8 @@ function makeStyles(c: ThemePalette) {
     gap: spacing.sm,
   },
   headerCompact: { paddingVertical: 0 },
+  // Title and draft status only: the buttons are in the status column.
+  headerInColumn: { minHeight: 36, paddingHorizontal: spacing.lg },
   headerBtn: {
     width: componentSizes.buttonLg,
     height: componentSizes.buttonLg,

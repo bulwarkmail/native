@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Keyboard, Dimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
-import { useLayout } from '../lib/use-layout';
+import { useFoldAlignedListWidth, useLaptopFoldY, useTypingInList } from '../lib/use-fold-panes';
+import { useLayout, usePaneArea } from '../lib/use-layout';
 import { confirmSignOut } from '../lib/sign-out-confirm';
 import {
   Accessibility, ArrowLeft, LogOut, Search, X, ChevronRight,
@@ -227,6 +228,14 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const [selectedTab, setSelectedTab] = useState<Tab | null>(null);
   const { isSplit } = useLayout();
+  const { contentWidth, onLayout } = usePaneArea(true);
+  const listWidth = useFoldAlignedListWidth(SETTINGS_LIST_WIDTH, contentWidth);
+  // An iPhone Duo half open like a laptop: the page on the upright half, the list below the fold.
+  const laptopFoldY = useLaptopFoldY();
+  // While the list has the keyboard (its search field), which covers the half lying flat, it takes the whole tab.
+  const listRef = React.useRef<View>(null);
+  const typingInList = useTypingInList(isSplit ? laptopFoldY : null, listRef);
+  const foldY = typingInList ? null : laptopFoldY;
   const [searchQuery, setSearchQuery] = useState('');
   // A tapped search result: its pane scrolls to the setting and flashes it.
   const [pendingHighlight, setPendingHighlight] = useState<{ tab: Tab; label: string } | null>(null);
@@ -486,7 +495,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
     const tabLabel = t(tabLabelKey(tabDef.id), tabDef.label);
 
     return (
-      <SafeAreaView style={styles.container} edges={isSplit ? ['top', 'right'] : ['top', 'left', 'right']}>
+      <SafeAreaView style={styles.container} edges={isSplit && foldY == null ? ['top', 'right'] : ['top', 'left', 'right']}>
         <View style={[styles.header, (!isSplit || tabDef.parent) && styles.headerWithBack]}>
           {(!isSplit || tabDef.parent) && (
             <Pressable
@@ -537,7 +546,7 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
   const listSelected = shownTab ? (TABS.find((def) => def.id === shownTab)?.parent ?? shownTab) : null;
 
   const list = (
-    <SafeAreaView style={styles.container} edges={isSplit ? ['top', 'left'] : ['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={isSplit && foldY != null ? ['left', 'right'] : isSplit && !typingInList ? ['top', 'left'] : ['top', 'left', 'right']}>
       {/* Settings is a tab root, so the back button is only rendered when a
           parent passes onBack (it'd otherwise lead nowhere). */}
       <View style={[styles.header, onBack && styles.headerWithBack]}>
@@ -673,9 +682,9 @@ export default function SettingsScreen({ onLogout, onBack, onTabSelect }: Settin
 
   if (!isSplit) return shownTab ? renderPage(shownTab) : list;
   return (
-    <View style={styles.splitRow}>
-      <View style={[styles.splitList, { width: SETTINGS_LIST_WIDTH }]}>{list}</View>
-      <View style={styles.splitPage}>{shownTab ? renderPage(shownTab) : null}</View>
+    <View style={styles.splitRow} onLayout={onLayout}>
+      <View ref={listRef} style={foldY != null ? [styles.splitPage, { marginTop: foldY }] : typingInList ? styles.splitPage : [styles.splitList, { width: listWidth }]}>{list}</View>
+      <View style={foldY != null ? [styles.pageAbove, { height: foldY }] : typingInList ? styles.pageHidden : styles.splitPage}>{shownTab ? renderPage(shownTab) : null}</View>
     </View>
   );
 }
@@ -698,6 +707,11 @@ function makeStyles(c: ThemePalette) {
     splitRow: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     splitList: { borderRightWidth: 1, borderRightColor: c.border },
     splitPage: { flex: 1 },
+    pageHidden: { display: 'none' },
+    pageAbove: {
+      position: 'absolute', top: 0, left: 0, right: 0,
+      borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.background,
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'center',

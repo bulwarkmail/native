@@ -13,9 +13,10 @@ describe('unified inbox split view wiring', () => {
   const src = read('screens/UnifiedInboxScreen.tsx');
 
   it('opens a message in the pane on a wide window and on the stack otherwise', () => {
-    expect(src).toMatch(/const pane = useMessagePane\(navigation, layout\.isSplit, readingPane === 'off'\);/);
+    expect(src).toMatch(/const pane = useMessagePane\(navigation, layout\.isSplit, readingPane === 'off', rowOf\);/);
     expect(src).toMatch(/if \(layout\.isSplit\) \{\s+showInPane\(\{ params, rowKey: rowKey\(email\), index: /);
-    expect(src).toMatch(/\} else \{\s+navigation\.navigate\('EmailThread', params\);/);
+    // On the stack through the pane, which takes it back if the window widens (a Duo opened).
+    expect(src).toMatch(/\} else \{\s+openOnStack\(params\);/);
   });
 
   it('draws the list and the pane side by side, like the Mail tab', () => {
@@ -24,7 +25,7 @@ describe('unified inbox split view wiring', () => {
     expect(src).toMatch(/<SafeAreaView style=\{\[styles\.listPane, \{ width: layout\.listWidth \}\]\} edges=\{\['top', 'left'\]\}>\s+\{listColumn\}/);
     expect(src).toMatch(/<MessagePane\s+message=\{pane\.open\}/);
     const mailTab = read('screens/MailTab.tsx');
-    expect(mailTab).toMatch(/const pane = useMessagePane\(navigation, layout\.isSplit, readingPane === 'off'\);/);
+    expect(mailTab).toMatch(/const pane = useMessagePane\(navigation, layout\.isSplit, readingPane === 'off', rowOf\);/);
     expect(mailTab).toMatch(/<MessagePane\s+message=\{pane\.open\}/);
   });
 

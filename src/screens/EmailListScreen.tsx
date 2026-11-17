@@ -54,7 +54,7 @@ import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
-import { useLayout } from '../lib/use-layout';
+import { useLayout, useTabBarPosition } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { useSearchHistoryStore } from '../stores/search-history-store';
@@ -512,6 +512,8 @@ interface EmailListScreenProps {
   sidebarDocked?: boolean;
   /** A unified view is shown in this list's place: Back is that view's. */
   covered?: boolean;
+  /** Below the reader (an iPhone Duo half open like a laptop): the status bar is not above it. */
+  belowReader?: boolean;
 }
 
 export default function EmailListScreen({
@@ -521,6 +523,7 @@ export default function EmailListScreen({
   split: isSplit = false,
   sidebarDocked = false,
   covered = false,
+  belowReader = false,
 }: EmailListScreenProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -528,11 +531,18 @@ export default function EmailListScreen({
   // the native SafeAreaView only learned them a few frames later on Fabric,
   // so the header first drew under the status bar and then jumped down.
   const insets = useSafeAreaInsets();
+  // In a split view the reading pane is between the list and the right edge,
+  // and keeps clear of it itself: the iPhone Duo's status column (its right
+  // inset) took 84 dp off a 320 dp list.
+  const rightInset = isSplit ? 0 : insets.right;
   const { t } = useLocaleStore();
   const resolvedTheme = useResolvedTheme();
-  // The undo bar floats over the list's bottom right on a phone (on a split
-  // layout it sits over the reading pane instead).
+  // The undo bar floats over the list's bottom right on a phone, and on a
+  // split layout that keeps the bottom tab bar (lib/use-layout
+  // floatingCardFrame); on any other split layout it sits over the reading
+  // pane instead.
   const windowLayout = useLayout();
+  const tabBarAtBottom = useTabBarPosition() === 'bottom';
   const { shortHeight, widthClass } = windowLayout;
   // In a split view the push prompt floats in this column, not over the
   // reader's quick reply (lib/push-prompt-frame). The prompt goes by the
@@ -554,7 +564,7 @@ export default function EmailListScreen({
   const selectionCountOnly = isSplit || widthClass === 'compact';
   const listUndo = useEmailStore((s) => s.pendingUndo != null);
   const sendUndo = useSendUndoStore((s) => s.pending != null);
-  const undoBarUp = !isSplit && (listUndo || sendUndo);
+  const undoBarUp = (!isSplit || tabBarAtBottom) && (listUndo || sendUndo);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const emails = useEmailStore((s) => s.emails);
@@ -1624,7 +1634,7 @@ export default function EmailListScreen({
     <View
       ref={rootRef}
       onLayout={reportListColumn}
-      style={[styles.container, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}
+      style={[styles.container, { paddingTop: belowReader ? 0 : insets.top, paddingLeft: insets.left, paddingRight: rightInset }]}
     >
       {/* Header */}
       {selectionMode ? (
@@ -2045,7 +2055,7 @@ export default function EmailListScreen({
           styles.fab,
           // Lifted over the phone's undo bar, which used to cover it.
           undoBarUp && { bottom: spacing.lg + UNDO_BAR_CLEARANCE },
-          { right: spacing.lg + insets.right },
+          { right: spacing.lg + rightInset },
           pressed && styles.fabPressed,
         ]}
         accessibilityRole="button"

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Keyboard, StyleSheet, View } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import EmailListScreen from './EmailListScreen';
@@ -14,6 +14,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { mailboxAccountId } from '../lib/mailbox-tree';
 import { prefetchMessage } from '../lib/email-detail-cache';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
+import { useTypingInList } from '../lib/use-fold-panes';
 import { useMailLayout } from '../lib/use-mail-layout';
 import { rowAfterRemoval, useMessagePane, type ThreadParams } from '../lib/use-message-pane';
 import { useColors } from '../theme/colors';
@@ -56,21 +57,26 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
   // its labels), and one pane when the reader would get less than its
   // minimum (#104).
   const layout = useMailLayout(true);
-  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
-  const { show, close, openRef, setActiveKey } = pane;
+  const rowOf = React.useCallback((emailId: string) => {
+    const rows = visibleRows();
+    const index = rows.findIndex((e) => e.id === emailId);
+    return index < 0 ? null : { params: threadParamsFor(rows[index]), rowKey: rowKeyOf(rows[index]), index };
+  }, []);
+  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
+  const { show, close, openRef, setActiveKey, openOnStack } = pane;
 
   const openEmail = React.useCallback((email: Email) => {
     const params = threadParamsFor(email);
     // Start on the body now: mounting the viewer takes a while.
     prefetchMessage(email, params.jmapAccountId);
     if (!layout.isSplit) {
-      navigation.navigate('EmailThread', params);
+      openOnStack(params);
       return;
     }
     const key = rowKeyOf(email);
     const index = Math.max(0, visibleRows().findIndex((e) => rowKeyOf(e) === key));
     show({ params, rowKey: key, index });
-  }, [layout.isSplit, navigation, show]);
+  }, [layout.isSplit, openOnStack, show]);
 
   // Another folder: its list has nothing to do with the message on show.
   const currentMailboxId = useEmailStore((s) => s.currentMailboxId);
@@ -92,11 +98,32 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
     else close();
   }, [openRef, openEmail, close]);
 
+  // A message opened from the list while the list had the keyboard (a search
+  // result): the keyboard goes, and the reader comes back with the message.
+  React.useEffect(() => {
+    if (typingInList && pane.activeKey) Keyboard.dismiss();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pane.activeKey]);
+
   const onActiveChange = React.useCallback((id: string) => {
     const row = useEmailStore.getState().emails.find((e) => e.id === id);
     setActiveKey(row ? rowKeyOf(row) : id);
   }, [setActiveKey]);
 
+  // An iPhone Duo half open like a laptop: the message on the upright half,
+  // its buttons and the list on the half lying flat, nothing across the fold.
+  const stackable = layout.foldY != null && !unified && !layout.hasSidebar;
+  // A keyboard covers most of the half lying flat: while the list has it
+  // (its search field), the list takes the whole tab and the reader waits.
+  const listRef = React.useRef<View>(null);
+  const typingInList = useTypingInList(stackable ? layout.foldY : null, listRef);
+  const stacked = stackable && !typingInList;
+  // The reader lies over the top of the row and the list starts below it,
+  // by the reader's measured height (the fold, until it is known). The row
+  // itself is not turned into a column: views that changed between the two
+  // directions kept the size they had in the other one.
+  const [readerHeight, setReaderHeight] = React.useState(0);
+  const listTop = stacked ? readerHeight || layout.foldY : 0;
   const list = (
     <EmailListScreen
       onComposePress={() => navigation.navigate('Compose')}
@@ -105,8 +132,10 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
       split={layout.isSplit}
       sidebarDocked={layout.hasSidebar}
       covered={!!unified}
+      belowReader={stacked}
     />
   );
+  const listBesideReader = layout.isSplit && !stackable;
   // The room right of a docked folder list, for a unified view's list and pane.
   const roomWidth = layout.listWidth + layout.detailWidth;
 
@@ -134,15 +163,19 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
           />
         </View>
       )}
-      <View style={[layout.isSplit ? [styles.listPane, { width: layout.listWidth }] : styles.fill, unified && styles.hidden]}>{list}</View>
+      <View ref={listRef} style={[listBesideReader ? [styles.listPane, { width: layout.listWidth }] : styles.fill, stacked && { marginTop: listTop }, unified && styles.hidden]}>{list}</View>
       {layout.isSplit && !unified && (
-        <View style={styles.fill}>
+        <View
+          style={stacked ? styles.readerAbove : stackable ? styles.hidden : styles.fill}
+          onLayout={stacked ? (e) => setReaderHeight(Math.round(e.nativeEvent.layout.height)) : undefined}
+        >
           <MessagePane
             message={pane.open}
             navigation={navigation}
             onRemoved={showNextAfterRemoval}
             onReplace={pane.replace}
             onActiveChange={onActiveChange}
+            foldAt={stacked ? layout.foldY : null}
           />
         </View>
       )}
@@ -156,6 +189,10 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
+    readerAbove: {
+      position: 'absolute', top: 0, left: 0, right: 0,
+      borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.background,
+    },
     fill: { flex: 1 },
     hidden: { display: 'none' },
   });

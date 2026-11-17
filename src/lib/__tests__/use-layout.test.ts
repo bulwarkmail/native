@@ -1,14 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 411, height: 914 }) }));
+vi.mock('react-native', () => ({ Platform: { OS: 'android' }, useWindowDimensions: () => ({ width: 411, height: 914 }) }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 import {
   DOCKED_WIDTH, READING_PANE_MIN, TAB_RAIL_WIDTH, contentWidthFor, floatingCardFrame, layoutFor, listPaneWidth,
-  mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets,
+  mailLayoutFor, mailScreenLayoutFor, measuredContentWidth, paneLayoutFor, sheetSideInsets, tabBarPositionFor,
+  hasStatusColumn, foldAlignedPanes, fitsStatusColumn, laptopFoldY,
 } from '../use-layout';
 
-const NO_INSETS = { left: 0, right: 0 };
+const NO_INSETS = { top: 0, left: 0, right: 0 };
 
 describe('layoutFor', () => {
   it('keeps a phone in portrait on the single-pane layout', () => {
@@ -178,7 +179,7 @@ describe('mailScreenLayoutFor', () => {
 describe('content width', () => {
   it('takes the rail and the side insets off a tab screen of a split window', () => {
     const window = layoutFor(1280, 800);
-    expect(contentWidthFor(1280, window, { left: 24, right: 24 }, true)).toBe(1280 - 48 - TAB_RAIL_WIDTH);
+    expect(contentWidthFor(1280, window, { top: 0, left: 24, right: 24 }, true)).toBe(1280 - 48 - TAB_RAIL_WIDTH);
     // A stack screen has no rail, and a phone shows its tabs at the bottom.
     expect(contentWidthFor(1280, window, NO_INSETS, false)).toBe(1280);
     expect(contentWidthFor(411, layoutFor(411, 914), NO_INSETS, true)).toBe(411);
@@ -187,9 +188,123 @@ describe('content width', () => {
   it('goes by the measured root once there is one', () => {
     const window = layoutFor(1280, 800);
     // Right of a 110 dp rail (a longer tab label), which keeps clear of the left inset.
-    expect(measuredContentWidth(1170, window, { left: 24, right: 24 }, true)).toBe(1146);
+    expect(measuredContentWidth(1170, true, { left: 24, right: 24 })).toBe(1146);
     // A stack screen starts at the window's edge.
-    expect(measuredContentWidth(1280, window, { left: 24, right: 24 }, false)).toBe(1232);
+    expect(measuredContentWidth(1280, false, { left: 24, right: 24 })).toBe(1232);
+  });
+});
+
+describe('tab bar position', () => {
+  it('keeps the rail on tablets and foldables where the split fits beside it', () => {
+    expect(tabBarPositionFor(layoutFor(1280, 800), 1280, NO_INSETS)).toBe('left');
+    expect(tabBarPositionFor(layoutFor(800, 1280), 800, NO_INSETS)).toBe('left');
+    // iPad mini held upright: list 298 dp, reader 360 dp next to the rail.
+    expect(tabBarPositionFor(layoutFor(744, 1133), 744, NO_INSETS)).toBe('left');
+    // A Galaxy Z Fold held upright has one pane either way: no change.
+    expect(tabBarPositionFor(layoutFor(616, 816), 616, NO_INSETS)).toBe('left');
+  });
+
+  it('keeps a phone on the bottom bar', () => {
+    expect(tabBarPositionFor(layoutFor(411, 914), 411, NO_INSETS)).toBe('bottom');
+    expect(tabBarPositionFor(layoutFor(914, 411), 914, NO_INSETS)).toBe('bottom');
+  });
+
+  it('keeps the bottom bar where the rail would cost the reading pane', () => {
+    const edge = 640 + TAB_RAIL_WIDTH;
+    expect(tabBarPositionFor(layoutFor(edge - 1, 1000), edge - 1, NO_INSETS)).toBe('bottom');
+    expect(tabBarPositionFor(layoutFor(edge, 1000), edge, NO_INSETS)).toBe('left');
+    expect(tabBarPositionFor(layoutFor(640, 1000), 640, NO_INSETS)).toBe('bottom');
+    expect(tabBarPositionFor(layoutFor(639, 1000), 639, NO_INSETS)).toBe('left');
+  });
+});
+
+describe('iPhone Duo', () => {
+  // Measured on the iPhone Duo simulator (iOS 27.1): outer display 466 x 678
+  // pt, inner display 669 x 951 pt.
+  it('shows the list and the message side by side on the inner display held upright', () => {
+    const inner = layoutFor(669, 951);
+    expect(tabBarPositionFor(inner, 669, NO_INSETS)).toBe('bottom');
+    expect(mailTabPanes(669, 951)).toMatchObject({ isSplit: true, hasSidebar: false, listWidth: 309, detailWidth: 360 });
+  });
+
+  it('splits the inner display turned sideways next to the rail', () => {
+    expect(tabBarPositionFor(layoutFor(951, 669), 951, NO_INSETS)).toBe('left');
+    expect(mailTabPanes(951, 669)).toMatchObject({ isSplit: true, hasSidebar: false, listWidth: 320, detailWidth: 545 });
+  });
+
+  it('puts the tabs in the status column where iOS keeps one on the right', () => {
+    // The outer display: the status bar down the right edge, no top inset.
+    const column = { top: 0, left: 0, right: 84 };
+    expect(hasStatusColumn(column, 'ios')).toBe(true);
+    expect(tabBarPositionFor(layoutFor(466, 678), 466, column, 'ios')).toBe('right');
+    expect(tabBarPositionFor(layoutFor(951, 669), 951, column, 'ios')).toBe('right');
+    // The column is the inset the screens keep clear of already: no rail to take off.
+    expect(contentWidthFor(466, layoutFor(466, 678), column, true)).toBe(382);
+  });
+
+  it('keeps an iPhone in landscape, an iPad and Android off the status column', () => {
+    expect(hasStatusColumn({ top: 0, left: 59, right: 59 }, 'ios')).toBe(false);
+    expect(hasStatusColumn({ top: 24, left: 0, right: 0 }, 'ios')).toBe(false);
+    expect(hasStatusColumn({ top: 0, left: 0, right: 48 }, 'android')).toBe(false);
+    // A narrow inset is a corner or a sensor housing, too narrow for the tabs.
+    expect(hasStatusColumn({ top: 0, left: 0, right: 48 }, 'ios')).toBe(false);
+  });
+
+  it('keeps one pane on the outer display', () => {
+    expect(mailTabPanes(466, 678)).toMatchObject({ isSplit: false, listWidth: 466 });
+    expect(mailTabPanes(678, 466)).toMatchObject({ isSplit: false, listWidth: 678 });
+  });
+});
+
+describe('fitsStatusColumn', () => {
+  // Back, five toolbar buttons and five bottom-bar buttons.
+  const MESSAGE = 11;
+
+  it("fits the message viewer's buttons in the column on both of the Duo's displays", () => {
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, MESSAGE, 'ios')).toBe(true);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 669, MESSAGE, 'ios')).toBe(true);
+  });
+
+  it('keeps the bars where the buttons would run into the status bar', () => {
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 600, MESSAGE, 'ios')).toBe(false);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, 14, 'ios')).toBe(false);
+  });
+
+  it("fits the composer's buttons above a keyboard, as long as they clear the status bar", () => {
+    // Close, Discard, Attach, Schedule and Send on the outer display; the
+    // keyboard's height stands in for the bottom inset.
+    const COMPOSER = 5;
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, COMPOSER, 'ios')).toBe(true);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 300 }, 678, COMPOSER, 'ios')).toBe(true);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 310 }, 678, COMPOSER, 'ios')).toBe(false);
+    // Without Schedule (a server that cannot hold mail) one more button's height is free.
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 340 }, 678, COMPOSER - 1, 'ios')).toBe(true);
+  });
+
+  it('never puts them in a column that is not there', () => {
+    expect(fitsStatusColumn({ top: 59, left: 0, right: 0, bottom: 34 }, 932, MESSAGE, 'ios')).toBe(false);
+    expect(fitsStatusColumn({ top: 0, left: 0, right: 84, bottom: 34 }, 678, MESSAGE, 'android')).toBe(false);
+  });
+});
+
+describe('foldAlignedPanes', () => {
+  it('moves the edge between the panes to the fold of a Duo held like a book', () => {
+    // Inner display sideways, the tabs in the 84 pt status column: 867 pt of room from the left edge.
+    const split = { ...layoutFor(951, 669), listWidth: 320, detailWidth: 547 };
+    expect(foldAlignedPanes(split, 951, 0)).toMatchObject({ isSplit: true, listWidth: 476, detailWidth: 391 });
+  });
+
+  it('keeps the panes where the fold would leave either too narrow', () => {
+    const split = { ...layoutFor(951, 669), listWidth: 320, detailWidth: 300 + 360 - 320 };
+    // Room 660: a list of 476 leaves the reader 184.
+    expect(foldAlignedPanes(split, 951, 0)).toBe(split);
+    // A list starting right of the fold.
+    expect(foldAlignedPanes({ ...split, detailWidth: 900 }, 951, 300)).toMatchObject({ listWidth: 320 });
+  });
+
+  it('changes nothing on one pane', () => {
+    const one = mailTabPanes(466, 678);
+    expect(foldAlignedPanes(one, 466, 0)).toBe(one);
   });
 });
 
@@ -221,10 +336,33 @@ describe('floatingCardFrame', () => {
     expect(floatingCardFrame(411, false, { left: 0, right: 0 })).toEqual({ left: 12, right: 12, bottom: 64 });
   });
 
+  it('comes down to the margin where the tabs are not along the bottom', () => {
+    expect(floatingCardFrame(466, false, { left: 0, right: 84 }, 'right')).toEqual({ left: 12, right: 96, bottom: 12 });
+    expect(floatingCardFrame(951, true, { left: 0, right: 84 }, 'right')).toEqual({ left: 487, right: 104, bottom: 20 });
+  });
+
+  it('spans a split layout that keeps the bottom tab bar like a phone, above the bar', () => {
+    // The Duo's inner display upright: a 309 dp list has no room for a 360 dp card beside it.
+    expect(floatingCardFrame(669, true, NO_INSETS, 'bottom')).toEqual({ left: 12, right: 12, bottom: 64 });
+  });
+
   it('sits bottom right at 360 dp on a split layout', () => {
     const f = floatingCardFrame(1280, true, { left: 0, right: 0 });
     expect(1280 - f.left - f.right).toBe(360);
     expect(f.right).toBe(20);
     expect(f.bottom).toBe(20);
+  });
+});
+
+describe('laptopFoldY', () => {
+  it('puts the fold half way down the inner display of a Duo half open and upright', () => {
+    expect(laptopFoldY(true, 669, 951)).toBe(476);
+  });
+
+  it('is nowhere when the Duo is flat, closed, or half open like a book', () => {
+    expect(laptopFoldY(false, 669, 951)).toBeNull();
+    expect(laptopFoldY(false, 466, 678)).toBeNull();
+    // Sideways the fold runs down the window: the panes meet at it instead (foldAlignedPanes).
+    expect(laptopFoldY(true, 951, 669)).toBeNull();
   });
 });

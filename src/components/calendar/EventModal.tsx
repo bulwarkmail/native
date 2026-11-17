@@ -555,7 +555,7 @@ export function EventModal({
       presentationStyle="fullScreen"
       onRequestClose={requestClose}
     >
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']} onLayout={onContainerLayout}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']} onLayout={onContainerLayout}>
         <View style={styles.header}>
           <Pressable
             onPress={requestClose}

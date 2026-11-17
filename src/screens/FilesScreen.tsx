@@ -70,6 +70,7 @@ import { fileErrorMessage } from '../lib/file-errors';
 import { filesGridLayout } from '../lib/files-grid';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatListDate } from '../lib/date-format';
+import { useLaptopFoldY, useTypingInList } from '../lib/use-fold-panes';
 import { useLayout, useSheetInsets } from '../lib/use-layout';
 import { useSheetBottomInset } from '../lib/sheet-bottom-inset';
 import { filesListWidth, filesTitleOnOwnRow } from '../lib/files-split';
@@ -235,7 +236,6 @@ export default function FilesScreen() {
   // Clear of the status bar (the header used a fixed 60 px top padding); the
   // whole screen keeps clear of the side insets in landscape.
   const insets = useSafeAreaInsets();
-  const headerInsets = { paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.md };
   // The header's width: next to the docked preview the folder name moves
   // under the buttons when they leave it too little room.
   const [headerWidth, setHeaderWidth] = useState(0);
@@ -295,6 +295,15 @@ export default function FilesScreen() {
   const [viewOverride, setViewOverride] = useState<FilesViewMode | null>(null);
   const viewMode: FilesViewMode = viewOverride ?? defaultViewMode;
   const { isSplit } = useLayout();
+  // An iPhone Duo half open like a laptop: the open file on the upright half,
+  // the list below the fold, where the status bar is not above it.
+  const foldY = useLaptopFoldY();
+  const previewStackable = isSplit && previewTarget != null && foldY != null;
+  // While the list has the keyboard (its search field), which covers the half lying flat, it takes the whole tab.
+  const listRef = React.useRef<View>(null);
+  const typingInList = useTypingInList(previewStackable ? foldY : null, listRef);
+  const previewStacked = previewStackable && !typingInList;
+  const headerInsets = { paddingTop: (previewStacked ? 0 : insets.top) + spacing.sm, paddingHorizontal: spacing.md };
   // The grid's columns follow its measured width (rotation, tablet panes).
   const { width: windowWidth } = useWindowDimensions();
   const [gridWidth, setGridWidth] = React.useState(0);
@@ -1609,13 +1618,13 @@ export default function FilesScreen() {
       style={[styles.container, previewDocked && styles.splitRow, { paddingLeft: insets.left, paddingRight: insets.right }]}
       onLayout={(e) => setContentWidth(e.nativeEvent.layout.width - insets.left - insets.right)}
     >
-      <View style={[styles.listColumn, previewDocked && { flex: 0, width: filesListWidth(contentWidth) }]}>
+      <View ref={listRef} style={[styles.listColumn, previewStacked ? { marginTop: foldY } : previewDocked && !previewStackable && { flex: 0, width: filesListWidth(contentWidth) }]}>
         {renderHeader()}
         <OrgAnnouncementBanner />
         {body}
       </View>
       {previewDocked && (
-        <View style={styles.previewPane}>
+        <View style={previewStacked ? [styles.previewAbove, { height: foldY, left: insets.left, right: insets.right }] : previewStackable ? styles.previewHidden : styles.previewPane}>
           <FilePreviewModal
             docked
             file={previewTarget}
@@ -2226,6 +2235,9 @@ function makeStyles(c: ThemePalette) {
     listColumn: { flex: 1 },
     // The rest of the row; the list column gets filesListWidth.
     previewPane: { flex: 1, borderLeftWidth: 1, borderLeftColor: c.border },
+    previewHidden: { display: 'none' },
+    // Over the top of the row down to the fold (see MailTab on why the row is not turned into a column).
+    previewAbove: { position: 'absolute', top: 0, borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.background },
     header: {
       paddingBottom: spacing.sm,
       borderBottomWidth: 1,

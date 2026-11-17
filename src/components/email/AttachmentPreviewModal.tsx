@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Platform, PixelRatio, Alert,
   useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { X, ExternalLink, Share2, Download } from '../icons';
 import type { Email } from '../../api/types';
@@ -23,6 +23,8 @@ import type { EmlPreview } from './use-body-override';
 import { useFilePreview } from './use-file-preview';
 import { ArchiveSummary, PreviewPartList, type PreviewPart } from './PreviewPartList';
 import { SafeAreaModal } from '../SafeAreaModal';
+import StatusColumnBar, { type BarItem } from '../StatusColumnBar';
+import { fitsStatusColumn } from '../../lib/use-layout';
 import { MODAL_ORIENTATIONS } from '../../lib/modal-orientations';
 import { previewTitle } from '../../lib/preview-title';
 import { Watermark } from '../Watermark';
@@ -62,6 +64,8 @@ interface Props {
   docked?: boolean;
   /** Extra header buttons, after the title (Files: previous / next file). */
   headerActions?: React.ReactNode;
+  /** The same buttons for the status column of an iPhone Duo, where the header's buttons go (StatusColumnBar). */
+  columnActions?: BarItem[];
   /** A file of a message reported as phishing: an .eml or HTML file shown has its links off. */
   linksOff?: boolean;
 }
@@ -155,14 +159,16 @@ function PdfPagesView({ fileUri, viewerUri, background, onFailed }: {
  * place that opens a file.
  */
 export function AttachmentPreviewModal({
-  item, loading, title, onClose, onOpenExternal, onShare, onDownload, docked = false, headerActions, linksOff = false,
+  item, loading, title, onClose, onOpenExternal, onShare, onDownload, docked = false, headerActions, columnActions, linksOff = false,
 }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const t = useLocaleStore((s) => s.t);
   const locale = useLocaleStore((s) => s.locale);
   const timeFormat = useSettingsStore((s) => s.timeFormat);
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
+  // The window's insets: the full-screen preview covers the window.
+  const insets = useSafeAreaInsets();
   // Files inside this one (archive entries, an .eml's attachments).
   const nested = useFilePreview();
   const { open: openNested } = nested;
@@ -387,9 +393,31 @@ export function AttachmentPreviewModal({
     return renderFallback(item.notice ?? t('email_viewer.preview.unsupported', 'No preview for this file type.'));
   };
 
+  // Where iOS keeps the status bar in a column on the side (iPhone Duo's
+  // outer display), the header's buttons go into it and the file's name gets
+  // the header's width.
+  const columnItems: BarItem[] = [
+    ...(columnActions ?? []),
+    ...(item && !showsFallback ? [{
+      key: 'open', icon: (size: number, color: string) => <ExternalLink size={size} color={color} />,
+      label: t('email_viewer.preview.open_external', 'Open in app'), onPress: onOpenExternal,
+    }] : []),
+    ...(onDownload ? [{
+      key: 'download', icon: (size: number, color: string) => <Download size={size} color={color} />,
+      label: t('files.download', 'Download'), onPress: onDownload, disabled: !item,
+    }] : []),
+    {
+      key: 'share', icon: (size: number, color: string) => <Share2 size={size} color={color} />,
+      label: t('email_viewer.attachment_actions.share', 'Share'), onPress: onShare, disabled: !item,
+    },
+  ];
+  const inColumn = !docked && fitsStatusColumn(insets, windowHeight, 1 + columnItems.length);
+
   const content = (
+      <>
       <SafeAreaView style={styles.container} edges={docked ? ['top', 'right'] : ['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
+          {!inColumn && (
           <Pressable
             onPress={onClose}
             style={styles.headerBtn}
@@ -399,7 +427,10 @@ export function AttachmentPreviewModal({
           >
             <X size={22} color={c.text} />
           </Pressable>
+          )}
           <Text style={styles.title} numberOfLines={1}>{item ? previewTitle(item) : title ?? ''}</Text>
+          {!inColumn && (
+          <>
           {headerActions}
           {item && !showsFallback ? (
             <Pressable
@@ -434,11 +465,22 @@ export function AttachmentPreviewModal({
           >
             <Share2 size={20} color={item ? c.text : c.textMuted} />
           </Pressable>
+          </>
+          )}
         </View>
         {renderBody()}
         <Watermark />
         {nested.modalProps.item || nested.modalProps.loading ? <AttachmentPreviewModal {...nested.modalProps} linksOff={linksOff} /> : null}
       </SafeAreaView>
+      {/* Beside the preview's root, which pads for the column: drawn over the column itself. */}
+      {inColumn && (
+        <StatusColumnBar
+          back={{ key: 'close', icon: (size, color) => <X size={size} color={color} />, label: t('common.close', 'Close'), onPress: onClose }}
+          top={columnItems}
+          bottom={[]}
+        />
+      )}
+      </>
   );
   if (docked) return item || loading ? content : null;
   return (

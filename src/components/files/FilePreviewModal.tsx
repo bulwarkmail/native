@@ -4,6 +4,7 @@ import type { FileNode } from '../../api/types';
 import { AttachmentPreviewModal } from '../email/AttachmentPreviewModal';
 import { previewKindOf, useFilePreview } from '../email/use-file-preview';
 import { ChevronLeft, ChevronRight } from '../icons';
+import type { BarItem } from '../StatusColumnBar';
 import { useColors } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 
@@ -79,7 +80,20 @@ export function FilePreviewModal({ file, onClose, docked = false, onPrevious, on
     </>
   ) : undefined;
 
-  return <AttachmentPreviewModal {...preview.modalProps} docked={docked} headerActions={headerActions} />;
+  const columnActions: BarItem[] | undefined = onPrevious || onNext ? [
+    {
+      key: 'previous', icon: (size, color) => <ChevronLeft size={size} color={color} />,
+      label: t('files.previous_file', 'Previous file'), onPress: onPrevious, disabled: !onPrevious,
+    },
+    {
+      key: 'next', icon: (size, color) => <ChevronRight size={size} color={color} />,
+      label: t('files.next_file', 'Next file'), onPress: onNext, disabled: !onNext,
+    },
+  ] : undefined;
+
+  return (
+    <AttachmentPreviewModal {...preview.modalProps} docked={docked} headerActions={headerActions} columnActions={columnActions} />
+  );
 }
 
 const styles = StyleSheet.create({

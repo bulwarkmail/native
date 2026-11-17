@@ -48,7 +48,7 @@ import { mailLayoutFor, useLayout } from '../lib/use-layout';
 import { listBackStep } from '../lib/list-back';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { showMailFolders } from '../navigation/unified-view';
-import { rowAfterRemoval, useMessagePane } from '../lib/use-message-pane';
+import { rowAfterRemoval, useMessagePane, type ThreadParams } from '../lib/use-message-pane';
 import { spacing, typography, componentSizes, radius, type ThemePalette } from '../theme/tokens';
 import { useColors } from '../theme/colors';
 
@@ -117,8 +117,18 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
   // has already docked the folder list or not (and waited for the reading
   // pane setting): `width` is the room right of it.
   const layout = mailLayoutFor({ ...useLayout(), hasSidebar: false }, readingPane, width);
-  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off');
-  const { show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey } = pane;
+  // A message the viewer paged to keeps the params it was opened with (the
+  // pages and account of this view), under its own id.
+  const rowOf = React.useCallback((emailId: string, openedWith: ThreadParams) => {
+    const index = emailsRef.current.findIndex((e) => e.id === emailId);
+    if (index < 0) return null;
+    const row = emailsRef.current[index];
+    return { params: { ...openedWith, emailId, threadId: row.threadId }, rowKey: rowKey(row), index };
+  }, []);
+  const pane = useMessagePane(navigation, layout.isSplit, readingPane === 'off', rowOf);
+  const {
+    show: showInPane, close: closePane, openRef: paneRef, setActiveKey: setPaneActiveKey, openOnStack,
+  } = pane;
 
   const [emails, setEmails] = React.useState<UnifiedEmail[]>([]);
   const emailsRef = React.useRef(emails);
@@ -302,14 +312,14 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
           if (layout.isSplit) {
             showInPane({ params, rowKey: rowKey(email), index: Math.max(0, rows.indexOf(email)) });
           } else {
-            navigation.navigate('EmailThread', params);
+            openOnStack(params);
           }
         } finally {
           setOpening(false);
         }
       })();
     },
-    [opening, switchAccount, navigation, reloadTracker, layout.isSplit, showInPane, closePane],
+    [opening, switchAccount, navigation, reloadTracker, layout.isSplit, showInPane, closePane, openOnStack],
   );
   const onOpen = (email: UnifiedEmail) => openRow(email, emails);
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import { Platform, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ReadingPane } from '../stores/settings-store';
 
@@ -65,30 +65,30 @@ export const LIST_PANE_MIN = 280;
 
 /**
  * Width left for a screen's own content, until the screen has measured
- * itself: the window less its side safe-area insets and, on a tab screen of a
- * split window, the tab rail.
+ * itself: the window less its side safe-area insets and, on a tab screen
+ * beside the tab rail, the rail.
  */
 export function contentWidthFor(
   width: number,
   layout: Layout,
-  insets: { left: number; right: number },
-  tabRail: boolean,
+  insets: Insets,
+  tabScreen: boolean,
 ): number {
-  return width - insets.left - insets.right - (tabRail && layout.isSplit ? TAB_RAIL_WIDTH : 0);
+  const rail = tabScreen && tabBarPositionFor(layout, width, insets) === 'left';
+  return width - insets.left - insets.right - (rail ? TAB_RAIL_WIDTH : 0);
 }
 
 /**
- * Content width from a screen's measured root: a tab screen of a split
- * window starts right of the rail (which keeps clear of the left inset), a
- * stack screen at the window's edge.
+ * Content width from a screen's measured root: a screen beside the tab rail
+ * starts right of it (the rail keeps clear of the left inset), any other at
+ * the window's edge.
  */
 export function measuredContentWidth(
   rootWidth: number,
-  layout: Layout,
+  besideRail: boolean,
   insets: { left: number; right: number },
-  tabRail: boolean,
 ): number {
-  return rootWidth - insets.right - (tabRail && layout.isSplit ? 0 : insets.left);
+  return rootWidth - insets.right - (besideRail ? 0 : insets.left);
 }
 
 /** A list-detail layout with its pane widths. */
@@ -121,6 +121,120 @@ export function paneLayoutFor(layout: Layout, contentWidth: number): PaneLayout 
     }
   }
   return { ...layout, isSplit: false, hasSidebar: false, listWidth: contentWidth, detailWidth: 0 };
+}
+
+/**
+ * Where the tabs are: a bar along the bottom, a rail down the left, or the
+ * status column down the right (`SideColumnTabBar`).
+ */
+export type TabBarPosition = 'bottom' | 'left' | 'right';
+
+type Insets = { top: number; left: number; right: number };
+
+/**
+ * Narrowest right inset that is a status column (the Duo's is 84 pt), not a
+ * rounded corner or a sensor housing; also the least the column's tabs
+ * (SideColumnTabBar) are laid out for.
+ */
+const STATUS_COLUMN_MIN = 64;
+
+/**
+ * Whether iOS keeps the status bar in a column down the right edge of the
+ * window, as the iPhone Duo does on its outer display and on its inner one
+ * turned sideways: that column is the window's right safe-area inset, with
+ * none at the top or on the left. An iPhone in landscape has an inset on
+ * both sides.
+ */
+export function hasStatusColumn(insets: Insets, os: string = Platform.OS): boolean {
+  return os === 'ios' && insets.right >= STATUS_COLUMN_MIN && insets.left === 0 && insets.top === 0;
+}
+
+/** A button in the status column (StatusColumnBar), and the gap between its two groups. */
+export const STATUS_COLUMN_BUTTON = 40;
+const STATUS_COLUMN_GAP = 16;
+/**
+ * The top of the status column that the status bar keeps: the clock and the
+ * battery end about 146 pt down on the iPhone Duo's outer display.
+ */
+const STATUS_BAR_RESERVE = 150;
+
+/**
+ * Whether `buttons` toolbar buttons fit in the status column (`hasStatusColumn`)
+ * of a window `height` tall, below the status bar and above the bottom inset.
+ * The Duo's eleven message buttons fit on both displays (678 and 669 pt).
+ */
+export function fitsStatusColumn(
+  insets: Insets & { bottom: number },
+  height: number,
+  buttons: number,
+  os: string = Platform.OS,
+): boolean {
+  return hasStatusColumn(insets, os)
+    && STATUS_BAR_RESERVE + buttons * STATUS_COLUMN_BUTTON + STATUS_COLUMN_GAP + insets.bottom + 8 <= height;
+}
+
+/** `fitsStatusColumn` for the current window: whether a stack screen's `buttons` toolbar buttons go into the status column. */
+export function useFitsStatusColumn(buttons: number): boolean {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  return fitsStatusColumn(insets, height, buttons);
+}
+
+/**
+ * Where a window's tabs go. Where iOS keeps the status bar in a column on the
+ * side (`hasStatusColumn`), the tabs go in that column, as Apple lays out
+ * the iPhone Duo's bars. Otherwise a split window puts them in a rail on the
+ * left, like the webmail's navigation rail, unless the rail's width is all
+ * that keeps the list and the reader from fitting side by side: there the
+ * tabs stay a bar along the bottom and the window gets both panes. That is a
+ * window 640 to 725 dp wide, such as the iPhone Duo's inner display held
+ * upright (669 pt), where Apple keeps the bars horizontal and Mail shows the
+ * list and the message side by side.
+ */
+export function tabBarPositionFor(
+  layout: Layout,
+  width: number,
+  insets: Insets,
+  os: string = Platform.OS,
+): TabBarPosition {
+  if (hasStatusColumn(insets, os)) return 'right';
+  if (!layout.isSplit) return 'bottom';
+  const content = width - insets.left - insets.right;
+  const railCostsTheSplit = paneLayoutFor(layout, content).isSplit
+    && !paneLayoutFor(layout, content - TAB_RAIL_WIDTH).isSplit;
+  return railCostsTheSplit ? 'bottom' : 'left';
+}
+
+/** `tabBarPositionFor` the current window. */
+export function useTabBarPosition(): TabBarPosition {
+  const { width, height } = useWindowDimensions();
+  const { top, left, right } = useSafeAreaInsets();
+  return tabBarPositionFor(layoutFor(width, height), width, { top, left, right });
+}
+
+/**
+ * Panes that meet at the fold of an iPhone Duo held half open like a book:
+ * Apple's split views move their column edge to the fold, so neither pane is
+ * creased ("Designing for iPhone Duo", Reserved regions). The list ends at
+ * the window's centre line, where the hinge is (`listLeft`: where the list
+ * starts in the window), as long as both panes keep their minimum widths.
+ */
+export function foldAlignedPanes(layout: PaneLayout, windowWidth: number, listLeft: number): PaneLayout {
+  if (!layout.isSplit) return layout;
+  const room = layout.listWidth + layout.detailWidth;
+  const listWidth = Math.round(windowWidth / 2) - listLeft;
+  if (listWidth < LIST_PANE_MIN || room - listWidth < READING_PANE_MIN) return layout;
+  return { ...layout, listWidth, detailWidth: room - listWidth };
+}
+
+/**
+ * Where the fold crosses the window of an iPhone Duo set down half open like
+ * a laptop (the inner display upright, the hinge partially open): half way
+ * down. Apple asks apps to keep content clear of it, what is read above and
+ * the controls below ("Designing for iPhone Duo"). Null in any other pose.
+ */
+export function laptopFoldY(halfOpen: boolean, width: number, height: number): number | null {
+  return halfOpen && height > width ? Math.round(height / 2) : null;
 }
 
 /**
@@ -168,24 +282,25 @@ export interface PaneArea {
 }
 
 /**
- * The room of a list-detail screen, a tab screen (`tabRail`) or a stack
+ * The room of a list-detail screen, a tab screen (`tabScreen`) or a stack
  * screen. The first frames go by an estimate (the rail's width depends on
  * the longest tab label); once the root view has been laid out, by its
  * measured width, until the window changes again.
  */
-export function usePaneArea(tabRail: boolean): PaneArea {
+export function usePaneArea(tabScreen: boolean): PaneArea {
   const { width, height } = useWindowDimensions();
-  const { left, right } = useSafeAreaInsets();
+  const { top, left, right } = useSafeAreaInsets();
   const window = layoutFor(width, height);
   const [measured, setMeasured] = React.useState<{ root: number; window: number } | null>(null);
   const onLayout = React.useCallback((e: LayoutChangeEvent) => {
     const root = Math.round(e.nativeEvent.layout.width);
     setMeasured((m) => (m && m.root === root && m.window === width ? m : { root, window: width }));
   }, [width]);
-  const insets = { left, right };
+  const insets = { top, left, right };
+  const besideRail = tabScreen && tabBarPositionFor(window, width, insets) === 'left';
   const contentWidth = measured && measured.window === width
-    ? measuredContentWidth(measured.root, window, insets, tabRail)
-    : contentWidthFor(width, window, insets, tabRail);
+    ? measuredContentWidth(measured.root, besideRail, insets)
+    : contentWidthFor(width, window, insets, tabScreen);
   return { window, contentWidth, onLayout };
 }
 
@@ -226,15 +341,19 @@ const TAB_BAR_CLEARANCE = 64;
 
 /**
  * Where toasts, the undo bar and the push prompt float. A phone gets the full
- * width above the tab bar; a split layout (tabs in a side rail) gets the
- * webmail's desktop placement, bottom right.
+ * width, above the tab bar where the tabs are along the bottom
+ * (`tabBarPositionFor`); a split layout with the tabs on the side gets the
+ * webmail's desktop placement, bottom right. A split layout that keeps the
+ * bottom bar is laid out like a phone: its list is too narrow for a 360 dp
+ * card beside it.
  */
 export function floatingCardFrame(
   width: number,
   split: boolean,
   insets: { left: number; right: number },
+  tabBar: TabBarPosition = split ? 'left' : 'bottom',
 ): { left: number; right: number; bottom: number } {
-  if (split) {
+  if (split && tabBar !== 'bottom') {
     return {
       left: Math.max(FLOATING_CARD_MARGIN, width - FLOATING_CARD_WIDTH - FLOATING_CARD_MARGIN - insets.right),
       right: FLOATING_CARD_MARGIN + insets.right,
@@ -244,7 +363,7 @@ export function floatingCardFrame(
   return {
     left: PHONE_CARD_MARGIN + insets.left,
     right: PHONE_CARD_MARGIN + insets.right,
-    bottom: TAB_BAR_CLEARANCE,
+    bottom: tabBar === 'bottom' ? TAB_BAR_CLEARANCE : PHONE_CARD_MARGIN,
   };
 }
 
@@ -252,6 +371,9 @@ export function floatingCardFrame(
 export function useFloatingCardFrame(): { left: number; right: number; bottom: number } {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { left, right, bottom } = floatingCardFrame(width, layoutFor(width, height).isSplit, insets);
+  const layout = layoutFor(width, height);
+  const { left, right, bottom } = floatingCardFrame(
+    width, layout.isSplit, insets, tabBarPositionFor(layout, width, insets),
+  );
   return React.useMemo(() => ({ left, right, bottom }), [left, right, bottom]);
 }
