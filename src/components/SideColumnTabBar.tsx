@@ -3,6 +3,8 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocaleStore } from '../stores/locale-store';
+import { columnTabLabel } from '../lib/column-tab-label';
 
 /**
  * The tabs in the status column of an iPhone Duo (`tabBarPositionFor`
@@ -20,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  */
 export default function SideColumnTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const t = useLocaleStore((s) => s.t);
   const shown = state.routes.filter(
     (route) => StyleSheet.flatten(descriptors[route.key].options.tabBarItemStyle)?.display !== 'none',
   );
@@ -42,10 +45,16 @@ export default function SideColumnTabBar({ state, descriptors, navigation }: Bot
             });
           }
         };
-        // As the stock iOS tab bar reads it ("Mail, tab, 1 of 5"), with the
-        // unread count, which the badge inside the button would not give.
+        // The stock iOS tab bar reads "Mail, tab, 1 of 5" in the phone's
+        // language; this bar replaces it, so name, unread count (the badge
+        // inside the button would not be read) and place come from the
+        // app's own strings. The role says it is a tab. The place borrows
+        // the invitation widget's "1 of 5": the mail widget's counts
+        // letters in Chinese.
         const a11yLabel = options.tabBarAccessibilityLabel ?? (Platform.OS === 'ios'
-          ? `${label}${badge != null ? `, ${badge}` : ''}, tab, ${shown.indexOf(route) + 1} of ${shown.length}`
+          ? columnTabLabel(label, badge, t('widgets.invites.position', '{index} of {count}', {
+            index: shown.indexOf(route) + 1, count: shown.length,
+          }))
           : label);
         const onLongPress = () => navigation.emit({ type: 'tabLongPress', target: route.key });
         return (

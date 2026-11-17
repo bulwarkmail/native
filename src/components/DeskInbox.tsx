@@ -58,12 +58,19 @@ export default function DeskInbox({ navigation }: { navigation: NativeStackNavig
     try {
       const result = await fetchUnifiedInbox([accountId], ROWS);
       if (seq !== loadSeq.current) return;
+      // An account that could not be fetched comes back as an empty list
+      // with its error, not as a rejection.
+      if (accountId in result.errors) {
+        setFailed(true);
+        return;
+      }
       setRows(result.emails);
       setFailed(false);
     } catch {
-      // Rows on show stay; the next change or refresh tries again.
       if (seq === loadSeq.current) setFailed(true);
     }
+    // After a failure the rows on show stay; the next change or refresh
+    // tries again.
   }, [accountId]);
 
   React.useEffect(() => {
