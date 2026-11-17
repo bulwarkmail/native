@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Keyboard, StyleSheet, View } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import EmailListScreen from './EmailListScreen';
@@ -14,6 +14,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { mailboxAccountId } from '../lib/mailbox-tree';
 import { prefetchMessage } from '../lib/email-detail-cache';
 import { collapseThreads, rowKeyOf } from '../lib/thread-utils';
+import { useTypingInList } from '../lib/use-fold-panes';
 import { useMailLayout } from '../lib/use-mail-layout';
 import { rowAfterRemoval, useMessagePane, type ThreadParams } from '../lib/use-message-pane';
 import { useColors } from '../theme/colors';
@@ -97,6 +98,13 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
     else close();
   }, [openRef, openEmail, close]);
 
+  // A message opened from the list while the list had the keyboard (a search
+  // result): the keyboard goes, and the reader comes back with the message.
+  React.useEffect(() => {
+    if (typingInList && pane.activeKey) Keyboard.dismiss();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pane.activeKey]);
+
   const onActiveChange = React.useCallback((id: string) => {
     const row = useEmailStore.getState().emails.find((e) => e.id === id);
     setActiveKey(row ? rowKeyOf(row) : id);
@@ -104,7 +112,12 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
 
   // An iPhone Duo half open like a laptop: the message on the upright half,
   // its buttons and the list on the half lying flat, nothing across the fold.
-  const stacked = layout.foldY != null && !unified && !layout.hasSidebar;
+  const stackable = layout.foldY != null && !unified && !layout.hasSidebar;
+  // A keyboard covers most of the half lying flat: while the list has it
+  // (its search field), the list takes the whole tab and the reader waits.
+  const listRef = React.useRef<View>(null);
+  const typingInList = useTypingInList(stackable ? layout.foldY : null, listRef);
+  const stacked = stackable && !typingInList;
   // The reader lies over the top of the row and the list starts below it,
   // by the reader's measured height (the fold, until it is known). The row
   // itself is not turned into a column: views that changed between the two
@@ -122,7 +135,7 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
       belowReader={stacked}
     />
   );
-  const listBesideReader = layout.isSplit && !stacked;
+  const listBesideReader = layout.isSplit && !stackable;
   // The room right of a docked folder list, for a unified view's list and pane.
   const roomWidth = layout.listWidth + layout.detailWidth;
 
@@ -150,10 +163,10 @@ export default function MailTab({ navigation }: { navigation: RootNav }) {
           />
         </View>
       )}
-      <View style={[listBesideReader ? [styles.listPane, { width: layout.listWidth }] : styles.fill, stacked && { marginTop: listTop }, unified && styles.hidden]}>{list}</View>
+      <View ref={listRef} style={[listBesideReader ? [styles.listPane, { width: layout.listWidth }] : styles.fill, stacked && { marginTop: listTop }, unified && styles.hidden]}>{list}</View>
       {layout.isSplit && !unified && (
         <View
-          style={stacked ? styles.readerAbove : styles.fill}
+          style={stacked ? styles.readerAbove : stackable ? styles.hidden : styles.fill}
           onLayout={stacked ? (e) => setReaderHeight(Math.round(e.nativeEvent.layout.height)) : undefined}
         >
           <MessagePane

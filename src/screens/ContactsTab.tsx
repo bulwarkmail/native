@@ -8,7 +8,7 @@ import ContactDetailScreen from './ContactDetailScreen';
 import GroupDetailScreen from './GroupDetailScreen';
 import type { ContactCard } from '../api/types';
 import { isGroup } from '../lib/contact-utils';
-import { useFoldAlignedListWidth, useLaptopFoldY } from '../lib/use-fold-panes';
+import { useFoldAlignedListWidth, useLaptopFoldY, useTypingInList } from '../lib/use-fold-panes';
 import { paneLayoutFor, usePaneArea } from '../lib/use-layout';
 import { PaneScreen, type PaneTarget } from '../navigation/pane';
 import { useLocaleStore } from '../stores/locale-store';
@@ -44,7 +44,11 @@ export default function ContactsTab() {
   // the list on the half lying flat, nothing across the fold. The contact
   // lies over the top of the row (see MailTab on why not a column).
   const foldY = useLaptopFoldY();
-  const stacked = isSplit && foldY != null;
+  const stackable = isSplit && foldY != null;
+  // While the list has the keyboard (its search field), which covers the half lying flat, it takes the whole tab.
+  const listRef = React.useRef<View>(null);
+  const typingInList = useTypingInList(stackable ? foldY : null, listRef);
+  const stacked = stackable && !typingInList;
   const [open, setOpen] = React.useState<Open | null>(null);
 
   // Narrowed with a contact open: hand it to the stack.
@@ -70,14 +74,15 @@ export default function ContactsTab() {
   // or goes, and the row measures the room it has.
   return (
     <View style={styles.row} onLayout={area.onLayout}>
-      <View style={stacked ? [styles.singlePane, { marginTop: foldY }] : isSplit ? [styles.listPane, { width: listWidth }] : styles.singlePane}>
+      <View ref={listRef} style={stacked ? [styles.singlePane, { marginTop: foldY }] : isSplit && !stackable ? [styles.listPane, { width: listWidth }] : styles.singlePane}>
         <ContactsScreen
           onOpenContact={isSplit ? (contact) => setOpen(openFor(contact)) : undefined}
           activeContactId={isSplit ? activeId : undefined}
           belowDetail={stacked}
+          fullWidth={stackable}
         />
       </View>
-      {isSplit && <View style={stacked ? [styles.detailAbove, { height: foldY }] : styles.detailPane}>
+      {isSplit && <View style={stacked ? [styles.detailAbove, { height: foldY }] : stackable ? styles.hidden : styles.detailPane}>
         {open ? (
           <PaneScreen
             key={activeId ?? undefined}
@@ -104,6 +109,7 @@ function makeStyles(c: ThemePalette) {
   return StyleSheet.create({
     row: { flex: 1, flexDirection: 'row', backgroundColor: c.background },
     listPane: { borderRightWidth: 1, borderRightColor: c.border },
+    hidden: { display: 'none' },
     detailAbove: {
       position: 'absolute', top: 0, left: 0, right: 0,
       borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.background,
