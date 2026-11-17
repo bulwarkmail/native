@@ -24,6 +24,7 @@ export interface BodyDocumentInput {
   blockRemoteImages: boolean;
   cidMap: Record<string, string>;
   isDark: boolean;
+  darkCanvas?: string;
   messageSpacing: MessageSpacing;
   plainTextFont: PlainTextFont;
   quoteLabels: QuoteCollapseLabels;
@@ -56,12 +57,13 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       blockRemoteImages: input.blockRemoteImages,
       cidMap: input.cidMap,
       isDark,
+      darkCanvas: input.darkCanvas,
       messageSpacing: input.messageSpacing,
     });
     return { ...res, isHtml: true };
   }
   if (!text) {
-    const res = prepareEmailHtml(`<em style="color:#71717a">${input.emptyLabel}</em>`, { isDark });
+    const res = prepareEmailHtml(`<em style="color:#71717a">${input.emptyLabel}</em>`, { isDark, darkCanvas: input.darkCanvas });
     return { ...res, isHtml: true };
   }
   const safe = collapsePlainTextQuotes(plainTextToSafeHtml(text), input.quoteLabels);
@@ -101,7 +103,7 @@ export function bodyDocument(input: BodyDocumentInput): BodyDocument {
   const key = JSON.stringify([
     input.key, input.blockRemoteImages, input.isDark, input.messageSpacing, input.plainTextFont,
     input.quoteLabels.show, input.quoteLabels.hide, input.emptyLabel, input.textFactor ?? 1,
-    input.plainDarkColors ?? null, input.appFont ?? 'default',
+    input.plainDarkColors ?? null, input.appFont ?? 'default', input.darkCanvas ?? null,
   ]);
   const hit = documents.get(key);
   if (hit && sameSources(hit.input, input)) {

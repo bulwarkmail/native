@@ -6,7 +6,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image as ImageIcon, ShieldAlert, ShieldCheck } from './icons';
 import type { Email } from '../api/types';
 import { extractCidRefs, isUserLinkNavigation } from '../lib/email-html';
-import { buildEmailDarkModeScript } from '../lib/email-dark-mode';
+import { buildEmailDarkModeScript, emailDarkCanvas, emailDarkCanvasColor } from '../lib/email-dark-mode';
 import { hasTruncatedDisplayedBody, pickEmailBody, selectRenderableHtml } from '../lib/email-body';
 import { buildQuoteCollapseScript } from '../lib/quote-collapse';
 import { bodyDocument } from '../lib/email-body-document';
@@ -27,7 +27,7 @@ import { useContactsStore } from '../stores/contacts-store';
 import { useLocaleStore } from '../stores/locale-store';
 import { spacing, typography, type ThemePalette } from '../theme/tokens';
 import { useShouldAnimate, useTypography } from '../theme/dynamic';
-import { useColors, useResolvedTheme } from '../theme/colors';
+import { resolvePalette, useColors, useResolvedTheme } from '../theme/colors';
 import { perfEndAfterPaint, perfLap } from '../lib/perf-marks';
 import type { RootStackParamList } from '../navigation/types';
 
@@ -623,6 +623,8 @@ export default function EmailBodyView({
     () => (resolvedTheme === 'dark' ? { background: c.background, text: c.text, link: c.textLink } : undefined),
     [resolvedTheme, c.background, c.text, c.textLink],
   );
+  const activeThemeId = useSettingsStore((s) => s.activeThemeId);
+  const darkCanvas = resolvePalette('dark', activeThemeId).background;
   const prepared = React.useMemo(() => bodyDocument({
     key: `${jmapAccountId ?? ''}|${email.id}`,
     rawHtml,
@@ -631,6 +633,7 @@ export default function EmailBodyView({
     blockRemoteImages: shouldBlock,
     cidMap,
     isDark: renderAsDark,
+    darkCanvas,
     messageSpacing,
     plainTextFont,
     quoteLabels,
@@ -638,7 +641,7 @@ export default function EmailBodyView({
     plainDarkColors,
     appFont,
   }), [
-    jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark,
+    jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark, darkCanvas,
     messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont,
   ]);
 
@@ -657,6 +660,7 @@ export default function EmailBodyView({
     play: t('email_viewer.play_animation', 'Play animation'),
     pause: t('email_viewer.pause_animation', 'Pause animation'),
   }), [t]);
+  const darkSurface = prepared.recolorDark ? { backgroundColor: emailDarkCanvasColor(darkCanvas) } : undefined;
   const showBanner = shouldBlock && prepared.blockedExternal;
   // Still cut off after the API's larger refetch (or the refetch failed).
   const showTruncated = !bodyOverride && hasTruncatedDisplayedBody(email);
@@ -673,9 +677,9 @@ export default function EmailBodyView({
       + (prepared.isHtml ? buildQuoteCollapseScript(quoteLabels) : '')
       + (prepared.isHtml ? IMG_FIXUP_SCRIPT : '')
       + (prepared.isHtml && reduceMotion ? buildPauseAnimatedImagesScript(pauseLabels) : '')
-      + (prepared.recolorDark ? buildEmailDarkModeScript({ remoteContentAllowed: !shouldBlock }) : '')
+      + (prepared.recolorDark ? buildEmailDarkModeScript({ remoteContentAllowed: !shouldBlock, canvas: emailDarkCanvas(darkCanvas) }) : '')
       + HEIGHT_REPORTER + SWIPE_DETECTOR + PINCH_ZOOM,
-    [prepared.isHtml, prepared.recolorDark, shouldBlock, quoteLabels, textFactor, reduceMotion, pauseLabels],
+    [prepared.isHtml, prepared.recolorDark, shouldBlock, darkCanvas, quoteLabels, textFactor, reduceMotion, pauseLabels],
   );
 
   // Performance harness: how much of opening a message is the WebView.
@@ -801,7 +805,7 @@ export default function EmailBodyView({
         </View>
       )}
 
-      <View style={[styles.webContainer, containerSize]}>
+      <View style={[styles.webContainer, containerSize, darkSurface]}>
         <WebView
           ref={webviewRef}
           originWhitelist={['about:blank']}
