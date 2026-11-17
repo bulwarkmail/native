@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { spacing, radius, typography, componentSizes, type ThemePalette } from '../../theme/tokens';
 import { useColors, useResolvedTheme } from '../../theme/colors';
 import { useLocaleStore } from '../../stores/locale-store';
 import { getAccountInitials } from '../../lib/avatar-utils';
+import LoginFrame from './LoginFrame';
 
 // The white mark disappears on the light palette, so pick per theme.
 const LOGO_LIGHT = require('../../../assets/logos/Bulwark Logo Dark.png');
@@ -18,6 +18,8 @@ interface SigningInStepProps {
   email: string | null;
   /** Stops the sign-in and goes back to the step it started from (U-133). */
   onCancel?: () => void;
+  /** Add account: inside its sheet (LoginFrame). */
+  sheet?: boolean;
 }
 
 function hostOf(url: string | null): string {
@@ -34,7 +36,7 @@ function initialsOf(email: string): string {
  * current stage makes a slow first connection legible instead of a bare
  * spinner that could mean anything.
  */
-export default function SigningInStep({ phase, serverUrl, email, onCancel }: SigningInStepProps) {
+export default function SigningInStep({ phase, serverUrl, email, onCancel, sheet = false }: SigningInStepProps) {
   const c = useColors();
   const theme = useResolvedTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -51,7 +53,7 @@ export default function SigningInStep({ phase, serverUrl, email, onCancel }: Sig
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <LoginFrame sheet={sheet} style={styles.container}>
       <View style={styles.content}>
         {email ? (
           <View style={styles.avatar}>
@@ -83,7 +85,7 @@ export default function SigningInStep({ phase, serverUrl, email, onCancel }: Sig
           </Pressable>
         ) : null}
       </View>
-    </SafeAreaView>
+    </LoginFrame>
   );
 }
 
