@@ -1968,5 +1968,11 @@
       "more_messages": "und {count} weitere",
       "no_subject": "(kein Betreff)"
     }
+  },
+  "server_status": {
+    "unreachable": "{host} ist nicht erreichbar. Neue E-Mails kommen eventuell nicht an.",
+    "server_error": "{host} hat Probleme. Neue E-Mails kommen eventuell nicht an.",
+    "rate_limited": "{host} begrenzt die Anfragen. Neue E-Mails können sich verzögern.",
+    "sign_in_failing": "Ihre Anmeldung bei {host} kann nicht erneuert werden. Neue E-Mails kommen erst wieder an, wenn das gelingt."
   }
 }

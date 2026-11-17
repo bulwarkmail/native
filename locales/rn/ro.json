@@ -1964,5 +1964,11 @@
       "unsupported": "Răspunsurile de vacanță nu sunt disponibile",
       "until": "Până la {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Nu se poate ajunge la {host}. Este posibil ca e-mailurile noi să nu sosească.",
+    "server_error": "{host} are probleme. Este posibil ca e-mailurile noi să nu sosească.",
+    "rate_limited": "{host} limitează solicitările. E-mailurile noi pot întârzia.",
+    "sign_in_failing": "Autentificarea la {host} nu poate fi reînnoită. E-mailurile noi nu vor sosi până nu este reînnoită."
   }
 }

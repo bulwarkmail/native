@@ -186,6 +186,7 @@ export class JMAPClient {
   private authFailureListeners = new Set<(err: AuthenticationError) => void>();
   private rateLimitListeners = new Set<(retryAfterMs: number) => void>();
   private tokenRefreshListeners = new Set<() => void>();
+  private serverStatusListeners = new Set<(problem: ServerProblem | null, accountId: string | null) => void>();
   /** Hold limits learned from rejected scheduled sends, per server (seconds). */
   private learnedHoldLimits = new Map<string, number>();
 
@@ -259,6 +260,22 @@ export class JMAPClient {
   onTokenRefresh(listener: () => void): () => void {
     this.tokenRefreshListeners.add(listener);
     return () => this.tokenRefreshListeners.delete(listener);
+  }
+
+  /**
+   * How each request went: a `ServerProblem`, or null for an answer from the
+   * server, with the app's id of the account it was for. The server status
+   * banner (#167) listens.
+   */
+  onServerStatus(listener: (problem: ServerProblem | null, accountId: string | null) => void): () => void {
+    this.serverStatusListeners.add(listener);
+    return () => this.serverStatusListeners.delete(listener);
+  }
+
+  private notifyServerStatus(accountId: string | null, problem: ServerProblem | null): void {
+    for (const l of this.serverStatusListeners) {
+      try { l(problem, accountId); } catch { /* listener errors must not mask the request */ }
+    }
   }
 
   private notifyAuthFailure(err: AuthenticationError): void {
@@ -618,7 +635,7 @@ export class JMAPClient {
       return true;
     } catch (err) {
       if (err instanceof TransientRefreshError) {
-        throw new NetworkError(err.message);
+        throw new RefreshUnavailableError(err.message);
       }
       // Refused: another process may have just spent this refresh token on
       // a server that rotates them. Its tokens are about to be stored; take
@@ -988,6 +1005,36 @@ export class JMAPClient {
     if (this.isRateLimited()) {
       throw new RateLimitError(this.rateLimitRemainingMs());
     }
+    // The account the request was sent for: a switch while it is out
+    // replaces the credentials.
+    const creds = this.credentials;
+    const accountId = creds ? generateAccountId(creds.username, creds.serverUrl) : null;
+    let response: Response;
+    try {
+      response = await this.sendAuthenticated(url, init, opts);
+    } catch (err) {
+      // A request the caller cancelled says nothing about the server, nor
+      // does a download that outran its own longer timeout.
+      if (!init?.signal?.aborted) {
+        if (err instanceof RefreshUnavailableError) this.notifyServerStatus(accountId, 'sign_in_failing');
+        else if (err instanceof RateLimitError) this.notifyServerStatus(accountId, 'rate_limited');
+        else if (err instanceof NetworkError) this.notifyServerStatus(accountId, 'unreachable');
+        else if (err instanceof RequestTimeoutError && !opts?.timeoutMs) this.notifyServerStatus(accountId, 'unreachable');
+      }
+      throw err;
+    }
+    // A 401 left after the refresh is the sign-in refused, which the auth
+    // failure path reports.
+    if (response.status >= 500) this.notifyServerStatus(accountId, 'server_error');
+    else if (response.status !== 401) this.notifyServerStatus(accountId, null);
+    return response;
+  }
+
+  private async sendAuthenticated(
+    url: string,
+    init?: RequestInit,
+    opts?: { timeoutMs?: number; idempotent?: boolean },
+  ): Promise<Response> {
     const timeoutMs = opts?.timeoutMs ?? REQUEST_TIMEOUT_MS;
     const idempotent = opts?.idempotent ?? true;
 
@@ -1618,6 +1665,18 @@ export class NetworkError extends Error {
     this.name = 'NetworkError';
   }
 }
+
+/**
+ * The access token has run out and the token endpoint did not renew it (429,
+ * 5xx, no answer, or a wait after one of those). A `NetworkError`, so callers
+ * keep the account; the server status banner tells it apart.
+ */
+export class RefreshUnavailableError extends NetworkError {
+  // Keeps the name 'NetworkError': several callers match on the name.
+}
+
+/** Why requests to the active account's server are failing (#167). */
+export type ServerProblem = 'unreachable' | 'server_error' | 'rate_limited' | 'sign_in_failing';
 
 // No response headers within the deadline. The request may have reached the
 // server (a send may have gone out), so callers must not blindly retry.

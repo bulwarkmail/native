@@ -1963,5 +1963,11 @@
       "unsupported": "Prombūtnes atbildes nav pieejamas",
       "until": "Līdz {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Nevar sasniegt {host}. Jaunie e-pasti var nepienākt.",
+    "server_error": "{host} ir problēmas. Jaunie e-pasti var nepienākt.",
+    "rate_limited": "{host} ierobežo pieprasījumus. Jaunie e-pasti var kavēties.",
+    "sign_in_failing": "Pierakstīšanos {host} nevar atjaunot. Jaunie e-pasti nepienāks, kamēr tā netiks atjaunota."
   }
 }

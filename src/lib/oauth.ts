@@ -768,10 +768,54 @@ function latestRotation(refreshToken: string): OAuthTokens | null {
   return latest;
 }
 
+// A refresh token the token endpoint last answered with 429, 5xx or a page
+// that is not JSON is not sent again until its wait is over: every request, stream reconnect and
+// screen refresh asks for a fresh token, and without a wait a struggling
+// token endpoint gets a refresh from each of them (#166). The wait doubles
+// with each failure in a row and follows the server's Retry-After when that
+// is longer. No answer at all (the phone offline) starts no wait: that
+// spares no server, and the first request once the network is back must be
+// able to refresh. A refresh token that worked, or a new one from a new
+// sign-in, has no wait.
+const REFRESH_BACKOFF_MIN_MS = 30_000;
+const REFRESH_BACKOFF_MAX_MS = 30 * 60_000;
+const refreshBackoff = new Map<string, { failures: number; until: number }>();
+const BACKOFF_MAX = 64;
+
+function noteTransientFailure(refreshToken: string, retryAfterMs: number | null): void {
+  const failures = (refreshBackoff.get(refreshToken)?.failures ?? 0) + 1;
+  const doubling = Math.min(REFRESH_BACKOFF_MIN_MS * 2 ** (failures - 1), REFRESH_BACKOFF_MAX_MS);
+  const wait = Math.min(Math.max(doubling, retryAfterMs ?? 0), REFRESH_BACKOFF_MAX_MS);
+  refreshBackoff.delete(refreshToken);
+  if (refreshBackoff.size >= BACKOFF_MAX) {
+    const oldest = refreshBackoff.keys().next().value;
+    if (oldest !== undefined) refreshBackoff.delete(oldest);
+  }
+  refreshBackoff.set(refreshToken, { failures, until: Date.now() + wait });
+}
+
+/**
+ * Drop every wait, for a Retry the user asked for: one refresh at a person's
+ * pace spares the server as well, and the server may be back.
+ */
+export function clearRefreshBackoff(): void {
+  refreshBackoff.clear();
+}
+
+/** `Retry-After` in ms (seconds or an HTTP date), null when absent or unusable. */
+function retryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return seconds > 0 ? seconds * 1000 : null;
+  const date = Date.parse(header);
+  return Number.isNaN(date) ? null : Math.max(date - Date.now(), 0) || null;
+}
+
 /** Test hook. */
 export function resetRefreshRotations(): void {
   rotatedTo.clear();
   forgotten.clear();
+  refreshBackoff.clear();
 }
 
 /**
@@ -820,7 +864,15 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
   let promise = activeRefreshes.get(cacheKey);
 
   if (!promise) {
+    const backoff = refreshBackoff.get(cacheKey);
+    if (backoff && backoff.until > Date.now()) {
+      throw new TransientRefreshError(
+        `Token refresh failed ${backoff.failures} time(s) in a row; next try in ${Math.ceil((backoff.until - Date.now()) / 1000)} s`,
+      );
+    }
     promise = (async () => {
+      let answered = false;
+      let retryAfter: number | null = null;
       try {
         const body = new URLSearchParams({
           grant_type: 'refresh_token',
@@ -845,6 +897,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
             `Token endpoint unreachable: ${err instanceof Error ? err.message : String(err)}`,
           );
         }
+        answered = true;
         if (!response.ok) {
           // 400/401/403 mean the refresh token is definitively dead. Anything
           // else (429, 5xx, a proxy error page) is the auth server having a
@@ -852,6 +905,7 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           if (response.status === 400 || response.status === 401 || response.status === 403) {
             throw new HandoffError(`Token refresh failed: ${response.status}`);
           }
+          retryAfter = retryAfterMs(response.headers?.get('Retry-After') ?? null);
           throw new TransientRefreshError(`Token refresh failed: ${response.status}`);
         }
         // A 200 that is not JSON is a captive portal or a proxy page, not an
@@ -886,7 +940,15 @@ export async function refreshOAuthAccessToken(tokens: OAuthTokens): Promise<OAut
           idToken: typeof data.id_token === 'string' && data.id_token ? data.id_token : tokens.idToken,
         };
         rememberRotation(cacheKey, next);
+        refreshBackoff.delete(cacheKey);
         return next;
+      } catch (err) {
+        if (err instanceof TransientRefreshError) {
+          if (answered) noteTransientFailure(cacheKey, retryAfter);
+        } else {
+          refreshBackoff.delete(cacheKey);
+        }
+        throw err;
       } finally {
         activeRefreshes.delete(cacheKey);
       }

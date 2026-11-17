@@ -1968,5 +1968,11 @@
       "unsupported": "Les réponses d'absence ne sont pas disponibles",
       "until": "Jusqu'au {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Impossible de joindre {host}. Les nouveaux messages risquent de ne pas arriver.",
+    "server_error": "{host} rencontre des problèmes. Les nouveaux messages risquent de ne pas arriver.",
+    "rate_limited": "{host} limite les requêtes. Les nouveaux messages peuvent arriver en retard.",
+    "sign_in_failing": "Votre connexion à {host} ne peut pas être renouvelée. Les nouveaux messages n'arriveront pas tant qu'elle ne le sera pas."
   }
 }

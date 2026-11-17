@@ -1965,5 +1965,11 @@
       "unsupported": "Tatil yanıtları kullanılamıyor",
       "until": "{date} tarihine kadar"
     }
+  },
+  "server_status": {
+    "unreachable": "{host} sunucusuna ulaşılamıyor. Yeni postalar gelmeyebilir.",
+    "server_error": "{host} sunucusunda sorun var. Yeni postalar gelmeyebilir.",
+    "rate_limited": "{host} istekleri sınırlıyor. Yeni postalar gecikebilir.",
+    "sign_in_failing": "{host} oturumu yenilenemiyor. Yenilenene kadar yeni posta gelmeyecek."
   }
 }

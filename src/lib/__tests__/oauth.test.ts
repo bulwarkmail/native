@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const { mockSecureFetch } = vi.hoisted(() => ({
   mockSecureFetch: vi.fn(),
@@ -9,7 +9,14 @@ vi.mock('../client-cert', () => ({
   fetchWithoutForeignRedirect: mockSecureFetch,
 }));
 
-import { forgetRefreshRotations, refreshOAuthAccessToken, resetRefreshRotations, type OAuthTokens } from '../oauth';
+import {
+  forgetRefreshRotations,
+  HandoffError,
+  refreshOAuthAccessToken,
+  resetRefreshRotations,
+  TransientRefreshError,
+  type OAuthTokens,
+} from '../oauth';
 
 describe('oauth token refresh deduplication', () => {
   beforeEach(() => {
@@ -202,5 +209,139 @@ describe('oauth token refresh deduplication', () => {
     await expect(promise2).rejects.toThrow('Token refresh failed: 400');
 
     expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('oauth token refresh after a transient failure (#166)', () => {
+  const tokens: OAuthTokens = {
+    accessToken: 'a1',
+    refreshToken: 'r1',
+    expiresAt: 0,
+    tokenEndpoint: 'https://auth.example.com/token',
+    clientId: 'client-id-123',
+  };
+  const failure = (status: number, retryAfter?: string) =>
+    ({ ok: false, status, headers: new Headers(retryAfter ? { 'Retry-After': retryAfter } : {}) }) as Response;
+  const success = (refreshToken: string) =>
+    ({
+      ok: true,
+      status: 200,
+      json: async () => ({ access_token: `access-${refreshToken}`, refresh_token: refreshToken, expires_in: 3600 }),
+    }) as Response;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-17T12:00:00Z'));
+    resetRefreshRotations();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not ask the token endpoint again until the wait is over, doubling it on each failure', async () => {
+    mockSecureFetch.mockResolvedValue(failure(500));
+
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+
+    // Every caller during the wait fails at once, without a request.
+    for (let i = 0; i < 20; i++) {
+      await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    }
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(29_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(1_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
+
+    // Second failure in a row: 60 s.
+    vi.advanceTimersByTime(59_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(1_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('caps the wait at 30 minutes', async () => {
+    mockSecureFetch.mockResolvedValue(failure(503));
+    for (let i = 0; i < 10; i++) {
+      await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+      vi.advanceTimersByTime(30 * 60_000);
+    }
+    // 30 s, 1, 2, 4, 8, 16 min, then 30 min each: every one of the 10 waits was over.
+    expect(mockSecureFetch).toHaveBeenCalledTimes(10);
+    // And it is the full 30 min, not less.
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    vi.advanceTimersByTime(30 * 60_000 - 1_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(11);
+  });
+
+  it('waits as long as Retry-After asks when that is longer', async () => {
+    mockSecureFetch.mockResolvedValue(failure(429, '300'));
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    vi.advanceTimersByTime(299_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1_000);
+    mockSecureFetch.mockResolvedValue(success('r2'));
+    expect((await refreshOAuthAccessToken(tokens)).accessToken).toBe('access-r2');
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits after a token endpoint answer that is not JSON', async () => {
+    mockSecureFetch.mockResolvedValue({ ok: true, status: 200, json: async () => { throw new SyntaxError('<html>'); } } as unknown as Response);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts no wait when there was no answer, so the first request back online refreshes', async () => {
+    mockSecureFetch.mockRejectedValue(new TypeError('Network request failed'));
+    for (let i = 0; i < 5; i++) {
+      await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    }
+    expect(mockSecureFetch).toHaveBeenCalledTimes(5);
+    mockSecureFetch.mockResolvedValue(success('r2'));
+    expect((await refreshOAuthAccessToken(tokens)).accessToken).toBe('access-r2');
+  });
+
+  it('starts from 30 s again after a refresh that worked', async () => {
+    mockSecureFetch.mockResolvedValue(failure(500));
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    vi.advanceTimersByTime(30_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    vi.advanceTimersByTime(60_000);
+    // A server that does not rotate refresh tokens hands back the same one.
+    mockSecureFetch.mockResolvedValue(success('r1'));
+    await refreshOAuthAccessToken(tokens);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(3);
+
+    mockSecureFetch.mockResolvedValue(failure(500));
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    vi.advanceTimersByTime(30_000);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(5);
+  });
+
+  it('does not hold back another refresh token, such as one from a new sign-in', async () => {
+    mockSecureFetch.mockResolvedValue(failure(500));
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(TransientRefreshError);
+    mockSecureFetch.mockResolvedValue(success('q2'));
+    expect((await refreshOAuthAccessToken({ ...tokens, refreshToken: 'q1' })).accessToken).toBe('access-q2');
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('still reports a refused refresh token as a dead sign-in, with no wait', async () => {
+    mockSecureFetch.mockResolvedValue(failure(400));
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(HandoffError);
+    await expect(refreshOAuthAccessToken(tokens)).rejects.toBeInstanceOf(HandoffError);
+    expect(mockSecureFetch).toHaveBeenCalledTimes(2);
   });
 });

@@ -890,6 +890,12 @@
     "send_cancelled": "Đã hủy gửi",
     "send_now_failed": "Không thể gửi ngay"
   },
+  "server_status": {
+    "unreachable": "Không thể kết nối tới {host}. Thư mới có thể không đến.",
+    "server_error": "{host} đang gặp sự cố. Thư mới có thể không đến.",
+    "rate_limited": "{host} đang giới hạn yêu cầu. Thư mới có thể đến chậm.",
+    "sign_in_failing": "Không thể gia hạn đăng nhập vào {host}. Thư mới sẽ không đến cho đến khi được gia hạn."
+  },
   "settings": {
     "about": {
       "check_now": "Kiểm tra ngay",

@@ -1961,5 +1961,11 @@
       "unsupported": "Fraværsbeskeder er ikke tilgængelige",
       "until": "Indtil {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Kan ikke nå {host}. Ny post kommer måske ikke frem.",
+    "server_error": "{host} har problemer. Ny post kommer måske ikke frem.",
+    "rate_limited": "{host} begrænser antallet af forespørgsler. Ny post kan blive forsinket.",
+    "sign_in_failing": "Dit login til {host} kan ikke fornyes. Ny post kommer ikke frem, før det er fornyet."
   }
 }

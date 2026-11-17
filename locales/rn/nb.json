@@ -1961,5 +1961,11 @@
       "unsupported": "Feriesvar er ikke tilgjengelig",
       "until": "Til {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Får ikke kontakt med {host}. Ny e-post kommer kanskje ikke fram.",
+    "server_error": "{host} har problemer. Ny e-post kommer kanskje ikke fram.",
+    "rate_limited": "{host} begrenser antall forespørsler. Ny e-post kan bli forsinket.",
+    "sign_in_failing": "Påloggingen til {host} kan ikke fornyes. Ny e-post kommer ikke fram før den er fornyet."
   }
 }

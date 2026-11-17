@@ -1966,5 +1966,11 @@
       "unsupported": "Le risposte automatiche non sono disponibili",
       "until": "Fino al {date}"
     }
+  },
+  "server_status": {
+    "unreachable": "Impossibile raggiungere {host}. I nuovi messaggi potrebbero non arrivare.",
+    "server_error": "{host} ha dei problemi. I nuovi messaggi potrebbero non arrivare.",
+    "rate_limited": "{host} sta limitando le richieste. I nuovi messaggi potrebbero arrivare in ritardo.",
+    "sign_in_failing": "Impossibile rinnovare l'accesso a {host}. I nuovi messaggi non arriveranno finché non verrà rinnovato."
   }
 }

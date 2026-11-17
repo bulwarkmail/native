@@ -1962,5 +1962,11 @@
       "unsupported": "부재중 자동 응답을 사용할 수 없어요",
       "until": "{date}까지"
     }
+  },
+  "server_status": {
+    "unreachable": "{host}에 연결할 수 없어요. 새 메일이 도착하지 않을 수 있어요.",
+    "server_error": "{host}에 문제가 있어요. 새 메일이 도착하지 않을 수 있어요.",
+    "rate_limited": "{host}에서 요청을 제한하고 있어요. 새 메일이 늦게 도착할 수 있어요.",
+    "sign_in_failing": "{host} 로그인을 갱신할 수 없어요. 갱신될 때까지 새 메일이 도착하지 않아요."
   }
 }

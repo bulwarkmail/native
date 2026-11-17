@@ -79,6 +79,7 @@ object BulwarkNativePushFetcher {
     // Held across a token refresh, so two native refreshes (a push and a
     // notification action) never spend the same refresh token.
     private val refreshLock = Any()
+    private val refreshBackoff = RefreshBackoff()
 
     /**
      * How long a push may spend on the network here. Android gives the FCM
@@ -1152,6 +1153,11 @@ object BulwarkNativePushFetcher {
             if (storedTokensReplace(stale, stored, now)) return stored
             val refreshToken = stored.refreshToken ?: return null
             val tokenEndpoint = stored.tokenEndpoint ?: return null
+            val waitMs = refreshBackoff.waitingMs(refreshToken, now)
+            if (waitMs > 0) {
+                Log.w(TAG, "Token refresh for $credentialsKey failed recently; next try in ${waitMs / 1000} s")
+                return null
+            }
             val fresh = refreshOAuthToken(clientsFor(context).second, tokenEndpoint, refreshToken, stored.clientId, deadlineMs)
                 ?: return null
             return updateTokensInSecureStore(
@@ -1175,7 +1181,9 @@ object BulwarkNativePushFetcher {
         clientId: String?,
         deadlineMs: Long,
     ): FreshTokens? {
-        return try {
+        var answered = false
+        var retryAfterMs: Long? = null
+        val fresh = try {
             val form = FormBody.Builder()
                 .add("grant_type", "refresh_token")
                 .add("refresh_token", refreshToken)
@@ -1188,10 +1196,15 @@ object BulwarkNativePushFetcher {
                 .build()
 
             executeBefore(client, req, deadlineMs) { resp ->
-                if (!resp.isSuccessful) return null
-                val bodyStr = resp.body?.string() ?: return null
+                answered = true
+                if (!resp.isSuccessful) {
+                    retryAfterMs = RefreshBackoff.retryAfterMs(resp.header("Retry-After"))
+                    Log.w(TAG, "Token refresh failed with status ${resp.code}")
+                    return@executeBefore null
+                }
+                val bodyStr = resp.body?.string() ?: return@executeBefore null
                 val body = JSONObject(bodyStr)
-                val accessToken = body.optString("access_token").takeIf { it.isNotBlank() } ?: return null
+                val accessToken = body.optString("access_token").takeIf { it.isNotBlank() } ?: return@executeBefore null
                 val newRefresh = if (body.isNull("refresh_token")) null else body.optString("refresh_token").takeIf { it.isNotBlank() }
                 val expiresIn = body.optDouble("expires_in", 3600.0)
                 FreshTokens(accessToken, newRefresh, expiresIn)
@@ -1199,6 +1212,13 @@ object BulwarkNativePushFetcher {
         } catch (_: Exception) {
             null
         }
+        // Only an answer starts a wait. A refused refresh token (400/401/403)
+        // waits too: it will not work later either, and the app signs the
+        // account out when it meets it. No answer (offline, or the push ran
+        // out of time) starts none: no server was asked.
+        if (fresh != null) refreshBackoff.succeeded(refreshToken)
+        else if (answered) refreshBackoff.failed(refreshToken, System.currentTimeMillis(), retryAfterMs)
+        return fresh
     }
 
     private fun readLocalizedStrings(context: Context, accountObj: JSONObject): LocalizedStrings {

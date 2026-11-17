@@ -666,3 +666,77 @@ describe('JMAPClient hardening', () => {
     expect(client.accountId).toBe('acc-1');
   });
 });
+
+describe('server status for the banner (#167)', () => {
+  const API = 'https://mail.example.com/jmap/';
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    mockRefresh.mockReset();
+  });
+
+  async function watched(client: JMAPClient) {
+    const seen: Array<[string | null, string | null]> = [];
+    client.onServerStatus((problem, accountId) => seen.push([problem, accountId]));
+    return seen;
+  }
+
+  it('reports an answer as fine and a 5xx as a server error, with the app account id', async () => {
+    const client = await connected();
+    const seen = await watched(client);
+    mockFetch([{ status: 200, json: {} }, { status: 502 }]);
+    await client.authenticatedFetch(API);
+    await client.authenticatedFetch(API);
+    expect(seen).toEqual([[null, 'user@mail.example.com'], ['server_error', 'user@mail.example.com']]);
+  });
+
+  it('reports no answer as unreachable and a 429 as rate limited', async () => {
+    const client = await connected();
+    const seen = await watched(client);
+    mockFetch([{ status: 0, throw: new TypeError('Network request failed') }]);
+    await expect(client.authenticatedFetch(API, undefined, { idempotent: false })).rejects.toBeInstanceOf(NetworkError);
+    mockFetch([{ status: 429, headers: { 'Retry-After': '5' } }]);
+    await expect(client.authenticatedFetch(API)).rejects.toBeInstanceOf(RateLimitError);
+    expect(seen.map(([p]) => p)).toEqual(['unreachable', 'rate_limited']);
+  });
+
+  it('reports a token that cannot be renewed as a failing sign-in, still a NetworkError', async () => {
+    const client = new JMAPClient();
+    mockFetch([{ status: 200, json: SESSION }]);
+    await client.connectWithOAuth('https://mail.example.com', {
+      accessToken: 'old',
+      refreshToken: 'r',
+      expiresAt: Date.now() + 3_600_000,
+      tokenEndpoint: 'https://mail.example.com/auth/token',
+      clientId: 'c',
+    });
+    const seen = await watched(client);
+    mockRefresh.mockRejectedValue(new TransientRefreshError('500'));
+    mockFetch([{ status: 401 }]);
+    const err = await client.authenticatedFetch(API).catch((e) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.name).toBe('NetworkError');
+    expect(seen.map(([p]) => p)).toEqual(['sign_in_failing']);
+  });
+
+  it('reports nothing for a download that outran its own longer timeout', async () => {
+    const client = await connected();
+    const seen = await watched(client);
+    mockFetch([{ status: 200, delayMs: 200 }]);
+    await expect(client.authenticatedFetch(API, undefined, { timeoutMs: 50, idempotent: false })).rejects.toBeInstanceOf(RequestTimeoutError);
+    expect(seen).toEqual([]);
+  });
+
+  it('reports nothing for a request the caller cancelled, or a refused sign-in', async () => {
+    const client = await connected();
+    const seen = await watched(client);
+    const abort = new AbortController();
+    abort.abort();
+    const aborted = new Error('Aborted');
+    aborted.name = 'AbortError';
+    mockFetch([{ status: 0, throw: aborted }]);
+    await expect(client.authenticatedFetch(API, { signal: abort.signal })).rejects.toBeTruthy();
+    mockFetch([{ status: 401 }]);
+    await client.authenticatedFetch(API);
+    expect(seen).toEqual([]);
+  });
+});
