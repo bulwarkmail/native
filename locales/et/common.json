@@ -22,6 +22,7 @@
       "totp_required": "Vajalik on kaheastmelise autentimise kood. Palun sisesta kood allpool.",
       "totp_invalid": "Vale autentimiskood. Palun kontrolli autentimisrakendust ja proovi uuesti.",
       "oauth_discovery_failed": "SSO on lubatud, kuid identiteedipakkujaga ei saadud ühendust. Kontrolli OAuth seadistust.",
+      "oauth_issuer_mismatch": "Selle pakkuja kaudu sisselogimine pole õigesti seadistatud. Administraator peab määrama selle väljastaja (issuer) aadressi.",
       "token_exchange_failed": "Sinu parool ja kood võeti vastu, aga meiliserver keeldus sellele rakendusele seansi algatamisest. Palu administraatoril kontrollida selle OAuth-kliendi seadeid."
     },
     "show_password": "Näita parooli",
@@ -157,6 +158,7 @@
     "settings": "Seaded",
     "admin": "Haldus",
     "files": "Failid",
+    "tasks": "Ülesanded",
     "loading_mailboxes": "Postkastide laadimine...",
     "push_connected": "Reaalajas uuendused aktiivsed",
     "push_disconnected": "Reaalajas uuendused mitteaktiivsed",
@@ -338,6 +340,14 @@
     "show_on_mobile": "Näita mobiilis"
   },
   "email_list": {
+    "date_groups": {
+      "today": "Täna",
+      "yesterday": "Eile",
+      "last_week": "Eelmisel nädalal",
+      "last_month": "Eelmisel kuul",
+      "older": "Vanemad"
+    },
+    "group_by_date": "Rühmita kuupäeva järgi",
     "sections": {
       "unread": "Lugemata",
       "everything_else": "Kõik muu",
@@ -1219,6 +1229,7 @@
       "clear_formatting": "Eemalda vormindus",
       "undo": "Võta tagasi",
       "redo": "Tee uuesti",
+      "cell_background": "Lahtri taust",
       "add_row_above": "Lisa rida ülalt",
       "add_row_below": "Lisa rida alt",
       "add_column_before": "Lisa veerg enne",
@@ -1324,6 +1335,7 @@
     "success": "Õnnestus",
     "cancel": "Tühista",
     "save": "Salvesta",
+    "ready_to_save": "Salvestamiseks valmis",
     "delete": "Kustuta",
     "edit": "Muuda",
     "close": "Sulge",
@@ -1720,6 +1732,13 @@
         "label": "Kontovahetaja külgriba ülaosas",
         "description": "Näita kontovahetajat kaustade kohal ja ümmargust nuppu Koosta kirjade loendi kohal. Lülita see välja, et nupp Koosta oleks hoopis kaustade kohal."
       },
+      "compose_placement": {
+        "label": "Nupp Koosta",
+        "description": "Kus nupp Koosta arvutis asub. Telefonis on see alati kirjade loendi kohal.",
+        "floating": "Kirjade loendi kohal",
+        "sidebar": "Kaustade riba ülaosas",
+        "rail": "Navigeerimisriba ülaosas"
+      },
       "show_rail_account_list": {
         "label": "Näita kontode avatare navigeerimisribal",
         "description": "Kuva navigeerimisriba allosas eraldi kontoringid kiireks vahetamiseks ning nende all väljalogimise nupp."
@@ -1809,6 +1828,8 @@
       "title": "E-kirjade sildid",
       "description": "Loo sildid, et kirju sorteerida. Sildid salvestatakse koos kirjadega serveris.",
       "add_keyword": "Lisa silt",
+      "sort_az": "Sordi A–Z",
+      "sorted": "Sildid sorditud A–Z",
       "empty": "Silte veel pole.",
       "label_field": "Kuvatav nimi",
       "label_placeholder": "nt Töö, Isiklik, Kiireloomuline",
@@ -1999,9 +2020,19 @@
     "email_behavior": {
       "inbox_type": {
         "label": "Postkasti tüüp",
-        "description": "„Lugemata ees“ näitab 25 uusimat lugemata kirja eraldi jaotises ülejäänud postkasti kohal",
+        "description": "„Lugemata ees“ näitab uusimaid lugemata kirju eraldi jaotises ülejäänud postkasti kohal",
         "default": "Vaikimisi",
         "unread_first": "Lugemata ees"
+      },
+      "unread_section_size": {
+        "label": "Näidatavad lugemata kirjad",
+        "description": "Mitu uusimat lugemata kirja jaotis „Lugemata ees“ näitab",
+        "5": "5 kirja",
+        "10": "10 kirja",
+        "15": "15 kirja",
+        "20": "20 kirja",
+        "25": "25 kirja",
+        "50": "50 kirja"
       },
       "clear_search_on_folder_change": {
         "label": "Tühjenda otsing kausta vahetamisel",
@@ -2099,6 +2130,10 @@
       "show_attachment_chips": {
         "label": "Näita manuseid loendis",
         "description": "Näita manustatud faile iga kirja all, et neid saaks otse loendist avada. Kirjaklambri ikoon on nähtav igal juhul."
+      },
+      "show_tag_chips": {
+        "label": "Kuva sildid loendis",
+        "description": "Kuva sildid kirjade loendis saatja või teema kõrval"
       },
       "plain_text_mode": {
         "label": "Ainult lihttekst",
@@ -2289,6 +2324,10 @@
       "rtl_editing": {
         "label": "Paremalt vasakule kirjutamise tugi",
         "description": "Lisab koostamise tööriistaribale suunanupu, millega saad määrata lõigud vasakult paremale või paremalt vasakule"
+      },
+      "group_by_date": {
+        "label": "Rühmita kuupäeva järgi",
+        "description": "Näita kirju kuupäevapäiste all, nagu Täna, Eile ja Eelmisel nädalal. Kehtib ainult siis, kui loend on sorditud kuupäeva järgi."
       },
       "group_conversations": {
         "label": "Rühmita kirjad vestluse kaupa",
@@ -2545,6 +2584,7 @@
         "enable_tooltip": "Luba krüpteerimine selle võtmega",
         "configure_title": "Luba krüpteerimine selle võtmega",
         "enable_button": "Luba",
+        "in_use": "Kasutusel",
         "disable_tooltip": "Keela krüpteerimine",
         "disable_title": "Lülitada salvestatud andmete krüpteerimine välja?",
         "disable_message": "Uued kirjad salvestatakse nüüdsest krüpteerimata.",
@@ -2787,7 +2827,9 @@
       },
       "settings_sync": {
         "label": "Seadete sünkroonimine",
-        "description": "Sünkroni oma seaded brauserite ja seadmete vahel"
+        "description": "Sünkroni oma seaded brauserite ja seadmete vahel",
+        "replaced": "{count, plural, one {# selle brauseri seade järgib} other {# selle brauseri seadet järgivad}} nüüd teie kontot.",
+        "keep_mine": "Kasuta selle brauseri omi"
       },
       "sender_favicons": {
         "label": "Saatja favicon'id",
@@ -2991,6 +3033,7 @@
         "from": "Saatja",
         "to": "Saaja",
         "cc": "Koopia",
+        "delivered_to": "Kohale toimetatud aadressile",
         "subject": "Teema",
         "header": "Kohandatud päis",
         "size": "Suurus",
@@ -3130,7 +3173,44 @@
       "apply_existing_none": "Kaustas {folder} pole veel ühtegi kirja, mis selle reegliga sobiks.",
       "period_status_scheduled": "ajastatud",
       "period_status_active": "aktiivne",
-      "period_status_expired": "aegunud"
+      "period_status_expired": "aegunud",
+      "editor": {
+        "if": "Kui",
+        "match_all": "iga",
+        "match_any": "mõni",
+        "of_conditions": "neist tingimustest on täidetud",
+        "match_type": "Millised tingimused peavad olema täidetud",
+        "condition_number": "Tingimus {number}",
+        "comparison": "Võrdlus",
+        "size_unit": "Ühik",
+        "has_attachment": "On manusega",
+        "attachment_type": "Manuse tüüp",
+        "size_units": {
+          "bytes": "baiti",
+          "kb": "kB",
+          "mb": "MB"
+        },
+        "continue_rules": "Rakenda ka teisi reegleid",
+        "skip_rule": "Jäta see reegel vahele",
+        "matching": "{count, plural, =0 {Ükski kiri ei sobi} one {# kiri sobib} other {# kirja sobib}}",
+        "matching_partial": "{count, plural, =0 {Ükski hiljutine kiri ei sobi} other {#+ kirja sobib}}",
+        "checking": "Sobivate kirjade otsimine…",
+        "tags": "Sildid",
+        "attachment_type_invalid": "Sisesta failitüüp, näiteks pdf",
+        "action_conflict": "Hülgamist ja tagasilükkamist ei saa kombineerida liigutamise, kopeerimise ega jätmisega ega omavahel",
+        "apply_to": "Rakenda",
+        "apply_new": "Ainult uutele kirjadele",
+        "apply_folder": "Uutele kirjadele ja kaustale {folder}",
+        "apply_folder_count": "Uutele kirjadele ja kaustale {folder} ({count})",
+        "apply_all": "Uutele ja kõigile kirjadele",
+        "apply_all_count": "Uutele ja kõigile kirjadele ({count})",
+        "applying": "Reeglit „{name}“ rakendatakse…",
+        "trash_title": "Kas teisaldada olemasolevad kirjad prügikasti?",
+        "trash_confirm": "{count, plural, one {See teisaldab # olemasoleva kirja prügikasti.} other {See teisaldab # olemasolevat kirja prügikasti.}}",
+        "trash_confirm_partial": "{count, plural, =0 {See teisaldab prügikasti kõik olemasolevad kirjad, mis reegliga sobivad.} other {See teisaldab #+ olemasolevat kirja prügikasti.}}",
+        "trash_button": "Salvesta ja teisalda prügikasti",
+        "delivered_to_new_only": "See reegel toimib ainult uute kirjade puhul. Kohale toimetatud kiri ei säilita aadressi, kuhu see toimetati."
+      }
     },
     "templates": {
       "title": "E-kirjade mallid",
@@ -3951,6 +4031,9 @@
       "block": "{count, plural, one {Blokeeri saatja} other {Blokeeri # saatjat}}",
       "no_junk": "Sellel kontol pole rämpsposti kausta",
       "create": "Loo reegel…",
+      "add_sender_to_rule": "Lisa reeglisse: {sender}",
+      "sender_already_present": "On juba selles reeglis",
+      "no_rule_fits": "Pole reegleid, kuhu lisada",
       "manage": "Halda reegleid",
       "senders_count": "{count, plural, one {# saatja} other {# saatjat}}",
       "cross_account": "Vali kirjad ühelt kontolt",
@@ -3959,6 +4042,7 @@
       "load_failed": "Reegleid ei õnnestunud laadida",
       "none": "Reegleid pole veel",
       "new_mail_only": "Ainult uutele kirjadele",
+      "cannot_run": "Olemasolevatele kirjadele saab rakendada ainult reegleid, mis liigutavad, kopeerivad, märgivad loetuks, tähistavad, sildistavad või hülgavad, ja ainult siis, kui need ei kontrolli sisu, välja „Kohale toimetatud aadressile“ ega regulaaravaldist.",
       "running": "Käivitan „{name}” kaustas {folder}…"
     },
     "find_emails_from": "Leia kirjad saatjalt {name}"
@@ -3995,6 +4079,8 @@
     "mark_all_confirm_message": "Kas märkida kõik lugemata sõnumid sinu isiklikus kontos loetuks?",
     "empty_all_confirm_title": "Tühjenda kõigi kontode prügikast",
     "empty_all_confirm_message": "Kas kustutada kõigi sinu kontode prügikastist {count, plural, one {kiri} other {kõik # kirja}} jäädavalt? Seda ei saa tagasi võtta.",
+    "empty_all_confirm_shared": "See hõlmab ka jagatud kontosid {accounts}.",
+    "empty_all_confirm_kept": "Konto {accounts} prügikast jääb samaks, sest seal ei saa sa kustutada.",
     "toast_emptied_all": "Prügikast tühjendati kõigil kontodel",
     "toast_error_empty_all_partial": "Prügikast tühjendati, kuid mõne konto puhul see ebaõnnestus",
     "toast_error_empty_all": "Prügikasti tühjendamine ebaõnnestus",
@@ -4120,7 +4206,7 @@
     "return_to_list_follows_layout": "Kuni te seda ei muuda, järgib see paigutust: väljas, kui loend ja sõnum on kõrvuti, muidu sees."
   },
   "mail_p3_conv": {
-    "sidebar_account_switcher_description": "Näita kontovahetajat kaustade kohal ja selle all nuppu Koosta. Lülita see välja, et nupp Koosta oleks selle asemel."
+    "sidebar_account_switcher_description": "Näita kontovahetajat kaustade kohal. Lülita välja, et kontot vahetada navigeerimisriba avatariga."
   },
   "mail_p2_conv": {
     "show_message": "Näita kirja",
@@ -4491,6 +4577,8 @@
       "role_label": "Roll",
       "language_label": "Keel",
       "related_default_label": "Seotud",
+      "related_unknown": "Tundmatu kontakt",
+      "related_remove": "Eemalda seotud kontaktide hulgast",
       "more_actions": "Rohkem toiminguid",
       "age_years": "{count, plural, one {1-aastane} other {#-aastane}}",
       "years_since": "{count, plural, one {1 aasta} other {# aastat}}"
@@ -4857,6 +4945,22 @@
       "end_time": "Lõppaeg",
       "all_day_event": "Kogu päeva sündmus",
       "calendar_select": "Kalender",
+      "show_as": "Kuva kui",
+      "show_as_busy": "Hõivatud",
+      "show_as_free": "Vaba",
+      "shown_free": "Kuvatakse vabana",
+      "visibility": "Nähtavus",
+      "visibility_public": "Avalik",
+      "visibility_private": "Privaatne",
+      "visibility_secret": "Peidetud",
+      "visibility_hint_public": "Inimesed, kellega kalendrit jagad, näevad üksikasju.",
+      "visibility_hint_private": "Inimesed, kellega kalendrit jagad, näevad ainult aega.",
+      "visibility_hint_secret": "Inimesed, kellega kalendrit jagad, sündmust ei näe ja aeg jääb vabaks.",
+      "visibility_series": "Kehtib kõigile kordustele.",
+      "color_calendar": "Kasuta kalendri värvi",
+      "overlap": "Kattub sündmusega {title} ({details})",
+      "overlap_plain": "Kattub sündmusega {title}",
+      "overlap_more": "Ja veel {count}",
       "save": "Salvesta",
       "cancel": "Tühista",
       "color": "Värv"
@@ -5042,6 +5146,8 @@
       "enable_tasks_desc": "Kuva kalendris ülesannete vaade tegemiste haldamiseks",
       "show_tasks_on_calendar": "Kuva ülesanded kalendris",
       "show_tasks_on_calendar_desc": "Kuva ülesannete sildid päeva- ja nädalavaates",
+      "show_tasks_app": "Ülesanded eraldi rakendusena",
+      "show_tasks_app_desc": "Ülesannetel on rakenduste ribal oma ikoon, mitte vaade kalendris",
       "hover_preview": "Sündmuse hõljutusega eelvaade",
       "hover_preview_desc": "Kuva kalendrisündmuse kohal hõljutades üksikasjade hüpikaken",
       "hover_preview_instant": "Koheselt",
@@ -5379,7 +5485,12 @@
     "task_list_not_in_calendar": "{name} (ülesannete loend, kalendris ei näidata)",
     "copy_to_account": "Kopeeri kontole {address}",
     "copied_to_account": "Kopeeritud kontole {address}",
-    "delete_original": "Kustuta originaal"
+    "delete_original": "Kustuta originaal",
+    "copy_to_calendar": "Kopeeri kalendrisse…",
+    "copy_to_calendar_title": "Kopeeri kalendrisse",
+    "copy_to_calendar_hint": "Koopia on sinu oma sündmus. Originaali muudatused seda ei muuda.",
+    "copy_button": "Kopeeri",
+    "copied_to_calendar": "Kopeeritud kalendrisse {calendar}"
   },
   "calendar_offline": {
     "split_needs_server": "See muudatus vajab ühendust serveriga. Muuda praegu ainult seda sündmust või proovi uuesti, kui oled taas võrgus."
@@ -6136,6 +6247,13 @@
   "unified_mailbox": {
     "search_unavailable": "Otsing pole ühendatud vaates saadaval"
   },
+  "account_routing": {
+    "group_members_one_account": "Grupis saavad olla ainult ühe konto kontaktid.",
+    "link_names_no_account": "See link ei ütle, millises kontos sõnum on, seega seda ei avatud.",
+    "group_member_gone": "Üht valitud kontaktidest pole enam olemas. Vali liikmed uuesti.",
+    "invitation_other_account": "See kutse on teises kontos. Sellele vastamiseks või selle kalendrisse lisamiseks lülituge sellele kontole.",
+    "tab_names_no_account": "See vahekaart salvestati ilma kontota, seega seda ei avatud. Sulgege see ja avage uuesti kontolt, kuhu see kuulub."
+  },
   "mail_import": {
     "menu_import": "Impordi kirju…",
     "settings_label": "Impordi kirju",
@@ -6833,6 +6951,10 @@
         "title": "Ühendu teiste veebisaitidega",
         "body": "Saata päringuid neile saitidele. Kõik, mida pistikprogramm lugeda saab, võidakse sinna saata:"
       },
+      "links_check": {
+        "title": "Avatavate linkide kontrollimine",
+        "body": "Näha iga veebilinki, mille avad, koos selle tekstiga, ning see peatada või avada selle asemel mõni muu aadress."
+      },
       "admin_config": {
         "title": "Loe oma seadeid administraatorilt",
         "body": "Lugeda seadeid, mille administraator selle pistikprogrammi jaoks salvestas."
@@ -6967,7 +7089,7 @@
       },
       "ui_notifications": {
         "title": "Näita märguandeid",
-        "body": "Näidata märguandeid sinu seadmes või rakenduses, kui pole neid lubanud. Iga märguanne nimetab pistikprogrammi."
+        "body": "Näidata märguandeid sinu seadmes või rakenduses, kui pole neid lubanud. Iga märguanne nimetab pistikprogrammi. Pistikprogramm näeb ka teateid, mida rakendus sulle näitab."
       }
     },
     "forward_approval": {
@@ -7089,6 +7211,14 @@
     "not_available_title": "See leht pole saadaval",
     "not_available_description": "Pistikprogramm, mis selle lisas, on välja lülitatud või enam paigaldamata.",
     "back_to_mail": "Tagasi postkasti"
+  },
+  "plugin_surfaces": {
+    "dropdown_list": "Loend pistikprogrammilt {name}",
+    "dropdown_list_labelled": "{label}, loend pistikprogrammilt {name}",
+    "oauth_failed": "Teenus ei lõpetanud sisselogimist. Sulge see aken ja proovi uuesti.",
+    "banners_more": "Veel ribasid ({count}): {names}",
+    "banners_fewer": "Vähem ribasid",
+    "opened_by_plugin": "Avas pistikprogramm {name}"
   },
   "command_palette": {
     "title": "Käsupalett",
@@ -7291,6 +7421,14 @@
       "added_from": "Lisatud kirjast, mille saatis {domain}",
       "added_from_subject": "Lisatud kirjast „{subject}“, mille saatis {domain}"
     }
+  },
+  "sender_trust": {
+    "cancel_not_organizer": "See tühistamine saadeti aadressilt {sender}, kuid sinu kalendris oleva sündmuse korraldaja on {organizer}. Ainult korraldaja saab selle tühistada. Eemalda see ise, kui usaldad seda kirja.",
+    "cancel_unverified": "Ei õnnestunud kinnitada, et see tühistamine tuleb korraldajalt. Eemalda sündmus ise, kui usaldad seda kirja.",
+    "card_sender": "saatja {domain}",
+    "card_sender_title": "See kiri läbis meiliserveri saatjakontrolli domeeni {domain} jaoks.",
+    "outside_link": "Muu sait",
+    "outside_link_title": "See link viib aadressile {host}, väljapoole saatja domeeni {domain}."
   },
   "proofreading": {
     "kind": {
@@ -8298,5 +8436,9 @@
   "impersonation": {
     "return_notice": "Avasid postkasti {mailbox} kasutaja asendamise kaudu.",
     "return_button": "Tagasi minu kontole"
+  },
+  "admin_access": {
+    "label": "Selle serveri superkasutajad võivad avada halduspaneeli",
+    "help": "Selle serveri superkasutajad logivad halduspaneeli sisse ilma administraatori paroolita, nagu peamise JMAP-serveri superkasutajad. Lülita see sisse ainult serveri puhul, mida haldad ise."
   }
 }

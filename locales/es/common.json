@@ -22,6 +22,7 @@
       "totp_required": "Se requiere un código de autenticación de dos factores. Introduce tu código a continuación.",
       "totp_invalid": "Código de autenticación inválido. Verifica tu aplicación de autenticación.",
       "oauth_discovery_failed": "SSO está habilitado pero no se pudo contactar al proveedor de identidad. Verifica tu configuración OAuth.",
+      "oauth_issuer_mismatch": "El inicio de sesión con este proveedor no está bien configurado. El administrador tiene que establecer su dirección de emisor (issuer).",
       "token_exchange_failed": "Tu contraseña y tu código fueron aceptados, pero el servidor de correo se negó a iniciar una sesión para esta aplicación. Pide a tu administrador que revise la configuración de su cliente OAuth."
     },
     "show_password": "Mostrar contraseña",
@@ -157,6 +158,7 @@
     "settings": "Configuración",
     "admin": "Admin",
     "files": "Archivos",
+    "tasks": "Tareas",
     "loading_mailboxes": "Cargando buzones...",
     "push_connected": "Actualizaciones en tiempo real activas",
     "push_disconnected": "Actualizaciones en tiempo real inactivas",
@@ -338,6 +340,14 @@
     "show_on_mobile": "Mostrar en móvil"
   },
   "email_list": {
+    "date_groups": {
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "last_week": "La semana pasada",
+      "last_month": "El mes pasado",
+      "older": "Más antiguos"
+    },
+    "group_by_date": "Agrupar por fecha",
     "sections": {
       "unread": "No leídos",
       "everything_else": "Todo lo demás",
@@ -1219,6 +1229,7 @@
       "clear_formatting": "Borrar formato",
       "undo": "Deshacer",
       "redo": "Rehacer",
+      "cell_background": "Fondo de celda",
       "add_row_above": "Añadir fila encima",
       "add_row_below": "Añadir fila debajo",
       "add_column_before": "Añadir columna antes",
@@ -1324,6 +1335,7 @@
     "success": "Éxito",
     "cancel": "Cancelar",
     "save": "Guardar",
+    "ready_to_save": "Listo para guardar",
     "delete": "Eliminar",
     "edit": "Editar",
     "close": "Cerrar",
@@ -1717,6 +1729,13 @@
         "label": "Selector de cuentas en la parte superior de la barra lateral",
         "description": "Muestra el selector de cuentas encima de las carpetas y el botón redondo Redactar sobre la lista de mensajes. Desactívelo para poner Redactar encima de las carpetas."
       },
+      "compose_placement": {
+        "label": "Botón Redactar",
+        "description": "Dónde está el botón Redactar en un ordenador. En el móvil siempre está sobre la lista de mensajes.",
+        "floating": "Sobre la lista de mensajes",
+        "sidebar": "Arriba en la barra de carpetas",
+        "rail": "Arriba en la barra de navegación"
+      },
       "show_rail_account_list": {
         "label": "Mostrar avatares de cuentas en la barra de navegación",
         "description": "Mostrar círculos de cuentas individuales en la parte inferior de la barra de navegación para un cambio rápido, con un botón de cerrar sesión debajo."
@@ -1806,6 +1825,8 @@
       "title": "Etiquetas de correo",
       "description": "Crea etiquetas para ordenar tus mensajes. Las etiquetas se guardan con tus mensajes en el servidor.",
       "add_keyword": "Añadir etiqueta",
+      "sort_az": "Ordenar A–Z",
+      "sorted": "Etiquetas ordenadas de la A a la Z",
       "empty": "Todavía no hay etiquetas.",
       "label_field": "Nombre para mostrar",
       "label_placeholder": "ej. Trabajo, Personal, Urgente",
@@ -1996,9 +2017,19 @@
     "email_behavior": {
       "inbox_type": {
         "label": "Tipo de bandeja de entrada",
-        "description": "«No leídos primero» muestra tus 25 mensajes no leídos más recientes en una sección encima del resto de la bandeja",
+        "description": "«No leídos primero» muestra tus mensajes no leídos más recientes en una sección encima del resto de la bandeja",
         "default": "Predeterminado",
         "unread_first": "No leídos primero"
+      },
+      "unread_section_size": {
+        "label": "Mensajes no leídos mostrados",
+        "description": "Cuántos de tus mensajes no leídos más recientes muestra la sección «No leídos primero»",
+        "5": "5 mensajes",
+        "10": "10 mensajes",
+        "15": "15 mensajes",
+        "20": "20 mensajes",
+        "25": "25 mensajes",
+        "50": "50 mensajes"
       },
       "clear_search_on_folder_change": {
         "label": "Borrar la búsqueda al cambiar de carpeta",
@@ -2144,6 +2175,10 @@
         "label": "Mostrar adjuntos en la lista",
         "description": "Mostrar los archivos adjuntos debajo de cada mensaje para abrirlos desde la lista. El clip se muestra de todos modos."
       },
+      "show_tag_chips": {
+        "label": "Mostrar etiquetas en la lista",
+        "description": "Mostrar las etiquetas junto al remitente o asunto en la lista de mensajes"
+      },
       "attachment_click_action": {
         "label": "Acción al hacer clic en adjuntos",
         "description": "Elige si al hacer clic en un archivo adjunto se abre una vista previa o se descarga de inmediato",
@@ -2286,6 +2321,10 @@
       "rtl_editing": {
         "label": "Compatibilidad con edición de derecha a izquierda",
         "description": "Añade un botón de dirección a la barra de herramientas del editor para configurar los párrafos de izquierda a derecha o de derecha a izquierda"
+      },
+      "group_by_date": {
+        "label": "Agrupar por fecha",
+        "description": "Muestra los mensajes bajo encabezados de fecha como Hoy, Ayer y La semana pasada. Solo se aplica cuando la lista está ordenada por fecha."
       },
       "group_conversations": {
         "label": "Agrupar mensajes por conversación",
@@ -2538,6 +2577,7 @@
         "enable_tooltip": "Habilitar el cifrado con esta clave",
         "configure_title": "Habilitar el cifrado con esta clave",
         "enable_button": "Habilitar",
+        "in_use": "En uso",
         "disable_tooltip": "Deshabilitar el cifrado",
         "disable_title": "¿Desactivar el cifrado en reposo?",
         "disable_message": "A partir de ahora, el correo nuevo se guarda sin cifrar.",
@@ -2780,7 +2820,9 @@
       },
       "settings_sync": {
         "label": "Sincronización de ajustes",
-        "description": "Sincronice sus ajustes entre navegadores y dispositivos"
+        "description": "Sincronice sus ajustes entre navegadores y dispositivos",
+        "replaced": "{count, plural, one {# ajuste de este navegador sigue} other {# ajustes de este navegador siguen}} ahora a tu cuenta.",
+        "keep_mine": "Usar los de este navegador"
       },
       "sender_favicons": {
         "label": "Favicons de remitente",
@@ -2984,6 +3026,7 @@
         "from": "De",
         "to": "Para",
         "cc": "Cc",
+        "delivered_to": "Entregado a",
         "subject": "Asunto",
         "header": "Encabezado personalizado",
         "size": "Tamaño",
@@ -3123,7 +3166,44 @@
       "apply_existing_none": "Ningún mensaje de {folder} coincide todavía con esta regla.",
       "period_status_scheduled": "programada",
       "period_status_active": "activa",
-      "period_status_expired": "caducada"
+      "period_status_expired": "caducada",
+      "editor": {
+        "if": "Si se cumple",
+        "match_all": "cada una",
+        "match_any": "alguna",
+        "of_conditions": "de estas condiciones",
+        "match_type": "Qué condiciones deben cumplirse",
+        "condition_number": "Condición {number}",
+        "comparison": "Comparación",
+        "size_unit": "Unidad",
+        "has_attachment": "Tiene un adjunto",
+        "attachment_type": "Adjunto de tipo",
+        "size_units": {
+          "bytes": "bytes",
+          "kb": "KB",
+          "mb": "MB"
+        },
+        "continue_rules": "Seguir aplicando las demás reglas",
+        "skip_rule": "Omitir esta regla",
+        "matching": "{count, plural, =0 {Ningún mensaje coincide} one {# mensaje coincide} other {# mensajes coinciden}}",
+        "matching_partial": "{count, plural, =0 {Ningún mensaje reciente coincide} other {#+ mensajes coinciden}}",
+        "checking": "Buscando correo que coincida…",
+        "tags": "Etiquetas",
+        "attachment_type_invalid": "Escribe una extensión de archivo, como pdf",
+        "action_conflict": "Descartar y Rechazar no se pueden combinar con Mover, Copiar o Mantener, ni entre sí",
+        "apply_to": "Aplicar a",
+        "apply_new": "Solo el correo nuevo",
+        "apply_folder": "El correo nuevo y {folder}",
+        "apply_folder_count": "El correo nuevo y {folder} ({count})",
+        "apply_all": "El correo nuevo y todo el correo",
+        "apply_all_count": "El correo nuevo y todo el correo ({count})",
+        "applying": "Aplicando «{name}»…",
+        "trash_title": "¿Mover el correo existente a la papelera?",
+        "trash_confirm": "{count, plural, one {Esto mueve # mensaje existente a la papelera.} other {Esto mueve # mensajes existentes a la papelera.}}",
+        "trash_confirm_partial": "{count, plural, =0 {Esto mueve a la papelera todos los mensajes existentes que coinciden con la regla.} other {Esto mueve #+ mensajes existentes a la papelera.}}",
+        "trash_button": "Guardar y mover a la papelera",
+        "delivered_to_new_only": "Esta regla solo funciona con el correo nuevo. El correo entregado no guarda la dirección a la que se entregó."
+      }
     },
     "templates": {
       "title": "Plantillas de correo",
@@ -3951,6 +4031,9 @@
       "block": "{count, plural, one {Bloquear remitente} other {Bloquear # remitentes}}",
       "no_junk": "Esta cuenta no tiene carpeta de correo no deseado",
       "create": "Crear regla…",
+      "add_sender_to_rule": "Añadir {sender} a una regla",
+      "sender_already_present": "Ya está en esta regla",
+      "no_rule_fits": "No hay reglas a las que añadirlo",
       "manage": "Administrar reglas",
       "senders_count": "{count, plural, one {# remitente} other {# remitentes}}",
       "cross_account": "Selecciona mensajes de una sola cuenta",
@@ -3959,6 +4042,7 @@
       "load_failed": "No se pudieron cargar las reglas",
       "none": "Aún no hay reglas",
       "new_mail_only": "Solo para mensajes nuevos",
+      "cannot_run": "Solo las reglas que mueven, copian, marcan como leído, destacan, etiquetan o descartan se pueden aplicar a mensajes existentes, y solo si no comprueban el cuerpo, «Entregado a» ni una expresión regular.",
       "running": "Ejecutando «{name}» en {folder}…"
     },
     "find_emails_from": "Buscar correos de {name}"
@@ -3995,6 +4079,8 @@
     "mark_all_confirm_message": "¿Marcar todos los mensajes no leídos de su cuenta personal como leídos?",
     "empty_all_confirm_title": "Vaciar la papelera de todas las cuentas",
     "empty_all_confirm_message": "¿Eliminar para siempre {count, plural, one {el mensaje} other {los # mensajes}} de la papelera de todas tus cuentas? No se puede deshacer.",
+    "empty_all_confirm_shared": "Esto incluye las cuentas compartidas {accounts}.",
+    "empty_all_confirm_kept": "La papelera de {accounts} se queda como está, porque no puedes eliminar ahí.",
     "toast_emptied_all": "Papelera vaciada en todas las cuentas",
     "toast_error_empty_all_partial": "Papelera vaciada, pero algunas cuentas fallaron",
     "toast_error_empty_all": "No se pudo vaciar la papelera",
@@ -4120,7 +4206,7 @@
     "return_to_list_follows_layout": "Mientras no lo cambies, sigue el diseño: desactivado cuando la lista y el mensaje están uno al lado del otro, activado en los demás casos."
   },
   "mail_p3_conv": {
-    "sidebar_account_switcher_description": "Muestra el selector de cuentas encima de las carpetas, con Redactar debajo. Desactívelo para poner Redactar en su lugar."
+    "sidebar_account_switcher_description": "Muestra el selector de cuentas sobre las carpetas. Desactívalo para cambiar de cuenta con tu avatar en la barra de navegación."
   },
   "mail_p2_conv": {
     "show_message": "Mostrar el mensaje",
@@ -4489,6 +4575,8 @@
       "role_label": "Role",
       "language_label": "Language",
       "related_default_label": "Related",
+      "related_unknown": "Contacto desconocido",
+      "related_remove": "Quitar de los contactos relacionados",
       "more_actions": "Más acciones",
       "age_years": "{count, plural, one {1 año} other {# años}}",
       "years_since": "{count, plural, one {hace 1 año} other {hace # años}}"
@@ -4857,6 +4945,22 @@
       "end_time": "Hora de fin",
       "all_day_event": "Evento de todo el día",
       "calendar_select": "Calendario",
+      "show_as": "Mostrar como",
+      "show_as_busy": "Ocupado",
+      "show_as_free": "Libre",
+      "shown_free": "Se muestra como libre",
+      "visibility": "Visibilidad",
+      "visibility_public": "Público",
+      "visibility_private": "Privado",
+      "visibility_secret": "Oculto",
+      "visibility_hint_public": "Las personas con las que compartes el calendario ven los detalles.",
+      "visibility_hint_private": "Las personas con las que compartes el calendario solo ven la hora.",
+      "visibility_hint_secret": "Las personas con las que compartes el calendario no ven el evento, y no bloquea la hora.",
+      "visibility_series": "Se aplica a todas las repeticiones.",
+      "color_calendar": "Usar el color del calendario",
+      "overlap": "Se solapa con {title} ({details})",
+      "overlap_plain": "Se solapa con {title}",
+      "overlap_more": "Y {count} más",
       "save": "Guardar",
       "cancel": "Cancelar",
       "color": "Color"
@@ -5042,6 +5146,8 @@
       "enable_tasks_desc": "Mostrar una vista de tareas en el calendario para gestionar tareas pendientes",
       "show_tasks_on_calendar": "Mostrar tareas en el calendario",
       "show_tasks_on_calendar_desc": "Mostrar las tareas en las vistas mensual, semanal y diaria del calendario",
+      "show_tasks_app": "Tareas como app propia",
+      "show_tasks_app_desc": "Las tareas tienen su propio icono en la barra de apps en lugar de una vista del calendario",
       "hover_preview": "Vista previa al pasar el ratón",
       "hover_preview_desc": "Mostrar un popover de detalles al pasar el ratón sobre eventos del calendario",
       "hover_preview_instant": "Instantáneo",
@@ -5379,7 +5485,12 @@
     "task_list_not_in_calendar": "{name} (lista de tareas, no se muestra en el calendario)",
     "copy_to_account": "Copiar a {address}",
     "copied_to_account": "Copiado a {address}",
-    "delete_original": "Eliminar el original"
+    "delete_original": "Eliminar el original",
+    "copy_to_calendar": "Copiar a un calendario…",
+    "copy_to_calendar_title": "Copiar a un calendario",
+    "copy_to_calendar_hint": "La copia es un evento tuyo. Los cambios en el original no la modifican.",
+    "copy_button": "Copiar",
+    "copied_to_calendar": "Copiado en {calendar}"
   },
   "calendar_offline": {
     "split_needs_server": "Este cambio necesita conexión con el servidor. Cambia solo este evento por ahora o inténtalo de nuevo cuando vuelvas a tener conexión."
@@ -5866,6 +5977,13 @@
   },
   "unified_mailbox": {
     "search_unavailable": "La búsqueda no está disponible en la vista unificada"
+  },
+  "account_routing": {
+    "group_members_one_account": "Un grupo solo puede contener contactos de una misma cuenta.",
+    "link_names_no_account": "Este enlace no indica en qué cuenta está el mensaje, así que no se abrió.",
+    "group_member_gone": "Uno de los contactos elegidos ya no existe. Vuelve a elegir los miembros.",
+    "invitation_other_account": "Esta invitación está en otra cuenta. Cambia a esa cuenta para responderla o añadirla a un calendario.",
+    "tab_names_no_account": "Esta pestaña se guardó sin su cuenta, así que no se abrió. Ciérrala y vuelve a abrirla desde la cuenta a la que pertenece."
   },
   "mail_import": {
     "menu_import": "Importar correo…",
@@ -6833,6 +6951,10 @@
         "title": "Conectarse a otros sitios web",
         "body": "Enviar solicitudes a estos sitios. Todo lo que el complemento pueda leer se puede enviar allí:"
       },
+      "links_check": {
+        "title": "Comprobar los enlaces que abres",
+        "body": "Ver cada enlace web que abres, con su texto, y bloquearlo o abrir otra dirección en su lugar."
+      },
       "admin_config": {
         "title": "Leer su configuración de tu administrador",
         "body": "Leer la configuración que tu administrador guardó para este complemento."
@@ -6939,7 +7061,7 @@
       },
       "ui_notifications": {
         "title": "Mostrar notificaciones",
-        "body": "Mostrar notificaciones en tu dispositivo, o dentro de la aplicación si no las has permitido. Cada una indica el nombre del complemento."
+        "body": "Mostrar notificaciones en tu dispositivo, o dentro de la aplicación si no las has permitido. Cada una indica el nombre del complemento. El complemento también ve los avisos que la aplicación te muestra."
       },
       "ui_message_list": {
         "title": "Añadir a la lista de mensajes",
@@ -7089,6 +7211,14 @@
     "not_available_title": "Esta página no está disponible",
     "not_available_description": "El complemento que la añadió está desactivado o ya no está instalado.",
     "back_to_mail": "Volver al correo"
+  },
+  "plugin_surfaces": {
+    "dropdown_list": "Lista del complemento {name}",
+    "dropdown_list_labelled": "{label}, lista del complemento {name}",
+    "oauth_failed": "El servicio no completó el inicio de sesión. Cierre esta ventana e inténtelo de nuevo.",
+    "banners_more": "Más banners ({count}): {names}",
+    "banners_fewer": "Menos banners",
+    "opened_by_plugin": "Abierto por el complemento {name}"
   },
   "command_palette": {
     "title": "Paleta de comandos",
@@ -7291,6 +7421,14 @@
       "added_from": "Añadido desde un correo de {domain}",
       "added_from_subject": "Añadido desde el correo «{subject}» de {domain}"
     }
+  },
+  "sender_trust": {
+    "cancel_not_organizer": "Esta cancelación se envió desde {sender}, pero el organizador del evento de tu calendario es {organizer}. Solo el organizador puede cancelarlo. Elimínalo tú mismo si confías en este mensaje.",
+    "cancel_unverified": "No se pudo verificar que esta cancelación venga del organizador. Elimina el evento tú mismo si confías en este mensaje.",
+    "card_sender": "de {domain}",
+    "card_sender_title": "Este mensaje superó la comprobación de remitente del servidor de correo para {domain}.",
+    "outside_link": "Otro sitio",
+    "outside_link_title": "Este enlace lleva a {host}, fuera de {domain}, el dominio del remitente."
   },
   "proofreading": {
     "kind": {
@@ -8298,5 +8436,9 @@
   "impersonation": {
     "return_notice": "Has abierto {mailbox} mediante suplantación.",
     "return_button": "Volver a mi cuenta"
+  },
+  "admin_access": {
+    "label": "Los superusuarios de este servidor pueden abrir el panel de administración",
+    "help": "Los superusuarios de este servidor inician sesión en el panel de administración sin la contraseña de administrador, como los del servidor JMAP principal. Actívalo solo para un servidor que administres tú mismo."
   }
 }

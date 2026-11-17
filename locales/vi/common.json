@@ -22,6 +22,7 @@
       "totp_required": "Cần có mã xác thực hai yếu tố. Vui lòng nhập mã của bạn dưới đây.",
       "totp_invalid": "Mã xác thực không hợp lệ. Vui lòng kiểm tra ứng dụng xác thực của bạn và thử lại.",
       "oauth_discovery_failed": "SSO đã được bật nhưng không thể liên lạc được với nhà cung cấp danh tính. Kiểm tra cấu hình OAuth của bạn.",
+      "oauth_issuer_mismatch": "Đăng nhập qua nhà cung cấp này chưa được thiết lập đúng. Quản trị viên cần đặt địa chỉ issuer của nhà cung cấp.",
       "token_exchange_failed": "Mật khẩu và mã của bạn đã được chấp nhận nhưng máy chủ thư từ chối bắt đầu phiên cho ứng dụng này. Yêu cầu quản trị viên của bạn kiểm tra cài đặt ứng dụng khách OAuth của nó."
     },
     "show_password": "Hiển thị mật khẩu",
@@ -157,6 +158,7 @@
     "settings": "Cài đặt",
     "admin": "Quản trị",
     "files": "Tệp",
+    "tasks": "Công việc",
     "loading_mailboxes": "Đang tải hộp thư...",
     "push_connected": "Cập nhật theo thời gian thực đang hoạt động",
     "push_disconnected": "Cập nhật thời gian thực không hoạt động",
@@ -338,6 +340,14 @@
     "show_on_mobile": "Hiển thị trên thiết bị di động"
   },
   "email_list": {
+    "date_groups": {
+      "today": "Hôm nay",
+      "yesterday": "Hôm qua",
+      "last_week": "Tuần trước",
+      "last_month": "Tháng trước",
+      "older": "Cũ hơn"
+    },
+    "group_by_date": "Nhóm theo ngày",
     "sections": {
       "unread": "Chưa đọc",
       "everything_else": "Các thư còn lại",
@@ -1233,6 +1243,7 @@
       "clear_formatting": "Xóa định dạng",
       "undo": "Hoàn tác",
       "redo": "Làm lại",
+      "cell_background": "Nền ô",
       "add_row_above": "Thêm hàng ở trên",
       "add_row_below": "Thêm hàng bên dưới",
       "add_column_before": "Thêm cột trước",
@@ -1336,6 +1347,7 @@
     "success": "Thành công",
     "cancel": "Hủy",
     "save": "Lưu",
+    "ready_to_save": "Sẵn sàng để lưu",
     "delete": "Xóa",
     "edit": "Chỉnh sửa",
     "close": "Đóng",
@@ -1732,6 +1744,13 @@
         "label": "Bộ chuyển tài khoản ở đầu thanh bên",
         "description": "Hiện bộ chuyển tài khoản phía trên các thư mục và nút Soạn thư hình tròn trên danh sách thư. Tắt tùy chọn này để đặt Soạn thư phía trên các thư mục."
       },
+      "compose_placement": {
+        "label": "Nút Soạn thư",
+        "description": "Vị trí nút Soạn thư trên máy tính. Trên điện thoại, nút luôn nằm trên danh sách thư.",
+        "floating": "Trên danh sách thư",
+        "sidebar": "Đầu thanh thư mục",
+        "rail": "Đầu thanh điều hướng"
+      },
       "show_rail_account_list": {
         "label": "Hiển thị ảnh đại diện tài khoản trên thanh điều hướng",
         "description": "Hiển thị ảnh đại diện từng tài khoản ở cuối thanh điều hướng để chuyển nhanh, cùng nút đăng xuất bên dưới."
@@ -1821,6 +1840,8 @@
       "title": "Nhãn thư",
       "description": "Tạo thẻ để sắp xếp thư. Các thẻ được lưu cùng thư trên máy chủ.",
       "add_keyword": "Nhãn mới",
+      "sort_az": "Sắp xếp A–Z",
+      "sorted": "Đã sắp xếp nhãn A–Z",
       "empty": "Chưa có nhãn nào.",
       "label_field": "Tên hiển thị",
       "label_placeholder": "Ví dụ: Công việc, Cá nhân, Khẩn cấp",
@@ -2011,9 +2032,19 @@
     "email_behavior": {
       "inbox_type": {
         "label": "Kiểu Hộp thư đến",
-        "description": "Chưa đọc trước sẽ hiển thị 25 thư chưa đọc mới nhất trong một mục phía trên các thư còn lại.",
+        "description": "Chưa đọc trước sẽ hiển thị các thư chưa đọc mới nhất trong một mục phía trên các thư còn lại.",
         "default": "Mặc định",
         "unread_first": "Chưa đọc trước"
+      },
+      "unread_section_size": {
+        "label": "Số thư chưa đọc hiển thị",
+        "description": "Số thư chưa đọc mới nhất hiển thị trong mục Chưa đọc trước",
+        "5": "5 thư",
+        "10": "10 thư",
+        "15": "15 thư",
+        "20": "20 thư",
+        "25": "25 thư",
+        "50": "50 thư"
       },
       "clear_search_on_folder_change": {
         "label": "Xóa tìm kiếm khi chuyển thư mục",
@@ -2111,6 +2142,10 @@
       "show_attachment_chips": {
         "label": "Hiện tệp đính kèm trong danh sách",
         "description": "Hiện các tệp đính kèm bên dưới mỗi thư để mở ngay từ danh sách. Biểu tượng kẹp giấy vẫn hiển thị trong mọi trường hợp."
+      },
+      "show_tag_chips": {
+        "label": "Hiển thị nhãn trong danh sách",
+        "description": "Hiển thị huy hiệu nhãn bên cạnh người gửi hoặc chủ đề trong danh sách thư"
       },
       "plain_text_mode": {
         "label": "Chỉ dùng văn bản thuần",
@@ -2301,6 +2336,10 @@
       "rtl_editing": {
         "label": "Hỗ trợ soạn thảo từ phải sang trái",
         "description": "Thêm nút chọn hướng vào thanh công cụ soạn thư để đặt hướng đoạn văn từ trái sang phải hoặc từ phải sang trái"
+      },
+      "group_by_date": {
+        "label": "Nhóm theo ngày",
+        "description": "Hiển thị thư dưới các tiêu đề ngày như Hôm nay, Hôm qua và Tuần trước. Chỉ áp dụng khi danh sách được sắp xếp theo ngày."
       },
       "group_conversations": {
         "label": "Nhóm thư theo cuộc trò chuyện",
@@ -2557,6 +2596,7 @@
         "enable_tooltip": "Kích hoạt mã hóa bằng khóa này",
         "configure_title": "Kích hoạt mã hóa bằng khóa này",
         "enable_button": "Bật",
+        "in_use": "Đang dùng",
         "disable_tooltip": "Tắt mã hóa",
         "disable_title": "Tắt tính năng mã hóa khi lưu trữ?",
         "disable_message": "Thư mới được lưu trữ mà không cần mã hóa kể từ bây giờ.",
@@ -2799,7 +2839,9 @@
       },
       "settings_sync": {
         "label": "Đồng bộ hóa cài đặt",
-        "description": "Đồng bộ hóa cài đặt của bạn trên các trình duyệt và thiết bị"
+        "description": "Đồng bộ hóa cài đặt của bạn trên các trình duyệt và thiết bị",
+        "replaced": "{count, plural, other {# cài đặt trong trình duyệt này}} giờ theo tài khoản của bạn.",
+        "keep_mine": "Dùng cài đặt của trình duyệt này"
       },
       "sender_favicons": {
         "label": "Favicon người gửi",
@@ -3003,6 +3045,7 @@
         "from": "Từ",
         "to": "Đến",
         "cc": "Cc",
+        "delivered_to": "Đã gửi tới",
         "subject": "Tiêu đề",
         "header": "Trường tiêu đề tùy chỉnh",
         "size": "Kích thước",
@@ -3142,7 +3185,44 @@
       "apply_existing_none": "Chưa có thư nào trong {folder} khớp với quy tắc này.",
       "period_status_scheduled": "Theo lịch trình",
       "period_status_active": "Hoạt động",
-      "period_status_expired": "Hết hạn"
+      "period_status_expired": "Hết hạn",
+      "editor": {
+        "if": "Nếu đúng với",
+        "match_all": "tất cả",
+        "match_any": "một trong các",
+        "of_conditions": "điều kiện này",
+        "match_type": "Những điều kiện cần đúng",
+        "condition_number": "Điều kiện {number}",
+        "comparison": "So sánh",
+        "size_unit": "Đơn vị",
+        "has_attachment": "Có tệp đính kèm",
+        "attachment_type": "Tệp đính kèm loại",
+        "size_units": {
+          "bytes": "byte",
+          "kb": "KB",
+          "mb": "MB"
+        },
+        "continue_rules": "Tiếp tục áp dụng các quy tắc khác",
+        "skip_rule": "Bỏ qua quy tắc này",
+        "matching": "{count, plural, =0 {Không có thư nào khớp} other {# thư khớp}}",
+        "matching_partial": "{count, plural, =0 {Không có thư gần đây nào khớp} other {#+ thư khớp}}",
+        "checking": "Đang tìm thư khớp…",
+        "tags": "Thẻ",
+        "attachment_type_invalid": "Nhập phần mở rộng tệp, ví dụ pdf",
+        "action_conflict": "Không thể kết hợp Hủy và Từ chối với Di chuyển, Sao chép hoặc Giữ, cũng như với nhau",
+        "apply_to": "Áp dụng cho",
+        "apply_new": "Chỉ thư mới",
+        "apply_folder": "Thư mới và {folder}",
+        "apply_folder_count": "Thư mới và {folder} ({count})",
+        "apply_all": "Thư mới và tất cả thư",
+        "apply_all_count": "Thư mới và tất cả thư ({count})",
+        "applying": "Đang áp dụng “{name}”…",
+        "trash_title": "Chuyển thư hiện có vào Thùng rác?",
+        "trash_confirm": "{count, plural, other {Thao tác này chuyển # thư hiện có vào Thùng rác.}}",
+        "trash_confirm_partial": "{count, plural, =0 {Thao tác này chuyển mọi thư hiện có khớp với quy tắc vào Thùng rác.} other {Thao tác này chuyển #+ thư hiện có vào Thùng rác.}}",
+        "trash_button": "Lưu và chuyển vào Thùng rác",
+        "delivered_to_new_only": "Quy tắc này chỉ áp dụng cho thư mới. Thư đã gửi tới không giữ lại địa chỉ mà nó được gửi tới."
+      }
     },
     "templates": {
       "title": "Mẫu email",
@@ -3963,6 +4043,9 @@
       "block": "{count, plural, one {Chặn người gửi} other {Chặn # người gửi}}",
       "no_junk": "Tài khoản này không có thư mục Thư rác",
       "create": "Tạo quy tắc…",
+      "add_sender_to_rule": "Thêm {sender} vào quy tắc",
+      "sender_already_present": "Đã có trong quy tắc này",
+      "no_rule_fits": "Không có quy tắc nào để thêm vào",
       "manage": "Quản lý quy tắc",
       "senders_count": "{count, plural, one {# người gửi} other {# người gửi}}",
       "cross_account": "Chọn thư từ một tài khoản",
@@ -3971,6 +4054,7 @@
       "load_failed": "Không thể tải quy tắc",
       "none": "Chưa có quy tắc nào",
       "new_mail_only": "Chỉ dành cho thư mới",
+      "cannot_run": "Chỉ có thể chạy trên thư hiện có các quy tắc di chuyển, sao chép, đánh dấu đã đọc, gắn dấu sao, gắn thẻ hoặc hủy, và chỉ khi chúng không kiểm tra nội dung thư, \"Đã gửi tới\" hay biểu thức chính quy.",
       "running": "Đang chạy \"{name}\" trên {folder}…"
     },
     "find_emails_from": "Tìm email từ {name}"
@@ -4007,6 +4091,8 @@
     "mark_all_confirm_message": "Đánh dấu mọi thư chưa đọc trong tài khoản cá nhân của bạn là đã đọc?",
     "empty_all_confirm_title": "Dọn sạch Thùng rác của tất cả tài khoản",
     "empty_all_confirm_message": "Xóa vĩnh viễn {count, plural, other {tất cả # thư}} trong Thùng rác của mọi tài khoản của bạn? Không thể hoàn tác.",
+    "empty_all_confirm_shared": "Bao gồm cả các tài khoản được chia sẻ {accounts}.",
+    "empty_all_confirm_kept": "Thùng rác của {accounts} được giữ nguyên vì bạn không có quyền xóa ở đó.",
     "toast_emptied_all": "Đã dọn sạch Thùng rác trên tất cả tài khoản",
     "toast_error_empty_all_partial": "Đã dọn Thùng rác, nhưng một số tài khoản bị lỗi",
     "toast_error_empty_all": "Không thể dọn sạch Thùng rác",
@@ -4132,7 +4218,7 @@
     "return_to_list_follows_layout": "Cho đến khi bạn thay đổi, cài đặt này theo bố cục: tắt khi danh sách và thư nằm cạnh nhau, bật trong các trường hợp khác."
   },
   "mail_p3_conv": {
-    "sidebar_account_switcher_description": "Hiện bộ chuyển tài khoản phía trên các thư mục, với Soạn thư bên dưới. Tắt tùy chọn này để đặt Soạn thư vào chỗ của nó."
+    "sidebar_account_switcher_description": "Hiển thị bộ chuyển tài khoản phía trên các thư mục. Tắt để chuyển tài khoản bằng ảnh đại diện trên thanh điều hướng."
   },
   "mail_p2_conv": {
     "show_message": "Hiện thư",
@@ -4503,6 +4589,8 @@
       "role_label": "Vai trò",
       "language_label": "Ngôn ngữ",
       "related_default_label": "Liên quan",
+      "related_unknown": "Liên hệ không xác định",
+      "related_remove": "Xóa khỏi danh bạ liên quan",
       "more_actions": "Thêm hành động",
       "age_years": "{count, plural, one {1 tuổi} other {# tuổi}}",
       "years_since": "{count, plural, one {1 năm} other {# năm}}"
@@ -4869,6 +4957,22 @@
       "end_time": "Thời gian kết thúc",
       "all_day_event": "Sự kiện cả ngày",
       "calendar_select": "Lịch",
+      "show_as": "Hiển thị là",
+      "show_as_busy": "Bận",
+      "show_as_free": "Rảnh",
+      "shown_free": "Hiển thị là rảnh",
+      "visibility": "Chế độ hiển thị",
+      "visibility_public": "Công khai",
+      "visibility_private": "Riêng tư",
+      "visibility_secret": "Ẩn",
+      "visibility_hint_public": "Những người bạn chia sẻ lịch sẽ thấy chi tiết.",
+      "visibility_hint_private": "Những người bạn chia sẻ lịch chỉ thấy thời gian.",
+      "visibility_hint_secret": "Những người bạn chia sẻ lịch sẽ không thấy sự kiện, và thời gian vẫn trống.",
+      "visibility_series": "Áp dụng cho mọi lần lặp lại.",
+      "color_calendar": "Dùng màu của lịch",
+      "overlap": "Trùng với {title} ({details})",
+      "overlap_plain": "Trùng với {title}",
+      "overlap_more": "Và {count} sự kiện khác",
       "save": "Lưu",
       "cancel": "Hủy",
       "color": "Màu sắc"
@@ -5054,6 +5158,8 @@
       "enable_tasks_desc": "Hiển thị chế độ xem công việc trong lịch để quản lý việc cần làm",
       "show_tasks_on_calendar": "Hiển thị công việc trên lịch",
       "show_tasks_on_calendar_desc": "Hiển thị công việc trên dạng xem lịch tháng, tuần, ngày",
+      "show_tasks_app": "Công việc thành ứng dụng riêng",
+      "show_tasks_app_desc": "Công việc có biểu tượng riêng trên thanh ứng dụng thay vì một chế độ xem trong lịch",
       "hover_preview": "Xem trước sự kiện khi di chuột",
       "hover_preview_desc": "Hiển thị cửa sổ bật lên chi tiết khi di chuột qua các sự kiện lịch",
       "hover_preview_instant": "Ngay lập tức",
@@ -5391,7 +5497,12 @@
     "task_list_not_in_calendar": "{name} (danh sách việc cần làm, không hiện trong lịch)",
     "copy_to_account": "Sao chép sang {address}",
     "copied_to_account": "Đã sao chép sang {address}",
-    "delete_original": "Xóa bản gốc"
+    "delete_original": "Xóa bản gốc",
+    "copy_to_calendar": "Sao chép vào lịch…",
+    "copy_to_calendar_title": "Sao chép vào lịch",
+    "copy_to_calendar_hint": "Bản sao là sự kiện của riêng bạn. Thay đổi ở bản gốc không ảnh hưởng đến nó.",
+    "copy_button": "Sao chép",
+    "copied_to_calendar": "Đã sao chép vào {calendar}"
   },
   "calendar_offline": {
     "split_needs_server": "Thay đổi này cần kết nối với máy chủ. Hiện chỉ thay đổi sự kiện này, hoặc thử lại khi bạn trực tuyến trở lại."
@@ -6148,6 +6259,13 @@
   "unified_mailbox": {
     "search_unavailable": "Tìm kiếm không có sẵn trong chế độ xem hợp nhất"
   },
+  "account_routing": {
+    "group_members_one_account": "Một nhóm chỉ có thể chứa danh bạ của một tài khoản.",
+    "link_names_no_account": "Liên kết này không cho biết thư nằm trong tài khoản nào nên không được mở.",
+    "group_member_gone": "Một trong các liên hệ đã chọn không còn tồn tại. Hãy chọn lại thành viên.",
+    "invitation_other_account": "Lời mời này nằm trong tài khoản khác. Chuyển sang tài khoản đó để trả lời hoặc thêm vào lịch.",
+    "tab_names_no_account": "Thẻ này được lưu mà không kèm tài khoản nên không được mở. Hãy đóng thẻ và mở lại từ tài khoản chứa nó."
+  },
   "mail_import": {
     "menu_import": "Nhập thư…",
     "settings_label": "Nhập thư",
@@ -6845,6 +6963,10 @@
         "title": "Kết nối với các trang web khác",
         "body": "Gửi yêu cầu đến các trang web này. Mọi thứ plugin có thể đọc đều có thể được gửi ở đó:"
       },
+      "links_check": {
+        "title": "Kiểm tra các liên kết bạn mở",
+        "body": "Xem mọi liên kết web bạn mở cùng văn bản của nó, và chặn liên kết đó hoặc mở một địa chỉ khác thay thế."
+      },
       "admin_config": {
         "title": "Đọc cài đặt plugin từ quản trị viên",
         "body": "Đọc cài đặt quản trị viên đã lưu cho plugin này."
@@ -6979,7 +7101,7 @@
       },
       "ui_notifications": {
         "title": "Hiển thị thông báo",
-        "body": "Hiển thị thông báo trên thiết bị, hoặc trong ứng dụng nếu bạn chưa cấp quyền thông báo. Mỗi thông báo đều ghi tên plugin."
+        "body": "Hiển thị thông báo trên thiết bị, hoặc trong ứng dụng nếu bạn chưa cấp quyền thông báo. Mỗi thông báo đều ghi tên plugin. Plugin cũng thấy các thông báo mà ứng dụng hiển thị cho bạn."
       }
     },
     "forward_approval": {
@@ -7101,6 +7223,14 @@
     "not_available_title": "Trang này không có sẵn",
     "not_available_description": "Plugin đã thêm nó đã bị tắt hoặc không còn được cài đặt.",
     "back_to_mail": "Quay lại thư"
+  },
+  "plugin_surfaces": {
+    "dropdown_list": "Danh sách từ plugin {name}",
+    "dropdown_list_labelled": "{label}, danh sách từ plugin {name}",
+    "oauth_failed": "Dịch vụ chưa hoàn tất đăng nhập. Hãy đóng cửa sổ này và thử lại.",
+    "banners_more": "Thêm biểu ngữ ({count}): {names}",
+    "banners_fewer": "Bớt biểu ngữ",
+    "opened_by_plugin": "Được mở bởi plugin {name}"
   },
   "command_palette": {
     "title": "Bảng lệnh",
@@ -7303,6 +7433,14 @@
       "added_from": "Được thêm từ một thư của {domain}",
       "added_from_subject": "Được thêm từ thư “{subject}” của {domain}"
     }
+  },
+  "sender_trust": {
+    "cancel_not_organizer": "Thông báo hủy này được gửi từ {sender}, nhưng người tổ chức sự kiện này trong lịch của bạn là {organizer}. Chỉ người tổ chức mới có thể hủy sự kiện. Hãy tự xóa nếu bạn tin tưởng thư này.",
+    "cancel_unverified": "Không thể xác minh thông báo hủy này đến từ người tổ chức. Hãy tự xóa sự kiện nếu bạn tin tưởng thư này.",
+    "card_sender": "từ {domain}",
+    "card_sender_title": "Thư này đã vượt qua bước kiểm tra người gửi của máy chủ thư cho {domain}.",
+    "outside_link": "Trang khác",
+    "outside_link_title": "Liên kết này dẫn tới {host}, nằm ngoài {domain}, tên miền của người gửi."
   },
   "proofreading": {
     "kind": {
@@ -8310,5 +8448,9 @@
   "impersonation": {
     "return_notice": "Bạn đã mở {mailbox} bằng cách mạo danh.",
     "return_button": "Quay lại tài khoản của tôi"
+  },
+  "admin_access": {
+    "label": "Siêu người dùng của máy chủ này có thể mở bảng điều khiển quản trị",
+    "help": "Siêu người dùng của máy chủ này đăng nhập vào bảng điều khiển quản trị mà không cần mật khẩu quản trị, giống như siêu người dùng của máy chủ JMAP chính. Chỉ bật cho máy chủ do chính bạn vận hành."
   }
 }

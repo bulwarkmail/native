@@ -22,6 +22,7 @@
       "totp_required": "İki faktörlü doğrulama kodu gereklidir. Lütfen kodunuzu aşağıya girin.",
       "totp_invalid": "Geçersiz doğrulama kodu. Lütfen doğrulama uygulamanızı kontrol edip tekrar deneyin.",
       "oauth_discovery_failed": "SSO etkin ancak kimlik sağlayıcısına ulaşılamıyor. OAuth yapılandırmanızı kontrol edin.",
+      "oauth_issuer_mismatch": "Bu sağlayıcıyla oturum açma doğru yapılandırılmamış. Yöneticinin sağlayıcının yayıncı (issuer) adresini ayarlaması gerekiyor.",
       "token_exchange_failed": "Parolanız ve kodunuz kabul edildi ancak posta sunucusu bu uygulama için oturum başlatmayı reddetti. Yöneticinizden OAuth istemci ayarlarını kontrol etmesini isteyin."
     },
     "show_password": "Şifreyi göster",
@@ -157,6 +158,7 @@
     "settings": "Ayarlar",
     "admin": "Yönetim",
     "files": "Dosyalar",
+    "tasks": "Görevler",
     "loading_mailboxes": "Posta kutuları yükleniyor...",
     "push_connected": "Anlık güncellemeler aktif",
     "push_disconnected": "Anlık güncellemeler devre dışı",
@@ -338,6 +340,14 @@
     "show_on_mobile": "Mobilde göster"
   },
   "email_list": {
+    "date_groups": {
+      "today": "Bugün",
+      "yesterday": "Dün",
+      "last_week": "Geçen hafta",
+      "last_month": "Geçen ay",
+      "older": "Daha eski"
+    },
+    "group_by_date": "Tarihe göre grupla",
     "sections": {
       "unread": "Okunmamış",
       "everything_else": "Diğer her şey",
@@ -1219,6 +1229,7 @@
       "clear_formatting": "Biçimlendirmeyi temizle",
       "undo": "Geri al",
       "redo": "Yinele",
+      "cell_background": "Hücre arka planı",
       "add_row_above": "Üste satır ekle",
       "add_row_below": "Alta satır ekle",
       "add_column_before": "Öncesine sütun ekle",
@@ -1324,6 +1335,7 @@
     "success": "Başarılı",
     "cancel": "İptal",
     "save": "Kaydet",
+    "ready_to_save": "Kaydetmeye hazır",
     "delete": "Sil",
     "edit": "Düzenle",
     "close": "Kapat",
@@ -1717,6 +1729,13 @@
         "label": "Kenar çubuğunun üstünde hesap değiştirici",
         "description": "Hesap değiştiriciyi klasörlerin üstünde, yuvarlak Yeni E-posta düğmesini ise ileti listesinin üzerinde gösterir. Kapatırsanız Yeni E-posta bunun yerine klasörlerin üstünde yer alır."
       },
+      "compose_placement": {
+        "label": "Yeni E-posta düğmesi",
+        "description": "Bilgisayarda Yeni E-posta düğmesinin yeri. Telefonda her zaman ileti listesinin üzerindedir.",
+        "floating": "İleti listesinin üzerinde",
+        "sidebar": "Klasör çubuğunun üstünde",
+        "rail": "Gezinme çubuğunun üstünde"
+      },
       "show_rail_account_list": {
         "label": "Gezinme Çubuğunda Hesap Avatarlarını Göster",
         "description": "Hızlı geçiş için gezinme çubuğunun altında ayrı hesap dairelerini ve altında oturumu kapat düğmesini görüntüleyin."
@@ -1806,6 +1825,8 @@
       "title": "E-posta Etiketleri",
       "description": "İletilerinizi düzenlemek için etiketler oluşturun. Etiketler iletilerinizle birlikte sunucuda saklanır.",
       "add_keyword": "Etiket Ekle",
+      "sort_az": "A–Z Sırala",
+      "sorted": "Etiketler A–Z sıralandı",
       "empty": "Henüz etiket yok.",
       "label_field": "Görünen Ad",
       "label_placeholder": "ör. İş, Kişisel, Acil",
@@ -1996,9 +2017,19 @@
     "email_behavior": {
       "inbox_type": {
         "label": "Gelen kutusu türü",
-        "description": "\"Önce okunmamışlar\", en yeni 25 okunmamış iletinizi gelen kutusunun geri kalanının üstündeki bir bölümde gösterir",
+        "description": "\"Önce okunmamışlar\", en yeni okunmamış iletilerinizi gelen kutusunun geri kalanının üstündeki bir bölümde gösterir",
         "default": "Varsayılan",
         "unread_first": "Önce okunmamışlar"
+      },
+      "unread_section_size": {
+        "label": "Gösterilen okunmamış iletiler",
+        "description": "\"Önce okunmamışlar\" bölümünün kaç yeni okunmamış ileti göstereceği",
+        "5": "5 ileti",
+        "10": "10 ileti",
+        "15": "15 ileti",
+        "20": "20 ileti",
+        "25": "25 ileti",
+        "50": "50 ileti"
       },
       "clear_search_on_folder_change": {
         "label": "Klasör değiştirirken aramayı temizle",
@@ -2096,6 +2127,10 @@
       "show_attachment_chips": {
         "label": "Ekleri listede göster",
         "description": "Ekli dosyaları her iletinin altında göster, böylece doğrudan listeden açılabilsinler. Ataç simgesi her durumda görünür."
+      },
+      "show_tag_chips": {
+        "label": "Etiketleri listede göster",
+        "description": "İleti listesinde gönderenin veya konunun yanında etiketleri göster"
       },
       "plain_text_mode": {
         "label": "Yalnızca Düz Metin",
@@ -2286,6 +2321,10 @@
       "rtl_editing": {
         "label": "Sağdan sola düzenleme desteği",
         "description": "Düzenleyici araç çubuğuna paragrafları soldan sağa veya sağdan sola ayarlayabileceğiniz bir yön düğmesi ekler"
+      },
+      "group_by_date": {
+        "label": "Tarihe göre grupla",
+        "description": "İletileri Bugün, Dün ve Geçen hafta gibi tarih başlıkları altında gösterir. Yalnızca liste tarihe göre sıralandığında geçerlidir."
       },
       "group_conversations": {
         "label": "İletileri konuşmaya göre grupla",
@@ -2538,6 +2577,7 @@
         "enable_tooltip": "Bu anahtarla şifrelemeyi etkinleştir",
         "configure_title": "Bu anahtarla şifrelemeyi etkinleştir",
         "enable_button": "Etkinleştir",
+        "in_use": "Kullanımda",
         "disable_tooltip": "Şifrelemeyi devre dışı bırak",
         "disable_title": "Bekleyen veri şifrelemesi kapatılsın mı?",
         "disable_message": "Yeni postalar bundan sonra şifrelenmeden saklanır.",
@@ -2780,7 +2820,9 @@
       },
       "settings_sync": {
         "label": "Ayar Senkronizasyonu",
-        "description": "Ayarlarınızı tarayıcılar ve cihazlar arasında senkronize edin"
+        "description": "Ayarlarınızı tarayıcılar ve cihazlar arasında senkronize edin",
+        "replaced": "{count, plural, one {Bu tarayıcıdaki # ayar} other {Bu tarayıcıdaki # ayar}} artık hesabınızı izliyor.",
+        "keep_mine": "Bu tarayıcınınkileri kullan"
       },
       "sender_favicons": {
         "label": "Gönderici Favorikonları",
@@ -2984,6 +3026,7 @@
         "from": "Kimden",
         "to": "Kime",
         "cc": "Bilgi",
+        "delivered_to": "Teslim edilen adres",
         "subject": "Konu",
         "header": "Özel Başlık",
         "size": "Boyut",
@@ -3123,7 +3166,44 @@
       "apply_existing_none": "{folder} içinde bu kurala uyan ileti henüz yok.",
       "period_status_scheduled": "planlandı",
       "period_status_active": "etkin",
-      "period_status_expired": "süresi doldu"
+      "period_status_expired": "süresi doldu",
+      "editor": {
+        "if": "Bu koşulların",
+        "match_all": "tümü",
+        "match_any": "herhangi biri",
+        "of_conditions": "geçerliyse",
+        "match_type": "Hangi koşulların geçerli olması gerektiği",
+        "condition_number": "Koşul {number}",
+        "comparison": "Karşılaştırma",
+        "size_unit": "Birim",
+        "has_attachment": "Eki var",
+        "attachment_type": "Ek türü",
+        "size_units": {
+          "bytes": "bayt",
+          "kb": "KB",
+          "mb": "MB"
+        },
+        "continue_rules": "Diğer kurallar da uygulansın",
+        "skip_rule": "Bu kuralı atla",
+        "matching": "{count, plural, =0 {Eşleşen ileti yok} one {# ileti eşleşiyor} other {# ileti eşleşiyor}}",
+        "matching_partial": "{count, plural, =0 {Son iletilerden eşleşen yok} other {#+ ileti eşleşiyor}}",
+        "checking": "Eşleşen iletiler aranıyor…",
+        "tags": "Etiketler",
+        "attachment_type_invalid": "Bir dosya uzantısı girin, örneğin pdf",
+        "action_conflict": "At ve Reddet; Taşı, Kopyala veya Tut ile ya da birbiriyle birlikte kullanılamaz",
+        "apply_to": "Uygula",
+        "apply_new": "Yalnızca yeni postalara",
+        "apply_folder": "Yeni postalara ve {folder} klasörüne",
+        "apply_folder_count": "Yeni postalara ve {folder} klasörüne ({count})",
+        "apply_all": "Yeni postalara ve tüm postalara",
+        "apply_all_count": "Yeni postalara ve tüm postalara ({count})",
+        "applying": "“{name}” uygulanıyor…",
+        "trash_title": "Mevcut postalar Çöp Kutusu'na taşınsın mı?",
+        "trash_confirm": "{count, plural, one {Bu işlem # mevcut iletiyi Çöp Kutusu'na taşır.} other {Bu işlem # mevcut iletiyi Çöp Kutusu'na taşır.}}",
+        "trash_confirm_partial": "{count, plural, =0 {Bu işlem kuralla eşleşen tüm mevcut iletileri Çöp Kutusu'na taşır.} other {Bu işlem #+ mevcut iletiyi Çöp Kutusu'na taşır.}}",
+        "trash_button": "Kaydet ve Çöp Kutusu'na taşı",
+        "delivered_to_new_only": "Bu kural yalnızca yeni postalarda çalışır. Teslim edilmiş posta, teslim edildiği adresi saklamaz."
+      }
     },
     "templates": {
       "title": "E-posta Şablonları",
@@ -3951,6 +4031,9 @@
       "block": "{count, plural, one {Göndereni engelle} other {# göndereni engelle}}",
       "no_junk": "Bu hesapta istenmeyen posta klasörü yok",
       "create": "Kural oluştur…",
+      "add_sender_to_rule": "Bir kurala ekle: {sender}",
+      "sender_already_present": "Bu kuralda zaten var",
+      "no_rule_fits": "Eklenecek kural yok",
       "manage": "Kuralları yönet",
       "senders_count": "{count, plural, one {# gönderen} other {# gönderen}}",
       "cross_account": "Tek bir hesaptan iletiler seçin",
@@ -3959,6 +4042,7 @@
       "load_failed": "Kurallar yüklenemedi",
       "none": "Henüz kural yok",
       "new_mail_only": "Yalnızca yeni iletiler için",
+      "cannot_run": "Mevcut iletilere yalnızca taşıyan, kopyalayan, okundu işaretleyen, yıldızlayan, etiketleyen veya atan kurallar uygulanabilir; bunlar da gövdeyi, \"Teslim edilen adres\" alanını veya bir düzenli ifadeyi denetlemiyorsa.",
       "running": "\"{name}\" {folder} klasöründe çalıştırılıyor…"
     },
     "find_emails_from": "{name} adlı kişiden gelen e-postaları bul"
@@ -3995,6 +4079,8 @@
     "mark_all_confirm_message": "Kişisel hesabınızdaki tüm okunmamış iletiler okundu olarak işaretlensin mi?",
     "empty_all_confirm_title": "Tüm hesaplar için çöp kutusunu boşalt",
     "empty_all_confirm_message": "Tüm hesaplarınızın Çöp Kutusundaki {count, plural, one {ileti} other {# iletinin tümü}} kalıcı olarak silinsin mi? Bu geri alınamaz.",
+    "empty_all_confirm_shared": "Buna paylaşılan hesaplar da dahil: {accounts}.",
+    "empty_all_confirm_kept": "{accounts} hesabının çöp kutusu olduğu gibi kalır, çünkü orada silme izniniz yok.",
     "toast_emptied_all": "Çöp kutusu tüm hesaplarda boşaltıldı",
     "toast_error_empty_all_partial": "Çöp kutusu boşaltıldı, ancak bazı hesaplarda başarısız oldu",
     "toast_error_empty_all": "Çöp kutusu boşaltılamadı",
@@ -4120,7 +4206,7 @@
     "return_to_list_follows_layout": "Siz değiştirene kadar bu ayar düzene göre belirlenir: liste ve ileti yan yanaysa kapalı, değilse açık."
   },
   "mail_p3_conv": {
-    "sidebar_account_switcher_description": "Hesap değiştiriciyi klasörlerin üstünde, Yeni E-posta düğmesini de onun altında gösterir. Kapatırsanız Yeni E-posta onun yerinde yer alır."
+    "sidebar_account_switcher_description": "Hesap değiştiriciyi klasörlerin üstünde gösterir. Kapatırsanız hesabı gezinme çubuğundaki avatarınızla değiştirirsiniz."
   },
   "mail_p2_conv": {
     "show_message": "İletiyi göster",
@@ -4489,6 +4575,8 @@
       "role_label": "Rol",
       "language_label": "Dil",
       "related_default_label": "İlgili",
+      "related_unknown": "Bilinmeyen kişi",
+      "related_remove": "İlgili kişilerden kaldır",
       "more_actions": "Diğer işlemler",
       "age_years": "{count, plural, one {1 yaşında} other {# yaşında}}",
       "years_since": "{count, plural, one {1 yıl} other {# yıl}}"
@@ -4857,6 +4945,22 @@
       "end_time": "Bitiş saati",
       "all_day_event": "Tüm gün etkinliği",
       "calendar_select": "Takvim",
+      "show_as": "Şöyle göster",
+      "show_as_busy": "Meşgul",
+      "show_as_free": "Boş",
+      "shown_free": "Boş olarak gösteriliyor",
+      "visibility": "Görünürlük",
+      "visibility_public": "Herkese açık",
+      "visibility_private": "Özel",
+      "visibility_secret": "Gizli",
+      "visibility_hint_public": "Takvimi paylaştığınız kişiler ayrıntıları görür.",
+      "visibility_hint_private": "Takvimi paylaştığınız kişiler yalnızca saati görür.",
+      "visibility_hint_secret": "Takvimi paylaştığınız kişiler etkinliği görmez ve zaman boş kalır.",
+      "visibility_series": "Tüm tekrarlara uygulanır.",
+      "color_calendar": "Takvimin rengini kullan",
+      "overlap": "{title} ile çakışıyor ({details})",
+      "overlap_plain": "{title} ile çakışıyor",
+      "overlap_more": "Ve {count} tane daha",
       "save": "Kaydet",
       "cancel": "İptal",
       "color": "Renk"
@@ -5042,6 +5146,8 @@
       "enable_tasks_desc": "Yapılacaklar listesini yönetmek için takvimde görev görünümü göster",
       "show_tasks_on_calendar": "Görevleri takvimde göster",
       "show_tasks_on_calendar_desc": "Görevleri ay, hafta ve gün takvim görünümlerinde görüntüle",
+      "show_tasks_app": "Görevler ayrı uygulama olarak",
+      "show_tasks_app_desc": "Görevler, takvimdeki bir görünüm yerine uygulama çubuğunda kendi simgesini alır",
       "hover_preview": "Etkinlik üzerine gelme önizlemesi",
       "hover_preview_desc": "Takvim etkinliklerinin üzerine gelindiğinde ayrıntı açılır penceresi göster",
       "hover_preview_instant": "Anında",
@@ -5379,7 +5485,12 @@
     "task_list_not_in_calendar": "{name} (görev listesi, takvimde gösterilmez)",
     "copy_to_account": "{address} hesabına kopyala",
     "copied_to_account": "{address} hesabına kopyalandı",
-    "delete_original": "Orijinali sil"
+    "delete_original": "Orijinali sil",
+    "copy_to_calendar": "Takvime kopyala…",
+    "copy_to_calendar_title": "Takvime kopyala",
+    "copy_to_calendar_hint": "Kopya sizin kendi etkinliğiniz olur. Asıldaki değişiklikler onu değiştirmez.",
+    "copy_button": "Kopyala",
+    "copied_to_calendar": "{calendar} takvimine kopyalandı"
   },
   "calendar_offline": {
     "split_needs_server": "Bu değişiklik için sunucu bağlantısı gerekir. Şimdilik yalnızca bu etkinliği değiştirin veya yeniden çevrimiçi olduğunuzda tekrar deneyin."
@@ -6136,6 +6247,13 @@
   "unified_mailbox": {
     "search_unavailable": "Birleşik görünümde arama kullanılamaz"
   },
+  "account_routing": {
+    "group_members_one_account": "Bir grup yalnızca tek bir hesabın kişilerini içerebilir.",
+    "link_names_no_account": "Bu bağlantı iletinin hangi hesapta olduğunu belirtmiyor, bu yüzden açılmadı.",
+    "group_member_gone": "Seçilen kişilerden biri artık yok. Üyeleri yeniden seçin.",
+    "invitation_other_account": "Bu davet başka bir hesapta. Yanıtlamak veya bir takvime eklemek için o hesaba geçin.",
+    "tab_names_no_account": "Bu sekme hesabı olmadan kaydedilmiş, bu yüzden açılmadı. Kapatıp ait olduğu hesaptan yeniden açın."
+  },
   "mail_import": {
     "menu_import": "E-posta içe aktar…",
     "settings_label": "E-posta içe aktar",
@@ -6833,6 +6951,10 @@
         "title": "Başka web sitelerine bağlanma",
         "body": "Şu sitelere istek gönderme. Eklentinin okuyabildiği her şey oraya gönderilebilir:"
       },
+      "links_check": {
+        "title": "Açtığınız bağlantıları denetleme",
+        "body": "Açtığınız her web bağlantısını metniyle birlikte görme ve onu durdurma ya da yerine başka bir adres açma."
+      },
       "admin_config": {
         "title": "Yöneticinizin ayarlarını okuma",
         "body": "Yöneticinizin bu eklenti için kaydettiği ayarları okuma."
@@ -6939,7 +7061,7 @@
       },
       "ui_notifications": {
         "title": "Bildirim gösterme",
-        "body": "Cihazınızda bildirim gösterme ya da bildirimlere izin vermediyseniz uygulama içinde gösterme. Her bildirimde eklentinin adı yer alır."
+        "body": "Cihazınızda bildirim gösterme ya da bildirimlere izin vermediyseniz uygulama içinde gösterme. Her bildirimde eklentinin adı yer alır. Eklenti, uygulamanın size gösterdiği bildirimleri de görür."
       },
       "ui_message_list": {
         "title": "İleti listesine öğe ekleme",
@@ -7089,6 +7211,14 @@
     "not_available_title": "Bu sayfa kullanılamıyor",
     "not_available_description": "Bu sayfayı ekleyen eklenti kapalı veya artık yüklü değil.",
     "back_to_mail": "Postaya Dön"
+  },
+  "plugin_surfaces": {
+    "dropdown_list": "{name} eklentisinden liste",
+    "dropdown_list_labelled": "{label}, {name} eklentisinden liste",
+    "oauth_failed": "Hizmet oturum açmayı tamamlamadı. Bu pencereyi kapatıp yeniden deneyin.",
+    "banners_more": "Diğer başlıklar ({count}): {names}",
+    "banners_fewer": "Daha az başlık",
+    "opened_by_plugin": "{name} eklentisi tarafından açıldı"
   },
   "command_palette": {
     "title": "Komut paleti",
@@ -7291,6 +7421,14 @@
       "added_from": "{domain} adresinden gelen bir e-postadan eklendi",
       "added_from_subject": "{domain} adresinden gelen “{subject}” e-postasından eklendi"
     }
+  },
+  "sender_trust": {
+    "cancel_not_organizer": "Bu iptal {sender} tarafından gönderildi; ancak takviminizdeki bu etkinliğin organizatörü {organizer}. Etkinliği yalnızca organizatör iptal edebilir. Bu iletiye güveniyorsanız etkinliği kendiniz kaldırın.",
+    "cancel_unverified": "Bu iptalin organizatörden geldiği doğrulanamadı. Bu iletiye güveniyorsanız etkinliği kendiniz kaldırın.",
+    "card_sender": "{domain} adresinden",
+    "card_sender_title": "Bu ileti, {domain} için e-posta sunucusunun gönderen denetiminden geçti.",
+    "outside_link": "Başka site",
+    "outside_link_title": "Bu bağlantı, gönderenin alan adı olan {domain} dışında, {host} adresine gider."
   },
   "proofreading": {
     "kind": {
@@ -8298,5 +8436,9 @@
   "impersonation": {
     "return_notice": "{mailbox} posta kutusunu kimliğe bürünerek açtınız.",
     "return_button": "Hesabıma dön"
+  },
+  "admin_access": {
+    "label": "Bu sunucunun süper kullanıcıları yönetim panelini açabilir",
+    "help": "Bu sunucunun süper kullanıcıları, ana JMAP sunucusundakiler gibi yönetici parolası olmadan yönetim paneline giriş yapar. Bunu yalnızca kendi işlettiğiniz bir sunucu için açın."
   }
 }
