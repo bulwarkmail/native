@@ -40,12 +40,17 @@ on:
         type: string
         default: "5"
         required: false
+      scene_lifecycle:
+        description: "Build with the scene life cycle (IOS_SCENE_LIFECYCLE=1, plugins/ios-scene-lifecycle.js), to run the legs under scenes. Ignored with app_run_id: the legs test that run's app"
+        type: boolean
+        default: false
   release:
     types: [published]
 
 concurrency:
-  # Per branch and set of legs: a perf run doesn't cancel a feature run.
-  group: e2e-ios-${{ github.ref }}-${{ inputs.legs || 'all' }}
+  # Per branch, set of legs and kind of build: a perf run doesn't cancel a
+  # feature run, nor a run under scenes the same legs without them.
+  group: e2e-ios-${{ github.ref }}-${{ inputs.legs || 'all' }}${{ inputs.scene_lifecycle && inputs.app_run_id == '' && '-scenes' || '' }}
   cancel-in-progress: true
 
 env:
@@ -61,6 +66,9 @@ jobs:
       signin: ${{ steps.plan.outputs.signin }}
       features: ${{ steps.plan.outputs.features }}
     steps:
+      - name: Say when scene_lifecycle has no effect
+        if: inputs.scene_lifecycle && inputs.app_run_id != ''
+        run: echo "::warning::scene_lifecycle is ignored with app_run_id; the legs test the app that run built"
       - id: plan
         env:
           LEGS: ${{ inputs.legs || 'all' }}
@@ -117,7 +125,12 @@ jobs:
         env:
           # Simulator device tokens belong to the APNs sandbox.
           APS_ENVIRONMENT: development
-        run: npx expo prebuild --platform ios --clean
+          # Off unless asked for: the release builds do not adopt scenes yet (#145).
+          IOS_SCENE_LIFECYCLE: ${{ inputs.scene_lifecycle && '1' || '' }}
+        run: |
+          npx expo prebuild --platform ios --clean
+          # Which kind of build this run's simulator-app is, for a later run that reuses it.
+          echo "Scene life cycle: ${IOS_SCENE_LIFECYCLE:-0}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build for the simulator
         env:
