@@ -41,7 +41,7 @@ on:
         default: "5"
         required: false
       scene_lifecycle:
-        description: "Build with the scene life cycle (IOS_SCENE_LIFECYCLE=1, plugins/ios-scene-lifecycle.js), to run the legs under scenes"
+        description: "Build with the scene life cycle (IOS_SCENE_LIFECYCLE=1, plugins/ios-scene-lifecycle.js), to run the legs under scenes. Ignored with app_run_id: the legs test that run's app"
         type: boolean
         default: false
   release:
@@ -50,7 +50,7 @@ on:
 concurrency:
   # Per branch, set of legs and kind of build: a perf run doesn't cancel a
   # feature run, nor a run under scenes the same legs without them.
-  group: e2e-ios-${{ github.ref }}-${{ inputs.legs || 'all' }}${{ inputs.scene_lifecycle && '-scenes' || '' }}
+  group: e2e-ios-${{ github.ref }}-${{ inputs.legs || 'all' }}${{ inputs.scene_lifecycle && inputs.app_run_id == '' && '-scenes' || '' }}
   cancel-in-progress: true
 
 env:
@@ -66,6 +66,9 @@ jobs:
       signin: ${{ steps.plan.outputs.signin }}
       features: ${{ steps.plan.outputs.features }}
     steps:
+      - name: Say when scene_lifecycle has no effect
+        if: inputs.scene_lifecycle && inputs.app_run_id != ''
+        run: echo "::warning::scene_lifecycle is ignored with app_run_id; the legs test the app that run built"
       - id: plan
         env:
           LEGS: ${{ inputs.legs || 'all' }}
