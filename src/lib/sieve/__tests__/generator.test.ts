@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateScript, isValidSieveHeaderName } from '../generator';
 import { parseScript } from '../parser';
-import type { FilterRule } from '../types';
+import type { FilterCondition, FilterRule } from '../types';
 
 function makeRule(overrides: Partial<FilterRule> = {}): FilterRule {
   return {
@@ -98,6 +98,23 @@ describe('generateScript', () => {
         conditions: [{ field: 'body', comparator: 'is', value: 'exact' }],
       })]);
       expect(script).toContain('body :is "exact"');
+    });
+
+    it('acts on mail whose body does not contain the text, as "does not contain" says', () => {
+      const script = generateScript([makeRule({
+        conditions: [{ field: 'body', comparator: 'not_contains', value: 'unsubscribe' }],
+      })]);
+      expect(script).toContain('not body :contains "unsubscribe"');
+    });
+
+    it('writes every body comparison as the test it names', () => {
+      const body = (comparator: FilterCondition['comparator']) => generateScript([makeRule({
+        conditions: [{ field: 'body', comparator, value: 'x' }],
+      })]);
+      expect(body('not_is')).toContain('not body :is "x"');
+      expect(body('starts_with')).toContain('body :matches "x*"');
+      expect(body('ends_with')).toContain('body :matches "*x"');
+      expect(body('matches')).toContain('body :matches "x"');
     });
   });
 

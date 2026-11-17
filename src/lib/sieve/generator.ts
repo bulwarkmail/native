@@ -92,8 +92,37 @@ function generateCondition(condition: FilterCondition): string {
   const values = toValueList(value);
 
   if (field === 'body') {
-    const matchType = comparator === 'is' ? ':is' : comparator === 'regex' ? ':regex' : ':contains';
-    return `body ${matchType} ${formatStringArg(values)}`;
+    switch (comparator) {
+      case 'not_contains':
+        return `not body :contains ${formatStringArg(values)}`;
+      case 'is':
+        return `body :is ${formatStringArg(values)}`;
+      case 'not_is':
+        return `not body :is ${formatStringArg(values)}`;
+      case 'starts_with':
+        return `body :matches ${formatStringArg(values, (v) => `${v}*`)}`;
+      case 'ends_with':
+        return `body :matches ${formatStringArg(values, (v) => `*${v}`)}`;
+      case 'matches':
+        return `body :matches ${formatStringArg(values)}`;
+      case 'regex':
+        return `body :regex ${formatStringArg(values)}`;
+      default:
+        return `body :contains ${formatStringArg(values)}`;
+    }
+  }
+
+  if (field === 'delivered_to') {
+    switch (comparator) {
+      case 'address_is':
+        return `envelope :is "to" ${formatStringArg(values)}`;
+      case 'domain_is':
+        return `envelope :domain :is "to" ${formatStringArg(values)}`;
+      case 'contains':
+        return `envelope :contains "to" ${formatStringArg(values)}`;
+      default:
+        throw new Error(`Unsupported filter comparator for delivered_to: ${String(comparator)}`);
+    }
   }
 
   if (field === 'attachment') {
@@ -258,6 +287,7 @@ function computeRequires(
     }
     for (const condition of rule.conditions) {
       if (condition.field === 'body') extensions.add('body');
+      if (condition.field === 'delivered_to') extensions.add('envelope');
       if (condition.field === 'attachment') extensions.add('mime');
       if (usesRegex(condition)) extensions.add('regex');
     }
@@ -387,7 +417,7 @@ export function generateScript(
   // come back from those as a plain "contains".
   if (
     metadata.rules.some(hasPeriod)
-    || metadata.rules.some((r) => r.conditions.some(usesRegex))
+    || metadata.rules.some((r) => r.conditions.some((c) => usesRegex(c) || c.field === 'delivered_to'))
     || metadata.vacationForward?.enabled
     || metadata.vacationAudience
   ) {
