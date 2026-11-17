@@ -6,9 +6,6 @@ import {
   restingOffset,
   exitsRow,
   releaseWouldAct,
-  flyDuration,
-  FLY_MIN_MS,
-  FLY_MAX_MS,
   COMMIT_THRESHOLD,
   ACTIVATION_THRESHOLD,
   REVEAL_WIDTH,
@@ -66,13 +63,6 @@ describe('dragOffset', () => {
   it('tracks the finger in instant mode', () => {
     expect(dragOffset(g(70), instant(), null)).toBe(70);
     expect(dragOffset(g(-70), instant(), null)).toBe(-70);
-  });
-
-  it('clamps to the overshoot limit', () => {
-    expect(dragOffset(g(9999), instant(), null)).toBe(240);
-    expect(dragOffset(g(-9999), instant(), null)).toBe(-240);
-    // Reveal mode allows much less overshoot than instant.
-    expect(dragOffset(g(9999), reveal(), null)).toBeCloseTo(REVEAL_WIDTH * 1.4);
   });
 
   it('offsets from the open position in reveal mode', () => {
@@ -179,14 +169,3 @@ describe('releaseWouldAct', () => {
   });
 });
 
-describe('flyDuration', () => {
-  it('lets a fast flick leave the row at the speed it was thrown', () => {
-    expect(flyDuration(300, 3)).toBeCloseTo(200);
-    expect(flyDuration(300, -3)).toBeCloseTo(200);
-  });
-
-  it('keeps a slow release from crawling off and a hard flick from vanishing', () => {
-    expect(flyDuration(300, 0)).toBe(FLY_MAX_MS);
-    expect(flyDuration(300, 50)).toBe(FLY_MIN_MS);
-  });
-});

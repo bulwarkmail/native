@@ -18,12 +18,13 @@ export const REVEAL_WIDTH = 88;
 
 const DIRECTION_BIAS = 1.5; // dx must dominate dy by this factor
 const MIN_DX_TO_CLAIM = 6;
-const MAX_DRAG_OVERSHOOT_INSTANT = 240;
-const MAX_DRAG_OVERSHOOT_REVEAL = REVEAL_WIDTH * 1.4;
-// A short, fast drag commits too, so the gesture doesn't demand the full
-// COMMIT_THRESHOLD when the user clearly flicks.
-const FLING_DX = 40;
-const FLING_VX = 0.5;
+export const CLAIM_DX = 8;
+export const ROW_PRESS_DELAY_MS = 90;
+const MIN_FLICK_TRAVEL = 24;
+const PROJECTION_MS = 120;
+const STRETCH = 0.55;
+const SETTLE_STIFFNESS = 1000;
+export const SETTLE_SPRING = { stiffness: SETTLE_STIFFNESS, damping: 2 * Math.sqrt(SETTLE_STIFFNESS), mass: 1 };
 
 /**
  * The row's current swipe configuration.
@@ -76,17 +77,33 @@ export function shouldClaimGesture(
   return true;
 }
 
-/** Row translation for an in-progress drag, clamped to the mode's overshoot. */
+export function fingerTravel(translationX: number): number {
+  'worklet';
+  if (translationX > CLAIM_DX) return translationX - CLAIM_DX;
+  if (translationX < -CLAIM_DX) return translationX + CLAIM_DX;
+  return 0;
+}
+
+function stretch(overshoot: number, dimension: number): number {
+  'worklet';
+  return (1 - 1 / ((overshoot * STRETCH) / dimension + 1)) * dimension;
+}
+
 export function dragOffset(
   g: SwipeGestureState,
   config: SwipeConfig,
   openSide: OpenSide,
+  base: number = restingOffset(openSide),
 ): number {
   'worklet';
-  const reveal = config.mode === 'reveal';
-  const overshoot = reveal ? MAX_DRAG_OVERSHOOT_REVEAL : MAX_DRAG_OVERSHOOT_INSTANT;
-  const base = reveal ? restingOffset(openSide) : 0;
-  return Math.max(-overshoot, Math.min(overshoot, base + g.dx));
+  const raw = base + g.dx;
+  if (config.mode !== 'reveal') return raw;
+  const limit = raw > 0
+    ? (config.rightAction === 'none' ? 0 : REVEAL_WIDTH)
+    : (config.leftAction === 'none' ? 0 : REVEAL_WIDTH);
+  const reach = Math.abs(raw);
+  if (reach <= limit) return raw;
+  return Math.sign(raw) * (limit + stretch(reach - limit, REVEAL_WIDTH));
 }
 
 /** Where the row sits at rest, given which side is open. */
@@ -106,41 +123,67 @@ export function releaseWouldAct(offset: number, config: SwipeConfig, openSide: O
   return false;
 }
 
-export const FLY_MIN_MS = 120;
-export const FLY_MAX_MS = 260;
+export const FLY_MIN_MS = 110;
+export const FLY_MAX_MS = 240;
+const FLY_MAX_START_SLOPE = 2.4;
+const FLY_END_SLOPE = 1.2;
 
-export function flyDuration(distance: number, velocity: number): number {
-  const speed = Math.abs(velocity);
-  if (speed === 0) return FLY_MAX_MS;
-  return Math.max(FLY_MIN_MS, Math.min(FLY_MAX_MS, (2 * Math.abs(distance)) / speed));
+export function flyPlan(distance: number, velocity: number): { duration: number; startSlope: number } {
+  'worklet';
+  const reach = Math.abs(distance);
+  const along = Math.max(0, Math.sign(distance) * velocity);
+  if (reach === 0 || along === 0) return { duration: FLY_MAX_MS, startSlope: 0 };
+  let duration = FLY_MAX_MS;
+  if ((along * duration) / reach > FLY_MAX_START_SLOPE) {
+    duration = Math.max(FLY_MIN_MS, (FLY_MAX_START_SLOPE * reach) / along);
+  }
+  return { duration, startSlope: Math.min(FLY_MAX_START_SLOPE, (along * duration) / reach) };
 }
 
-/** What releasing the drag here should do. */
+export function flyProgress(startSlope: number, u: number): number {
+  'worklet';
+  const s = startSlope;
+  const e = FLY_END_SLOPE;
+  return s * u + (3 - 2 * s - e) * u * u + (s + e - 2) * u * u * u;
+}
+
 export function resolveRelease(
   g: SwipeGestureState,
   config: SwipeConfig,
   openSide: OpenSide,
 ): ReleaseOutcome {
+  'worklet';
   if (config.mode === 'reveal') {
     const finalDx = restingOffset(openSide) + g.dx;
-    if (finalDx > ACTIVATION_THRESHOLD && config.rightAction !== 'none') {
+    const projected = finalDx + g.vx * PROJECTION_MS;
+    if (finalDx > 0 && projected > ACTIVATION_THRESHOLD && config.rightAction !== 'none') {
       return { kind: 'open', side: 'right' };
     }
-    if (finalDx < -ACTIVATION_THRESHOLD && config.leftAction !== 'none') {
+    if (finalDx < 0 && projected < -ACTIVATION_THRESHOLD && config.leftAction !== 'none') {
       return { kind: 'open', side: 'left' };
     }
     return { kind: 'close' };
   }
-  // Instant mode: fire on release-past-threshold, no second tap.
-  const committedRight = g.dx >= COMMIT_THRESHOLD || (g.dx > FLING_DX && g.vx >= FLING_VX);
-  if (committedRight && config.rightAction !== 'none') {
+  const projected = g.dx + g.vx * PROJECTION_MS;
+  if (g.dx >= MIN_FLICK_TRAVEL && projected >= COMMIT_THRESHOLD && config.rightAction !== 'none') {
     return { kind: 'fire', action: config.rightAction, direction: 1 };
   }
-  const committedLeft = g.dx <= -COMMIT_THRESHOLD || (g.dx < -FLING_DX && g.vx <= -FLING_VX);
-  if (committedLeft && config.leftAction !== 'none') {
+  if (g.dx <= -MIN_FLICK_TRAVEL && projected <= -COMMIT_THRESHOLD && config.leftAction !== 'none') {
     return { kind: 'fire', action: config.leftAction, direction: -1 };
   }
   return { kind: 'settle' };
+}
+
+export function armChange(wasArmed: boolean, nowArmed: boolean): 'arm' | 'disarm' | null {
+  'worklet';
+  if (wasArmed === nowArmed) return null;
+  return nowArmed ? 'arm' : 'disarm';
+}
+
+export function releaseHaptic(outcome: ReleaseOutcome, wasArmed: boolean): 'selection' | null {
+  'worklet';
+  if (outcome.kind !== 'fire' || wasArmed) return null;
+  return 'selection';
 }
 
 /**
@@ -148,5 +191,6 @@ export function resolveRelease(
  * instead of snapping back. Toggle-style actions stay in place.
  */
 export function exitsRow(action: SwipeAction): boolean {
+  'worklet';
   return action === 'archive' || action === 'delete' || action === 'spam' || action === 'move';
 }

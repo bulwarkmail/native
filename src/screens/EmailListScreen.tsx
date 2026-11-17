@@ -56,6 +56,7 @@ import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
 import { createDepartures } from '../lib/departures';
+import { ROW_PRESS_DELAY_MS } from '../components/swipe-gesture';
 import { usePullRefresh } from '../lib/pull-refresh';
 import { useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
@@ -266,6 +267,7 @@ const EmailRow = React.memo(function EmailRow({
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={300}
+      unstable_pressDelay={ROW_PRESS_DELAY_MS}
       testID="email-row"
     >
       {unread && (

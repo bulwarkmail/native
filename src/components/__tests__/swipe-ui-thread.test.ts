@@ -29,11 +29,15 @@ describe('swipe follows the finger on the UI thread', () => {
 });
 
 describe('swipe keeps its momentum on release', () => {
-  it('springs back and flies off with the finger’s release velocity', () => {
+  it('decides the release and starts its animation on the UI thread, at the finger’s release velocity', () => {
     const row = read('src/components/SwipeableRow.tsx');
-    expect(row).toMatch(/withSpring\(toValue, \{ \.\.\.SPRING, velocity \}/);
-    expect(row).toMatch(/withTiming\(toValue, \{ duration: flyDuration\(/);
-    expect(row).toMatch(/runOnJS\(finish\)\(e\.translationX, e\.translationY, e\.velocityX \/ 1000\)/);
+    const onEnd = row.slice(row.indexOf('.onEnd('), row.indexOf('.onFinalize('));
+    expect(onEnd).toMatch(/const outcome = resolveRelease\(\{ dx: tx\.value - restingOffset\(side\), dy: e\.translationY, vx \}, config, side\)/);
+    expect(onEnd).toMatch(/const plan = flyPlan\(toValue - tx\.value, vx\);/);
+    expect(onEnd).toMatch(/tx\.value = withTiming\(toValue,/);
+    expect(onEnd).toMatch(/springBack\(0, vx\)/);
+    expect(onEnd).not.toMatch(/runOnJS\(finish\)/);
+    expect(row).toMatch(/tx\.value = withSpring\(toValue, \{ \.\.\.SETTLE_SPRING, velocity: velocity \* 1000 \}/);
   });
 });
 
@@ -68,7 +72,7 @@ describe('rows leave and come back animated, like the web list', () => {
   });
 
   it('taps when an action fires and when undo is pressed', () => {
-    expect(read('src/components/SwipeableRow.tsx')).toMatch(/haptic\(exitsRow\(outcome\.action\) \? 'medium' : 'light'\)/);
+    expect(read('src/components/SwipeableRow.tsx')).toMatch(/const tick = releaseHaptic\(outcome, armed\.value\);\s+if \(tick\) runOnJS\(haptic\)\(tick\);/);
     expect(read('src/components/UndoSnackbar.tsx')).toMatch(/haptic\('light'\);\s+void undoLast\(\);/);
   });
 });

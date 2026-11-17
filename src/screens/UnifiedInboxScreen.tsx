@@ -17,6 +17,7 @@ import SidebarDrawer from '../components/SidebarDrawer';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { SwipeLockedFlatList } from '../components/SwipeLockedFlatList';
 import { usePullRefresh } from '../lib/pull-refresh';
+import { ROW_PRESS_DELAY_MS } from '../components/swipe-gesture';
 import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
 import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import {
@@ -525,6 +526,7 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
               onPress={() => (selectionMode ? toggleSelect(item) : onOpen(item))}
               onLongPress={() => toggleSelect(item)}
               delayLongPress={300}
+              unstable_pressDelay={ROW_PRESS_DELAY_MS}
               style={({ pressed }) => [
                 styles.row,
                 { paddingVertical: density.rowPaddingVertical },
