@@ -21,6 +21,7 @@ import { useTypography, useDensity } from '../theme/dynamic';
 import SidebarDrawer from '../components/SidebarDrawer';
 import SenderAvatar from '../components/SenderAvatar';
 import { SwipeableRow } from '../components/SwipeableRow';
+import { SwipeLockedFlatList } from '../components/SwipeLockedFlatList';
 import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
 import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
 import { MoveSheet } from '../components/MoveSheet';
@@ -55,6 +56,9 @@ import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
+import { createDepartures } from '../lib/departures';
+import { ROW_PRESS_DELAY_MS } from '../components/swipe-gesture';
+import { usePullRefresh } from '../lib/pull-refresh';
 import { useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -264,6 +268,7 @@ const EmailRow = React.memo(function EmailRow({
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={300}
+      unstable_pressDelay={ROW_PRESS_DELAY_MS}
       testID="email-row"
     >
       {unread && (
@@ -413,6 +418,7 @@ const EmailListItem = React.memo(function EmailListItem({
   inJunk,
   onSwipe,
   hoverActions,
+  appearing,
   ...rowProps
 }: Omit<React.ComponentProps<typeof EmailRow>, 'hovered'> & {
   swipeLeftAction: SwipeAction;
@@ -422,6 +428,7 @@ const EmailListItem = React.memo(function EmailListItem({
   onSwipe: (id: string, action: SwipeAction) => void;
   /** Quick actions shown under a mouse pointer; handled like swipes. */
   hoverActions: readonly RowHoverAction[];
+  appearing: boolean;
 }) {
   const { item } = rowProps;
   const unread = isUnread(item);
@@ -443,6 +450,7 @@ const EmailListItem = React.memo(function EmailListItem({
       mode={swipeMode}
       context={context}
       onAction={onAction}
+      appearing={appearing}
     >
       <RowHoverActions actions={hoverActions} unread={unread} starred={starred} onAction={onAction}>
         {(hovered) => <EmailRow {...rowProps} hovered={hovered} />}
@@ -685,9 +693,17 @@ export default function EmailListScreen({
   // newest message per thread with a count badge (pinned threads first).
   // Disabling threading falls back to the flat list (every message is its
   // own row).
+  const [departureTick, bumpDepartures] = React.useReducer((n: number) => n + 1, 0);
+  const departures = React.useMemo(() => createDepartures(bumpDepartures), []);
+  const lastRestored = useEmailStore((s) => s.lastRestored);
   const visibleEmails = React.useMemo(
-    () => collapseThreads(emails, disableThreading),
-    [emails, disableThreading],
+    () => departures.visible(collapseThreads(emails, disableThreading), rowKeyOf),
+    [emails, disableThreading, departures, departureTick],
+  );
+  const isAppearing = React.useCallback(
+    (key: string) => departures.returned(key)
+      || (lastRestored != null && lastRestored.keys.includes(key) && Date.now() - lastRestored.at < 2000),
+    [departures, departureTick, lastRestored],
   );
   const rowHoverListProps = useRowHoverList(visibleEmails);
   // Performance harness (off unless launched with -perfMarks YES).
@@ -929,28 +945,32 @@ export default function EmailListScreen({
     if (action === 'none') return;
     const email = emailsRef.current.find((e) => rowKeyOf(e) === id);
     if (!email || !currentMailboxId) return;
+    const leave = (work: Promise<unknown>) => {
+      departures.depart(id, work, () => useEmailStore.getState().emails.some((e) => rowKeyOf(e) === id));
+      return work;
+    };
     switch (action) {
       case 'archive':
         // Without an Archive folder the store makes one (webmail #1176).
         if (currentMailboxId !== archiveMailboxId) {
           const ids = idsForRow(id);
-          reportFailure(confirmMailRemoval('archive', ids.length, t).then((ok) => {
+          reportFailure(leave(confirmMailRemoval('archive', ids.length, t).then((ok) => {
             if (!ok) return undefined;
             return ids.length > 1 ? archiveEmailsBatch(ids) : archiveEmailAction(id);
-          }));
+          })));
         }
         break;
       case 'delete':
-        reportFailure(deleteIds(idsForRow(id)));
+        reportFailure(leave(deleteIds(idsForRow(id))));
         break;
       case 'spam':
         // Your own outgoing mail is never spam (webmail hides the action in
         // Sent/Drafts); inside Junk the same swipe means "not spam".
         if (currentRole === 'sent' || currentRole === 'drafts') break;
         if (inJunk) {
-          reportFailure(unmarkSpam(idsForRow(id)));
+          reportFailure(leave(unmarkSpam(idsForRow(id))));
         } else if (junkMailboxId) {
-          reportFailure(markSpam(idsForRow(id)));
+          reportFailure(leave(markSpam(idsForRow(id))));
         } else {
           Alert.alert(
             t('email_list.error', 'Error'),
@@ -975,7 +995,7 @@ export default function EmailListScreen({
   }, [
     currentMailboxId, archiveMailboxId, junkMailboxId, currentRole, inJunk,
     archiveEmailAction, archiveEmailsBatch, deleteIds, markSpam, unmarkSpam, idsForRow,
-    markRead, markUnread, toggleStar, togglePin, t,
+    markRead, markUnread, toggleStar, togglePin, t, departures,
   ]);
 
   // Rows keep one swipe callback for their whole life. It reads the current
@@ -999,6 +1019,7 @@ export default function EmailListScreen({
           swipeMode={swipeMode}
           inJunk={inJunk}
           onSwipe={handleRowSwipe}
+          appearing={isAppearing(rowKeyOf(item))}
           hoverActions={selectionMode ? NO_HOVER_ACTIONS : hoverActions}
           item={item}
           threadCount={threadCountFor(item)}
@@ -1024,11 +1045,11 @@ export default function EmailListScreen({
       selectedIds, activeRowKey, selectionMode, handleRowPress, toggleSelect, swipeLeftAction, swipeRightAction,
       swipeMode, handleRowSwipe, hoverActions, disableThreading, rowFlags, rowTagIds, threadCountFor,
       showPreview, showRecipientFor, formatAddress, keywordDefsByAccount, folderKeywordDefs, inJunk, showAvatarsInJunk,
-      loadAttachments, openAttachment, showAttachmentChips,
+      loadAttachments, openAttachment, showAttachmentChips, isAppearing,
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
-  const handleRefresh = React.useCallback(() => { void refreshEmails(); }, [refreshEmails]);
+  const pullRefresh = usePullRefresh(refreshEmails);
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());
@@ -2024,7 +2045,7 @@ export default function EmailListScreen({
           ) : null}
         </View>
       ) : (
-        <FlatList
+        <SwipeLockedFlatList
           ref={listRef}
           data={visibleEmails}
           keyExtractor={emailKeyExtractor}
@@ -2038,8 +2059,8 @@ export default function EmailListScreen({
           onEndReachedThreshold={0.3}
           onScrollBeginDrag={scrollMonitor.start}
           onMomentumScrollEnd={scrollMonitor.stop}
-          refreshing={loading}
-          onRefresh={handleRefresh}
+          refreshing={pullRefresh.refreshing}
+          onRefresh={pullRefresh.onRefresh}
           {...rowHoverListProps}
         />
       )}

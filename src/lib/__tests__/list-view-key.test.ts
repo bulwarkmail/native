@@ -31,7 +31,7 @@ describe('list scroll position on a view switch (bulwarkmail/webmail#1138)', () 
 
   it('scrolls the unified inbox to the top when its accounts change', () => {
     const unified = fs.readFileSync(path.resolve(__dirname, '../../screens/UnifiedInboxScreen.tsx'), 'utf8');
-    expect(unified).toMatch(/<FlatList\s+ref=\{listRef\}/);
+    expect(unified).toMatch(/<SwipeLockedFlatList\s+ref=\{listRef\}/);
     expect(unified).toMatch(/listRef\.current\?\.scrollToOffset\(\{ offset: 0, animated: false \}\);\s*\}, \[accountIds\]\);/);
   });
 });

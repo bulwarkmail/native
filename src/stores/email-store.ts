@@ -488,6 +488,7 @@ export interface EmailState {
   searchQuery: string;
   filters: EmailFilters;
   pendingUndo: UndoEntry | null;
+  lastRestored: { keys: string[]; at: number } | null;
   /**
    * Rows (by `rowKeyOf`) the user just read/unstarred/untagged while an
    * Unread/Starred/tag view was open. They stay in the list until the view
@@ -1110,6 +1111,8 @@ function applyEmailDiff(
   return out;
 }
 
+let undoReachedServer: Promise<void> = Promise.resolve();
+
 export const useEmailStore = create<EmailState>()(
   persist(
     (set, get) => ({
@@ -1130,6 +1133,7 @@ export const useEmailStore = create<EmailState>()(
   searchQuery: '',
   filters: {},
   pendingUndo: null,
+  lastRestored: null,
   retainedIds: [],
   threadCounts: {},
   accountErrors: {},
@@ -1705,6 +1709,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   markSpam: async (emailIds, viewed, opts) => {
+    await undoReachedServer;
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1857,6 +1862,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   archiveEmail: async (emailId, viewed) => {
+    await undoReachedServer;
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -1921,6 +1927,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   deleteEmail: async (emailId, trashMailboxId, currentMailboxId, viewed) => {
+    await undoReachedServer;
     const state = get();
     // A list spanning accounts files each row in its own account (#1082);
     // the viewer names its message's account itself.
@@ -2011,6 +2018,7 @@ export const useEmailStore = create<EmailState>()(
   // so a multi-select archive/move/delete is reversed with one snackbar tap.
 
   archiveEmailsBatch: async (emailIds) => {
+    await undoReachedServer;
     const state = get();
     // A list spanning accounts files each row in its own account (#1082).
     const spanning = spanningRows(state, emailIds);
@@ -2063,6 +2071,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   moveEmailsToMailbox: async (emailIds, toMailboxId) => {
+    await undoReachedServer;
     const { currentMailboxId, mailboxes } = get();
     // A list spanning accounts files each row in its own account (#1082).
     const spanning = spanningRows(get(), emailIds);
@@ -2122,6 +2131,7 @@ export const useEmailStore = create<EmailState>()(
   },
 
   deleteEmailsBatch: async (emailIds, trashMailboxId, currentMailboxId) => {
+    await undoReachedServer;
     const { mailboxes } = get();
     // A list spanning accounts files each row in its own account (#1082).
     const spanning = spanningRows(get(), emailIds);
@@ -2398,6 +2408,31 @@ export const useEmailStore = create<EmailState>()(
       return;
     }
 
+    const { currentMailboxId, emails, mailboxes } = get();
+    const shown = new Set(emails.map(rowKeyOf));
+    const back = (it: UndoEntry['items'][number]) => ({
+      ...it.email,
+      mailboxIds: it.originalMailboxIds,
+      ...(it.originalKeywords ? { keywords: it.originalKeywords } : {}),
+    });
+    const spanned = entry.items.filter((it) => it.email.jmapAccountId);
+    let restored: Email[] = [];
+    if (spanned.length > 0) {
+      if (spansAccounts(get())) restored = spanned.filter((it) => !shown.has(rowKeyOf(it.email))).map(back);
+    } else if (currentMailboxId && entry.accountId === currentAccountId(get())) {
+      const currentRawId = rawMailboxId(mailboxes, currentMailboxId);
+      restored = entry.items
+        .filter((it) => it.originalMailboxIds[currentRawId] && !shown.has(rowKeyOf(it.email)))
+        .map(back);
+    }
+    const restoredKeys = new Set(restored.map(rowKeyOf));
+    if (restored.length > 0) {
+      set({
+        emails: [...restored, ...emails].sort(listComparator(get())),
+        lastRestored: { keys: [...restoredKeys], at: Date.now() },
+      });
+    }
+
     // An action on a list spanning accounts is undone in each item's account.
     const accountOf = (it: UndoEntry['items'][number]) => it.accountId ?? entry.accountId;
     const byAccount = new Map<string, { accountId?: string; items: UndoEntry['items'] }>();
@@ -2407,6 +2442,8 @@ export const useEmailStore = create<EmailState>()(
       if (group) group.items.push(it);
       else byAccount.set(accountId ?? '', { accountId, items: [it] });
     }
+    let reached!: () => void;
+    undoReachedServer = new Promise<void>((resolve) => { reached = resolve; });
     try {
       await applyOrQueueBatch(
         entry.items.map((it): OutboxOp => ({
@@ -2461,47 +2498,14 @@ export const useEmailStore = create<EmailState>()(
         }, accountOf(it));
       }
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed') });
-      return;
+      set({
+        emails: get().emails.filter((e) => !restoredKeys.has(rowKeyOf(e))),
+        error: err instanceof Error ? err.message : t('email_list.undo_failed', 'Undo failed'),
+      });
+    } finally {
+      reached();
     }
 
-    // Re-insert each restored email into the visible list if its original
-    // mailboxIds include the current view. Server is the source of truth for
-    // ordering, but local re-insertion gives the user instant feedback. Only
-    // into a list of the same account: mailbox ids repeat across accounts.
-    const { currentMailboxId, emails, mailboxes } = get();
-    const spanned = entry.items.filter((it) => it.email.jmapAccountId);
-    if (spanned.length > 0) {
-      // Rows of a list spanning accounts go back while that list is shown.
-      if (spansAccounts(get())) {
-        const shown = new Set(emails.map(rowKeyOf));
-        const restored = spanned
-          .filter((it) => !shown.has(rowKeyOf(it.email)))
-          .map((it) => ({
-            ...it.email,
-            mailboxIds: it.originalMailboxIds,
-            ...(it.originalKeywords ? { keywords: it.originalKeywords } : {}),
-          }));
-        set({ emails: [...restored, ...emails].sort(listComparator(get())) });
-      }
-    } else if (currentMailboxId && entry.accountId === currentAccountId(get())) {
-      const currentRawId = rawMailboxId(mailboxes, currentMailboxId);
-      const restored = entry.items
-        .filter((it) => it.originalMailboxIds[currentRawId])
-        .map((it) => ({
-          ...it.email,
-          mailboxIds: it.originalMailboxIds,
-          ...(it.originalKeywords ? { keywords: it.originalKeywords } : {}),
-        }));
-      if (restored.length > 0) {
-        const ascending = useSettingsStore.getState().mailSortAscending;
-        const merged = [...restored, ...emails].sort((a, b) => {
-          const byDate = new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
-          return ascending ? -byDate : byDate;
-        });
-        set({ emails: merged });
-      }
-    }
   },
 
   clearUndo: () => set({ pendingUndo: null }),
@@ -2531,6 +2535,7 @@ export const useEmailStore = create<EmailState>()(
     retainedIds: [],
     threadCounts: {},
     accountErrors: {},
+    lastRestored: null,
   }),
     }),
     {

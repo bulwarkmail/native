@@ -51,7 +51,8 @@ AppRegistry.registerHeadlessTask('BulwarkWidgetRefresh', () => refreshWidgetsInB
 function Root() {
   markUiStarted();
   const App = (require('./App') as typeof import('./App')).default;
-  return createElement(App);
+  const { GestureHandlerRootView } = require('react-native-gesture-handler') as typeof import('react-native-gesture-handler');
+  return createElement(GestureHandlerRootView, { style: { flex: 1 } }, createElement(App));
 }
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => Root);

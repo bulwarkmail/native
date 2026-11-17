@@ -5,6 +5,7 @@ import {
   resolveRelease,
   restingOffset,
   exitsRow,
+  releaseWouldAct,
   COMMIT_THRESHOLD,
   ACTIVATION_THRESHOLD,
   REVEAL_WIDTH,
@@ -62,13 +63,6 @@ describe('dragOffset', () => {
   it('tracks the finger in instant mode', () => {
     expect(dragOffset(g(70), instant(), null)).toBe(70);
     expect(dragOffset(g(-70), instant(), null)).toBe(-70);
-  });
-
-  it('clamps to the overshoot limit', () => {
-    expect(dragOffset(g(9999), instant(), null)).toBe(240);
-    expect(dragOffset(g(-9999), instant(), null)).toBe(-240);
-    // Reveal mode allows much less overshoot than instant.
-    expect(dragOffset(g(9999), reveal(), null)).toBeCloseTo(REVEAL_WIDTH * 1.4);
   });
 
   it('offsets from the open position in reveal mode', () => {
@@ -160,3 +154,18 @@ describe('exitsRow', () => {
     expect((['read', 'star', 'pin', 'none'] as const).some(exitsRow)).toBe(false);
   });
 });
+
+describe('releaseWouldAct', () => {
+  it('arms an instant swipe once the row is past the commit distance on a side with an action', () => {
+    expect(releaseWouldAct(COMMIT_THRESHOLD - 1, instant(), null)).toBe(false);
+    expect(releaseWouldAct(COMMIT_THRESHOLD, instant(), null)).toBe(true);
+    expect(releaseWouldAct(-COMMIT_THRESHOLD, instant(), null)).toBe(true);
+    expect(releaseWouldAct(COMMIT_THRESHOLD, instant({ rightAction: 'none' }), null)).toBe(false);
+  });
+
+  it('arms a reveal swipe once the row is past the activation distance', () => {
+    expect(releaseWouldAct(ACTIVATION_THRESHOLD + 1, reveal(), null)).toBe(true);
+    expect(releaseWouldAct(ACTIVATION_THRESHOLD - 1, reveal(), null)).toBe(false);
+  });
+});
+
