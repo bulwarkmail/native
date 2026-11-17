@@ -2,12 +2,17 @@ import React from 'react';
 import { ArrowRight, Ban, MailOpen, Plus, Tag } from '../icons';
 import { ActionSheet, type ActionSheetItem } from '../email/ActionSheet';
 import { MoveSheet } from '../MoveSheet';
-import { FilterRuleModal } from './FilterRuleModal';
+import { RuleEditorSheet } from './RuleEditorSheet';
 import type { Email, Mailbox } from '../../api/types';
 import { getSieveAccountId, getSieveCapabilities } from '../../api/sieve';
 import { FiltersLoginChangedError, OpaqueFiltersError, readAccountFilters, updateAccountFilters } from '../../api/sieve-rules';
 import { forwardsAround, inRunOrder } from '../../lib/sieve/forward-limit';
 import { jmapClient } from '../../api/jmap-client';
+import { ownMailTarget } from '../../api/email-fields';
+import { NOT_RECEIVED, previewRule } from '../../lib/sieve/rule-preview';
+import { applyRuleToScope, type ApplyScope } from '../../lib/sieve/rule-scope';
+import { localizeMailboxName } from '../../lib/mailbox-label';
+import { useEmailStore } from '../../stores/email-store';
 import { servedLoginOf } from '../../lib/draft-login';
 import { supportsPeriods } from '../../lib/sieve/period';
 import { supportsRegex } from '../../lib/sieve/regex';
@@ -28,7 +33,7 @@ import type { FilterRule } from '../../lib/sieve/types';
 import { generateUUID } from '../../lib/uuid';
 import { useAccountStore } from '../../stores/account-store';
 import { useFilterStore } from '../../stores/filter-store';
-import { useKeywordsStore } from '../../stores/keywords-store';
+import { FALLBACK_KEYWORD_COLOR, useKeywordsStore } from '../../stores/keywords-store';
 import { useLocaleStore } from '../../stores/locale-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { toast } from '../../stores/toast-store';
@@ -46,6 +51,7 @@ interface QuickRuleSheetProps {
   email: Email | null;
   /** The own account's folders. */
   mailboxes: Mailbox[];
+  sourceMailboxId?: string | null;
   onClose: () => void;
 }
 
@@ -55,7 +61,7 @@ interface QuickRuleSheetProps {
  * the rule editor prefilled. The rule goes to the top of the account's
  * filters, or into an existing rule that does the same for other senders.
  */
-export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRuleSheetProps) {
+export function QuickRuleSheet({ visible, email, mailboxes, sourceMailboxId = null, onClose }: QuickRuleSheetProps) {
   const c = useColors();
   const t = useLocaleStore((s) => s.t);
   const identities = useSettingsStore((s) => s.identities);
@@ -87,6 +93,11 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
   );
   const targets = React.useMemo(() => ruleTargetMailboxes(mailboxes), [mailboxes]);
   const junk = React.useMemo(() => findJunkMailbox(mailboxes), [mailboxes]);
+  const previewTarget = React.useMemo(() => ownMailTarget(jmapClient, mailboxes), [mailboxes]);
+  const sourceFolder = mailboxes.find((m) => m.id === sourceMailboxId);
+  const applyFolder = sourceFolder && !NOT_RECEIVED.has(sourceFolder.role ?? '')
+    ? localizeMailboxName(sourceFolder.role, sourceFolder.name, t)
+    : undefined;
   const periodsSupported = supportsPeriods(getSieveCapabilities()?.sieveExtensions);
   const regexSupported = supportsRegex(getSieveCapabilities()?.sieveExtensions);
 
@@ -164,12 +175,23 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
     }
   };
 
-  const saveEditorRule = async (rule: FilterRule) => {
+  const saveEditorRule = async (rule: FilterRule, applyTo: ApplyScope) => {
     finish();
     // As built in the editor: at the top, never merged into another rule.
-    if (await write((rules) => insertRuleAtTop(rules, rule))) {
-      toast.success(t('notifications.rule_created', 'Rule created'), rule.name);
+    if (!(await write((rules) => insertRuleAtTop(rules, rule)))) return;
+    let applied: number | null = null;
+    if (applyTo !== 'new') {
+      try {
+        applied = await applyRuleToScope(previewTarget, rule, applyTo, sourceMailboxId);
+        void useEmailStore.getState().refreshEmails();
+      } catch (err) {
+        toast.error(t('notifications.rule_apply_failed', 'Could not apply the rule to existing messages'), err instanceof Error ? err.message : undefined);
+      }
     }
+    toast.success(
+      t('notifications.rule_created', 'Rule created'),
+      applied !== null ? t('notifications.rule_applied', undefined, { count: applied }) : rule.name,
+    );
   };
 
   const items: ActionSheetItem[] = [];
@@ -230,12 +252,15 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
     onPress: () => setStep({ kind: 'editor', rule: buildPrefillRule(subject, t, generateUUID()) }),
   });
 
-  const tagItems: ActionSheetItem[] = keywords.map((kw) => ({
-    key: kw.id,
-    label: kw.label,
-    icon: <Tag size={18} color={c.textSecondary} />,
-    onPress: () => void savePreset({ kind: 'tag', tagId: kw.id, tagName: kw.label }),
-  }));
+  const tagItems: ActionSheetItem[] = keywords.map((kw) => {
+    const dot = (c.tags[kw.color] ?? c.tags[FALLBACK_KEYWORD_COLOR]).dot;
+    return {
+      key: kw.id,
+      label: kw.label,
+      icon: <Tag size={18} color={dot} fill={dot} />,
+      onPress: () => void savePreset({ kind: 'tag', tagId: kw.id, tagName: kw.label }),
+    };
+  });
 
   const pickFolder = (id: string) => {
     if (step.kind !== 'folder') return;
@@ -266,17 +291,19 @@ export function QuickRuleSheet({ visible, email, mailboxes, onClose }: QuickRule
         items={tagItems}
         onClose={() => setStep({ kind: 'menu' })}
       />
-      <FilterRuleModal
+      <RuleEditorSheet
         visible={visible && step.kind === 'editor'}
         initialRule={step.kind === 'editor' ? step.rule : undefined}
         mailboxes={mailboxes}
         periodsSupported={periodsSupported}
         regexSupported={regexSupported}
-        forwardContext={{
-          maxRedirects: getSieveCapabilities(openedIn.current.accountId ?? undefined)?.maxNumberRedirects,
-          ...forwards,
-        }}
-        onSave={(rule) => void saveEditorRule(rule)}
+        maxRedirects={getSieveCapabilities(openedIn.current.accountId ?? undefined)?.maxNumberRedirects}
+        forwardsBefore={forwards.before}
+        forwardsAfter={forwards.after}
+        previewMatches={(rule, options) => previewRule(previewTarget, rule, { ...options, folderId: sourceMailboxId ?? undefined })}
+        offerApplyToExisting
+        applyExistingFolder={applyFolder}
+        onSave={(rule, options) => void saveEditorRule(rule, options.applyTo)}
         onClose={finish}
       />
     </>

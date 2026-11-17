@@ -132,7 +132,6 @@ const WITH_INPUTS = [
   'components/TagSheet.tsx',
   'components/TemplateSheet.tsx',
   'components/files/ShareSheet.tsx',
-  'components/filters/FilterRuleModal.tsx',
   'components/filters/SieveEditorSheet.tsx',
   'components/settings/ContentSendersSettings.tsx',
   'components/settings/DelegateDialog.tsx',

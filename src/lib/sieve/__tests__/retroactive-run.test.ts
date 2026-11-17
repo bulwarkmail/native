@@ -61,13 +61,16 @@ describe('running a rule over the Inbox', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  // No render setup in the repo: the editor and the settings page are
-  // checked for offering it and running it after the save.
   it('is offered in the rule editor and run after the rule is saved', () => {
     const settings = readFileSync(join(__dirname, '../../../components/settings/FilterSettings.tsx'), 'utf-8');
-    expect(settings).toMatch(/applyExisting=\{inboxOffer \?\? undefined\}/);
-    expect(settings).toMatch(/if \(!saved \|\| !options\?\.applyToExisting \|\| !inboxOffer\) return;\r?\n\s+try \{\r?\n\s+const count = await applyRuleToMailbox\(rule, inboxOffer\.id\);/);
-    const modal = readFileSync(join(__dirname, '../../../components/filters/FilterRuleModal.tsx'), 'utf-8');
-    expect(modal).toMatch(/\}, \{ applyToExisting: applyToExisting && canTickApply \}\);/);
+    expect(settings).toMatch(/offerApplyToExisting=\{!!inboxOffer\}/);
+    expect(settings).toMatch(/if \(!saved \|\| scope === 'new' \|\| !inboxOffer\) return;/);
+    expect(settings).toMatch(/await applyRuleToScope\(inboxOffer\.target, rule, scope, inboxOffer\.inbox\.id\)/);
+  });
+
+  it('opens Filters before the session is up again after a cold start', () => {
+    const settings = readFileSync(join(__dirname, '../../../components/settings/FilterSettings.tsx'), 'utf-8');
+    expect(settings).not.toMatch(/jmapClient\.accountId/);
+    expect(settings).toMatch(/target: ownMailTarget\(jmapClient, ownMailboxes\(allMailboxes\)\)/);
   });
 });

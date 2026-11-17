@@ -7,6 +7,7 @@ import { inputAccessibility } from './input-a11y';
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
+  invalid?: boolean;
   containerStyle?: ViewStyle;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -25,6 +26,7 @@ interface InputProps extends TextInputProps {
 export default function Input({
   label,
   error,
+  invalid,
   containerStyle,
   leftIcon,
   rightIcon,
@@ -42,7 +44,7 @@ export default function Input({
       <View style={[
         styles.inputWrapper,
         focused && styles.inputFocused,
-        error && styles.inputError,
+        (error || invalid) && styles.inputError,
         props.editable === false && styles.inputDisabled,
       ]}>
         {leftIcon && <View style={styles.iconLeft}>{leftIcon}</View>}
