@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt b/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
+index 438ab6a..0272398 100644
+--- a/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
++++ b/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
+@@ -474,8 +474,9 @@ class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
+             return;
+         }
+ 
+-        // Remove all previous cookies
+-        CookieManager.getInstance().removeAllCookies(null);
++        // The cookie store is the whole app's: React Native's networking module keeps the
++        // cookies of the app's own requests there, so it is left alone. A page here gets no
++        // third-party cookies when thirdPartyCookiesEnabled is false.
+ 
+         // Disable caching
+         view.settings.cacheMode = WebSettings.LOAD_NO_CACHE
