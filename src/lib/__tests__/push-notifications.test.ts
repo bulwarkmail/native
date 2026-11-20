@@ -207,6 +207,9 @@ const listMock = listPushSubscriptions as ReturnType<typeof vi.fn>;
 const createMock = createPushSubscription as ReturnType<typeof vi.fn>;
 const updateMock = updatePushSubscription as ReturnType<typeof vi.fn>;
 const SUB_KEY = 'push:subscriptionId:v2:' + ACCOUNT_ID;
+// Set where the empty push types were tried before (#169), so a subscription
+// that has EmailDelivery is one a server before 1.0.3 filled in, and is kept.
+const EMPTY_TYPES_TRIED_KEY = 'push:emptyTypesTried:v1:' + ACCOUNT_ID;
 
 function sub(id: string, deviceClientId: string) {
   return { id, deviceClientId, expires: new Date(Date.now() + 86400000).toISOString(), types: ['Email'] };
@@ -347,6 +350,7 @@ describe('setupPushNotifications subscription shape', () => {
       capabilities: { 'urn:ietf:params:jmap:emailpush': {} },
     };
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
     listMock.mockResolvedValue([
       {
         id: 'existing',
@@ -373,6 +377,7 @@ describe('setupPushNotifications subscription shape', () => {
       capabilities: { 'urn:ietf:params:jmap:emailpush': {} },
     };
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
     listMock.mockResolvedValue([
       {
         id: 'existing',
@@ -757,6 +762,151 @@ describe('push types for device sync (#34)', () => {
   });
 });
 
+describe('push types with a delivery filter (#169)', () => {
+  const DEVICE_SYNC_KEY = 'device-sync:v1';
+  const SESSION = {
+    capabilities: {
+      'urn:ietf:params:jmap:core': {},
+      'urn:ietf:params:jmap:emailpush': {},
+      'urn:ietf:params:jmap:contacts': {},
+    },
+  };
+  const subscription = (id: string, types: string[], daysLeft = 80) => ({
+    id,
+    deviceClientId: OUR_DCID,
+    expires: new Date(Date.now() + daysLeft * 86400000).toISOString(),
+    types,
+  });
+  // Before 1.0.3, Stalwart fills an empty list in with every type on create.
+  const EVERY_TYPE = ['Email', 'EmailDelivery', 'Mailbox', 'Thread', 'ContactCard', 'AddressBook'];
+  const syncContacts = () => AsyncStorage.setItem(DEVICE_SYNC_KEY, JSON.stringify({
+    state: { accounts: { [ACCOUNT_ID]: { enabled: { 'com.android.contacts': true } } } },
+    version: 0,
+  }));
+  const typesWritten = () => updateMock.mock.calls.filter((c) => c[1].types).map((c) => [c[0], c[1].types]);
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await AsyncStorage.clear();
+    await AsyncStorage.setItem(deviceClientIdKey(ACCOUNT_ID), OUR_DCID);
+    (jmapClient as { currentSession: unknown }).currentSession = SESSION;
+    listMock.mockResolvedValue([]);
+    updateMock.mockResolvedValue(true);
+    installFetch({});
+  });
+
+  afterEach(() => {
+    (jmapClient as { currentSession: unknown }).currentSession = {
+      capabilities: { 'urn:ietf:params:jmap:core': {} },
+    };
+    listMock.mockResolvedValue([]);
+  });
+
+  it('subscribes without EmailDelivery where the server keeps the list empty (1.0.3 and later)', async () => {
+    listMock.mockResolvedValueOnce([]).mockResolvedValue([subscription('new-server-id', [])]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock.mock.calls[0][0].types).toEqual([]);
+    expect(createMock.mock.calls[0][0].emailPush).toBeDefined();
+    expect(typesWritten()).toEqual([]);
+  });
+
+  it('sets EmailDelivery where the server filled the list in (before 1.0.3)', async () => {
+    listMock.mockResolvedValueOnce([]).mockResolvedValue([subscription('new-server-id', EVERY_TYPE)]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(typesWritten()).toEqual([['new-server-id', ['EmailDelivery']]]);
+  });
+
+  it('adds the device sync types, without EmailDelivery where the server kept it out', async () => {
+    await syncContacts();
+    listMock.mockResolvedValueOnce([]).mockResolvedValue([subscription('new-server-id', [])]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock.mock.calls[0][0].types).toEqual([]);
+    expect(typesWritten()).toEqual([['new-server-id', ['ContactCard', 'AddressBook']]]);
+
+    // And with it where the server filled the list in.
+    vi.clearAllMocks();
+    await AsyncStorage.removeItem(SUB_KEY);
+    listMock.mockResolvedValueOnce([]).mockResolvedValue([subscription('new-server-id', EVERY_TYPE)]);
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(typesWritten()).toEqual([['new-server-id', ['EmailDelivery', 'ContactCard', 'AddressBook']]]);
+  });
+
+  it('replaces a subscription made with EmailDelivery once', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([subscription('existing', ['EmailDelivery'])]);
+
+    const replaced = await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(replaced.subscriptionId).toBe('new-server-id');
+    expect(createMock.mock.calls[0][0].types).toEqual([]);
+    expect(destroyMock).toHaveBeenCalledWith('existing');
+
+    // A server before 1.0.3 gave the replacement EmailDelivery back: kept.
+    vi.clearAllMocks();
+    listMock.mockResolvedValue([subscription('new-server-id', ['EmailDelivery'])]);
+    const kept = await setupPushNotifications({ relayBaseUrl: RELAY });
+    expect(kept.subscriptionId).toBe('new-server-id');
+    expect(createMock).not.toHaveBeenCalled();
+    expect(destroyMock).not.toHaveBeenCalled();
+    expect(typesWritten()).toEqual([]);
+  });
+
+  it('keeps EmailDelivery out when it refreshes a subscription the server kept it out of', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
+    listMock.mockResolvedValue([subscription('existing', [], 2)]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(updateMock.mock.calls.some((c) => c[1].expires)).toBe(true);
+    expect(typesWritten()).toEqual([]);
+
+    // Device sync turned on: its types, still without EmailDelivery.
+    vi.clearAllMocks();
+    await syncContacts();
+    await refreshPushSubscriptionTypes(ACCOUNT_ID);
+    expect(typesWritten()).toEqual([['existing', ['ContactCard', 'AddressBook']]]);
+
+    // And off again.
+    vi.clearAllMocks();
+    await AsyncStorage.removeItem(DEVICE_SYNC_KEY);
+    listMock.mockResolvedValue([subscription('existing', ['ContactCard', 'AddressBook'])]);
+    await refreshPushSubscriptionTypes(ACCOUNT_ID);
+    expect(typesWritten()).toEqual([['existing', []]]);
+  });
+
+  it('never leaves EmailDelivery out of a subscription that listens to other mail types', async () => {
+    // Made by an older build: nothing says the server keeps mail types out.
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
+    listMock.mockResolvedValue([subscription('existing', ['Email', 'Mailbox'])]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(typesWritten()).toEqual([['existing', ['EmailDelivery']]]);
+  });
+
+  it('keeps EmailDelivery on a server without the delivery filter', async () => {
+    (jmapClient as { currentSession: unknown }).currentSession = { capabilities: { 'urn:ietf:params:jmap:core': {} } };
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    listMock.mockResolvedValue([subscription('existing', [])]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(typesWritten()).toEqual([['existing', ['EmailDelivery']]]);
+  });
+});
+
+
 describe('setupPushNotifications with ACL-shared accounts on Stalwart 0.16.16-0.16.23 (B18)', () => {
   const REFUSED_KEY = 'push:emailPushRefused:v1:' + ACCOUNT_ID;
   const sharedMock = getSharedMailboxes as ReturnType<typeof vi.fn>;
@@ -818,6 +968,7 @@ describe('setupPushNotifications with ACL-shared accounts on Stalwart 0.16.16-0.
 
   it('narrows a refused map on refresh instead of destroying the working subscription', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
     listMock.mockResolvedValue([healthy()]);
     const accept = refuseUnless(['jmap-primary', 'team']);
     updateMock.mockImplementation(async (_id: string, patch: { emailPush?: Record<string, EmailPushConfig> }) =>
@@ -854,6 +1005,7 @@ describe('setupPushNotifications with ACL-shared accounts on Stalwart 0.16.16-0.
 
   it('falls back to the primary account alone when the group is refused too', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
     listMock.mockResolvedValue([healthy()]);
     const accept = refuseUnless(['jmap-primary']);
     updateMock.mockImplementation(async (_id: string, patch: { emailPush?: Record<string, EmailPushConfig> }) =>
@@ -880,6 +1032,8 @@ describe('setupPushNotifications with ACL-shared accounts on Stalwart 0.16.16-0.
     expect(result).toEqual({ subscriptionId: 'new-server-id', verified: true });
     expect(createMock).toHaveBeenCalledTimes(2);
     expect(mapKeys(createMock.mock.calls[1][0].emailPush)).toEqual(['jmap-primary', 'team']);
+    // The ACL share gets its mail as an EmailDelivery state change (#169).
+    expect(createMock.mock.calls.map((c) => c[0].types)).toEqual([[], ['EmailDelivery']]);
     expect(await AsyncStorage.getItem(SUB_KEY)).toBe('new-server-id');
   });
 
@@ -1035,6 +1189,7 @@ describe('setupPushNotifications with ACL-shared accounts on Stalwart 1.0', () =
 
   it('adds the group to an existing map in one update, leaving the ACL share out', async () => {
     await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
     const filter = { filter: { operator: 'AND', conditions: [{ notKeyword: '$junk' }] }, properties: ['id', 'threadId'], urgency: 'high' };
     listMock.mockResolvedValue([{
       id: 'existing',

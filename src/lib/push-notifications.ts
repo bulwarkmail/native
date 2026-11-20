@@ -297,6 +297,45 @@ export function isValidRelayUrl(value: string): boolean {
 // In-app sync uses the separate SSE channel and is unaffected.
 export const PUSH_TYPES = ['EmailDelivery'] as const;
 
+// With a delivery filter, new mail comes as EmailPush items, and Stalwart 1.0.3
+// and later send those whatever `types` says. Saving a draft is an Email/set,
+// which bumps the EmailDelivery state, and that goes out as a plain
+// StateChange: with EmailDelivery in `types` every autosave on another client
+// woke the device, and on iOS showed a notification (#169, webmail #1650).
+//
+// Before 1.0.3 an EmailPush item goes out only to a subscription whose types
+// name a mail type, and an empty list on create is filled in with every type.
+// The session doesn't say which version answers, so a subscription whose
+// filter covers every account is created with an empty list and read back:
+// kept empty, the mail types stay out (device sync's types are added back);
+// filled in, it gets the types it would have had. The mail types are left out
+// of a later write only when the server kept them out before.
+//
+// Subscriptions made before this have EmailDelivery and are replaced once per
+// device and account; this key says the empty list was tried here.
+const EMPTY_TYPES_TRIED_PREFIX = 'push:emptyTypesTried:v1:';
+const MAIL_STATE_TYPES: readonly string[] = ['EmailDelivery', 'Email', 'Mailbox', 'Thread'];
+
+function emptyTypesTriedKey(accountId: string): string {
+  return EMPTY_TYPES_TRIED_PREFIX + accountId;
+}
+
+/**
+ * The types to write to a subscription that has `current`, for an account that
+ * wants `wanted` (pushTypesFor): without the mail types where the server kept
+ * them out (see EMPTY_TYPES_TRIED_PREFIX) and the delivery filter is in use.
+ */
+export function subscriptionTypes(
+  current: readonly string[] | null | undefined,
+  wanted: readonly string[],
+  emailPushInUse: boolean,
+): string[] {
+  const mailTypesKeptOut = emailPushInUse
+    && Array.isArray(current)
+    && !current.some((type) => MAIL_STATE_TYPES.includes(type));
+  return mailTypesKeptOut ? wanted.filter((type) => !MAIL_STATE_TYPES.includes(type)) : [...wanted];
+}
+
 // The capability a server advertises for the data types of an authority.
 const DEVICE_SYNC_CAPABILITIES: Record<Authority, string> = {
   [CONTACTS_AUTHORITY]: CAPABILITIES.CONTACTS,
@@ -1594,7 +1633,12 @@ async function setupPushNotificationsInner(
   if (storedServerId) {
     if (match) {
       if (match.expires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), match.expires);
-      if (!params.forceRecreate) {
+      // Made with EmailDelivery before the empty list was tried on this device.
+      const emptyTypesUntried = emailPush !== null
+        && refusedBefore.length === 0
+        && !!match.types?.includes('EmailDelivery')
+        && !(await AsyncStorage.getItem(emptyTypesTriedKey(accountId)));
+      if (!params.forceRecreate && !emptyTypesUntried) {
         let refreshed: Awaited<ReturnType<typeof refreshSubscriptionExpires>>;
         try {
           refreshed = await refreshSubscriptionExpires(match, emailPush, types);
@@ -1619,9 +1663,9 @@ async function setupPushNotificationsInner(
           return { subscriptionId: storedServerId, verified: true };
         }
       }
-      // The server refused the refresh with a SetError, or the caller asked
-      // for a fresh record: create a replacement below and destroy this one
-      // once it's verified.
+      // The server refused the refresh with a SetError, the caller asked for
+      // a fresh record, or the record still has EmailDelivery: create a
+      // replacement below and destroy this one once it's verified.
       replacedServerId = storedServerId;
     } else {
       // The server no longer has it: it lapsed, or the server behind the
@@ -1661,12 +1705,18 @@ async function setupPushNotificationsInner(
 
   let serverAssignedId: string;
   let serverExpires: string | null;
+  let createdWithEmptyTypes = false;
+  // Empty only when the filter covers every account the subscription fans out
+  // to: one left out of the map gets its mail as an EmailDelivery state change.
+  const coversEveryAccount = (filter: Record<string, EmailPushConfig> | null) =>
+    emailPush !== null && filter === emailPush && refusedBefore.length === 0;
+  if (emailPush !== null) await AsyncStorage.setItem(emptyTypesTriedKey(accountId), '1');
   const create = () => writeWithPushTypes(types, (wanted) =>
     writeWithEmailPush(emailPush, (filter) =>
       createPushSubscription({
         deviceClientId,
         url: buildRelayUrl(relayBaseUrl, `/api/push/jmap/${encodeURIComponent(deviceClientId)}`),
-        types: [...wanted],
+        types: coversEveryAccount(filter) ? [] : [...wanted],
         expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
         ...(filter ? { emailPush: filter } : {}),
       }),
@@ -1694,6 +1744,7 @@ async function setupPushNotificationsInner(
     }
     serverAssignedId = created.result.id;
     serverExpires = created.result.expires;
+    createdWithEmptyTypes = coversEveryAccount(created.emailPush);
     await rememberRefusedEmailPushAccounts(accountId, refusedBefore, emailPush, created.emailPush);
   } catch (err) {
     throw subscriptionError(err, relayBaseUrl);
@@ -1711,6 +1762,7 @@ async function setupPushNotificationsInner(
     );
   }
   rollback.relayMove = undefined;
+  if (createdWithEmptyTypes) await settleCreatedTypes(serverAssignedId, types);
 
   await AsyncStorage.setItem(subKey, serverAssignedId);
   if (serverExpires) await AsyncStorage.setItem(subscriptionExpiresKey(accountId), serverExpires);
@@ -1755,7 +1807,8 @@ async function refreshSubscriptionExpires(
   desiredEmailPush: Record<string, EmailPushConfig> | null,
   types: readonly string[],
 ): Promise<false | { emailPush: Record<string, EmailPushConfig> | null; updated: boolean }> {
-  const typesNeedUpdate = !sameTypes(sub.types, types);
+  const typesFor = (wanted: readonly string[]) => subscriptionTypes(sub.types, wanted, desiredEmailPush !== null);
+  const typesNeedUpdate = !sameTypes(sub.types, typesFor(types));
   const emailPushNeedsUpdate =
     desiredEmailPush !== null && !sameEmailPush(sub.emailPush, desiredEmailPush);
   if (!typesNeedUpdate && !emailPushNeedsUpdate && sub.expires) {
@@ -1771,7 +1824,7 @@ async function refreshSubscriptionExpires(
       const patch: { expires?: string; types?: string[] } = {
         expires: expiresFromNow(SUBSCRIPTION_EXPIRES_DAYS),
       };
-      if (!sameTypes(sub.types, wanted)) patch.types = [...wanted];
+      if (!sameTypes(sub.types, typesFor(wanted))) patch.types = typesFor(wanted);
       const { emailPush } = await writeWithEmailPush(
         emailPushNeedsUpdate ? desiredEmailPush : null,
         (filter) => updatePushSubscription(sub.id, filter ? { ...patch, emailPush: filter } : patch),
@@ -1781,6 +1834,26 @@ async function refreshSubscriptionExpires(
   } catch (err) {
     if (isJMAPSetError(err)) return false;
     throw err;
+  }
+}
+
+/**
+ * After a subscription was created with an empty list (see
+ * EMPTY_TYPES_TRIED_PREFIX): before 1.0.3 the server filled in every type, so
+ * the list goes to the account's types at once; from 1.0.3 it kept the list
+ * empty, and device sync's types are added. Should that fail, the next
+ * refresh does it.
+ */
+async function settleCreatedTypes(subscriptionId: string, types: readonly string[]): Promise<void> {
+  try {
+    const stored = (await listPushSubscriptions()).find((s) => s.id === subscriptionId);
+    if (!stored || !Array.isArray(stored.types)) return;
+    await writeWithPushTypes(types, async (wanted) => {
+      const settled = subscriptionTypes(stored.types, wanted, true);
+      if (!sameTypes(stored.types, settled)) await updatePushSubscription(subscriptionId, { types: settled });
+    });
+  } catch {
+    // Left for the next refresh.
   }
 }
 
@@ -1828,6 +1901,7 @@ async function clearAccountPushKeys(accountId: string): Promise<void> {
     deviceClientIdKey(accountId),
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
+    emptyTypesTriedKey(accountId),
   ]);
   await forgetNotifiedIds(accountId);
   await writePushJmapAccountId(accountId, null);
@@ -1853,8 +1927,9 @@ async function forgetNotifiedIds(accountId: string): Promise<void> {
 /**
  * Forget what push learned from the account's server: the ring of notified
  * message ids (a different server hands the same short ids to new mail, which
- * would then never notify), the accounts it refused in the emailPush map, and
- * the recorded subscription's expiry. A replaced server holds none of the old
+ * would then never notify), the accounts it refused in the emailPush map,
+ * whether the empty push types were tried there, and the recorded
+ * subscription's expiry. A replaced server holds none of the old
  * subscriptions, which must not count as revoked: without the expiry the next
  * resync re-creates it (see lib/server-change).
  */
@@ -1862,6 +1937,7 @@ export async function forgetPushServerState(accountId: string): Promise<void> {
   await AsyncStorage.multiRemove([
     emailPushRefusedKey(accountId),
     subscriptionExpiresKey(accountId),
+    emptyTypesTriedKey(accountId),
   ]);
   await forgetNotifiedIds(accountId);
 }
@@ -2111,8 +2187,10 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
     if (served) {
       const types = await pushTypesFor(accountId, jmapClient.currentSession);
       const current = (await listPushSubscriptions()).find((s) => isOwnSubscription(s, subscriptionId, deviceClientId));
-      if (!current || sameTypes(current.types, types)) return;
-      await updatePushSubscription(subscriptionId, { types: [...types] });
+      if (!current) return;
+      const settled = subscriptionTypes(current.types, types, serverSupportsEmailPush());
+      if (sameTypes(current.types, settled)) return;
+      await updatePushSubscription(subscriptionId, { types: settled });
       return;
     }
     const client = new JMAPClient();
@@ -2127,9 +2205,11 @@ export async function refreshPushSubscriptionTypes(accountId: string): Promise<v
       | Array<{ id: string; deviceClientId?: string | null; types?: string[] | null }>
       | undefined;
     const current = list?.find((s) => isOwnSubscription(s, subscriptionId, deviceClientId));
-    if (!current || sameTypes(current.types, types)) return;
+    if (!current) return;
+    const settled = subscriptionTypes(current.types, types, EMAIL_PUSH_CAPABILITY in (client.currentSession?.capabilities ?? {}));
+    if (sameTypes(current.types, settled)) return;
     await client.request(
-      [['PushSubscription/set', { update: { [subscriptionId]: { types: [...types] } } }, '0']],
+      [['PushSubscription/set', { update: { [subscriptionId]: { types: settled } } }, '0']],
       using,
     );
   } catch {
