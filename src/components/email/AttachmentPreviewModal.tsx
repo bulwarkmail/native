@@ -95,6 +95,8 @@ function ViewerWebView({ uri, background, onFailed, onMessage, webRef }: ViewerW
       javaScriptEnabled
       domStorageEnabled={false}
       cacheEnabled={false}
+      thirdPartyCookiesEnabled={false}
+      sharedCookiesEnabled={false}
       incognito
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}

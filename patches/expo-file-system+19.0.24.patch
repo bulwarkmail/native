@@ -1,0 +1,70 @@
+diff --git a/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/FileSystemModule.kt b/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/FileSystemModule.kt
+index 0db6200..1968e1e 100644
+--- a/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/FileSystemModule.kt
++++ b/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/FileSystemModule.kt
+@@ -4,6 +4,7 @@ import android.content.Context
+ import android.net.Uri
+ import android.os.Build
+ import android.util.Base64
++import android.webkit.CookieManager
+ import android.webkit.URLUtil
+ import androidx.annotation.RequiresApi
+ import expo.modules.interfaces.filesystem.Permission
+@@ -16,6 +17,9 @@ import expo.modules.kotlin.modules.Module
+ import expo.modules.kotlin.modules.ModuleDefinition
+ import expo.modules.kotlin.typedarray.TypedArray
+ import expo.modules.kotlin.types.Either
++import okhttp3.Cookie
++import okhttp3.CookieJar
++import okhttp3.HttpUrl
+ import okhttp3.OkHttpClient
+ import okhttp3.Request
+ import java.io.File
+@@ -23,6 +27,18 @@ import java.io.FileOutputStream
+ import java.net.URI
+ import java.util.EnumSet
+ 
++// File transfers send the system cookies, as React Native's networking module does for
++// the app's requests: a proxy in front of the server may need the cookie it set there.
++internal object SystemCookies : CookieJar {
++  override fun loadForRequest(url: HttpUrl): List<Cookie> =
++    CookieManager.getInstance().getCookie(url.toString())
++      ?.split("; ")
++      ?.mapNotNull { Cookie.parse(url, it) }
++      .orEmpty()
++
++  override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) = Unit
++}
++
+ class FileSystemModule : Module() {
+   private val context: Context
+     get() = appContext.reactContext ?: throw Exceptions.AppContextLost()
+@@ -67,7 +83,7 @@ class FileSystemModule : Module() {
+       }
+ 
+       val request = requestBuilder.build()
+-      val client = OkHttpClient()
++      val client = OkHttpClient.Builder().cookieJar(SystemCookies).build()
+       val response = request.await(client)
+ 
+       if (!response.isSuccessful) {
+diff --git a/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/legacy/FileSystemLegacyModule.kt b/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/legacy/FileSystemLegacyModule.kt
+index 73a8bd5..b51b1d1 100644
+--- a/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/legacy/FileSystemLegacyModule.kt
++++ b/node_modules/expo-file-system/android/src/main/java/expo/modules/filesystem/legacy/FileSystemLegacyModule.kt
+@@ -31,6 +31,7 @@ import okhttp3.Headers
+ import okhttp3.MediaType
+ import okhttp3.MediaType.Companion.toMediaTypeOrNull
+ import okhttp3.MultipartBody
++import expo.modules.filesystem.SystemCookies
+ import okhttp3.OkHttpClient
+ import okhttp3.Request
+ import okhttp3.RequestBody
+@@ -1005,6 +1006,7 @@ open class FileSystemLegacyModule : Module() {
+     get() {
+       if (client == null) {
+         val builder = OkHttpClient.Builder()
++          .cookieJar(SystemCookies)
+           .connectTimeout(60, TimeUnit.SECONDS)
+           .readTimeout(60, TimeUnit.SECONDS)
+           .writeTimeout(60, TimeUnit.SECONDS)
