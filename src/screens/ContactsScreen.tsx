@@ -20,8 +20,9 @@ import { useBackWhileFocused } from '../lib/use-back-while-focused';
 import { listBackStep } from '../lib/list-back';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  Search, Plus, UserCircle, X, Menu, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2, Filter, Mail, Users, MoreHorizontal,
+  Search, Plus, UserCircle, X, Trash2, Tag, FolderInput, Upload, CheckSquare, Share2, Filter, Mail, Users, MoreHorizontal,
 } from '../components/icons';
+import { HeaderMenuButton, headerLeadingButton, screenHeaderRow } from '../components/ScreenHeader';
 import { ContactFiltersPanel } from '../components/contacts/ContactFiltersPanel';
 import {
   countActiveFilters, EMPTY_CONTACT_FILTERS, matchesContactFilters, type ContactListFilters,
@@ -462,7 +463,7 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
           <>
             <Pressable
               onPress={clearSelection}
-              style={styles.headerIconBtn}
+              style={headerLeadingButton}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={t('contacts.bulk.clear', 'Clear selection')}
@@ -522,15 +523,12 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
           </>
         ) : (
           <>
-            <Pressable
+            <HeaderMenuButton
               onPress={() => setDrawerOpen(true)}
-              style={styles.headerIconBtn}
               hitSlop={8}
-              accessibilityRole="button"
               accessibilityLabel={t('contacts.open_categories', 'Open categories')}
-            >
-              <Menu size={22} color={c.text} />
-            </Pressable>
+              color={c.text}
+            />
             <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.headerCount}>{visible.length}</Text>
             <View style={styles.headerActions}>
@@ -811,10 +809,7 @@ function makeStyles(c: ThemePalette) {
   listContent: { paddingBottom: 80 },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    ...screenHeaderRow,
     gap: spacing.sm,
   },
   headerTitle: { ...typography.h3, color: c.text, flexShrink: 1 },
@@ -831,6 +826,8 @@ function makeStyles(c: ThemePalette) {
   // book named after its account) truncates instead of running under the icons.
   headerActions: {
     marginLeft: 'auto',
+    // Kept off the edge as before the shared header padding.
+    marginRight: spacing.sm,
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',

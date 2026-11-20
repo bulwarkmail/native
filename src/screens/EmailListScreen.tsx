@@ -4,11 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
-  Search, SquarePen, Menu, Filter, Square, SquareCheck, Minus, X,
+  Search, SquarePen, Filter, Square, SquareCheck, Minus, X,
   Star, Paperclip, Mail as MailIcon, MailOpen, Trash2, RotateCcw, CalendarDays,
   Archive, FolderInput, Tag, Import, ArrowDownWideNarrow, ArrowUpNarrowWide,
   Pin, Reply, Forward, ShieldAlert, ShieldCheck, Folder, ArrowUpDown, Check, Globe, MoreVertical,
 } from '../components/icons';
+import { HeaderMenuButton, screenHeaderRow } from '../components/ScreenHeader';
 import { GlobalSearchSheet } from '../components/search/GlobalSearchSheet';
 import { ActionSheet } from '../components/email/ActionSheet';
 import { SORT_CHOICES, sortChoiceChanges, sortChoiceFor, type SortChoiceKey } from '../lib/sort-choices';
@@ -1702,16 +1703,13 @@ export default function EmailListScreen({
           ) : null}
         </View>
       ) : (
-        <View key="header" style={styles.header}>
+        <View key="header" style={[styles.header, sidebarDocked && styles.headerWithoutMenu]}>
           {!sidebarDocked && (
-            <Pressable
+            <HeaderMenuButton
               onPress={() => setDrawerOpen(true)}
-              style={styles.headerButton}
-              accessibilityRole="button"
               accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
-            >
-              <Menu size={20} color={c.textMuted} />
-            </Pressable>
+              color={c.textMuted}
+            />
           )}
           <Text style={[styles.headerTitle, shortHeight && styles.headerTitleShort]} numberOfLines={1}>
             {headerTitle}
@@ -2589,16 +2587,15 @@ function makeStyles(c: ThemePalette) {
 
   // Header - matches web mobile-header: h-14 (56px), px-4, border-b
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    height: componentSizes.headerHeight,
+    ...screenHeaderRow,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
     gap: spacing.md,
   },
   // Eight 44 dp buttons fit a 412 dp phone only without the header's gaps;
   // Delete was pushed off the screen.
+  // With the sidebar docked the title starts the row, off the edge.
+  headerWithoutMenu: { paddingLeft: spacing.lg },
   selectionHeader: { gap: 0, paddingHorizontal: spacing.sm },
   selectionCount: { flex: 1, minWidth: 24, marginHorizontal: spacing.xs },
   headerButton: {
@@ -2610,6 +2607,8 @@ function makeStyles(c: ThemePalette) {
   headerLogo: {
     width: 28,
     height: 28,
+    // Kept off the edge as before the shared header padding.
+    marginRight: spacing.sm,
   },
 
   // Search - matches web search bar styling

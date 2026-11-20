@@ -25,11 +25,11 @@ import {
   Columns4,
   Grid3x3,
   ListChecks,
-  Menu,
   Rows2,
   Search,
   Square,
 } from '../components/icons';
+import { HeaderMenuButton, headerLeadingButton, screenHeaderRow } from '../components/ScreenHeader';
 import {
   addDays,
   subDays,
@@ -1079,22 +1079,19 @@ export default function CalendarScreen() {
           <Pressable
             onPress={backToMonth}
             hitSlop={8}
-            style={styles.headerBtn}
+            style={headerLeadingButton}
             accessibilityRole="button"
             accessibilityLabel={t('calendar.back_to_month', 'Back to month')}
           >
             <ArrowLeft size={22} color={c.text} />
           </Pressable>
         ) : (
-          <Pressable
+          <HeaderMenuButton
             onPress={() => setSidebarVisible(true)}
             hitSlop={8}
-            style={styles.headerBtn}
-            accessibilityRole="button"
             accessibilityLabel={t('calendar.nav_open_menu', 'Open menu')}
-          >
-            <Menu size={20} color={c.text} />
-          </Pressable>
+            color={c.text}
+          />
         )}
         <Pressable
           onPress={toggleMonthPanel}
@@ -1455,10 +1452,7 @@ function makeStyles(c: ThemePalette) {
   container: { flex: 1, backgroundColor: c.background },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
+    ...screenHeaderRow,
     gap: spacing.sm,
   },
   headerBtn: {
