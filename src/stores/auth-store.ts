@@ -1,5 +1,6 @@
 import { forgetCachedIdentities } from '../lib/identity-cache';
 import { clearRescuedDrafts } from '../lib/compose-rescue';
+import { clearAppCookies } from '../lib/app-cookies';
 import { create } from 'zustand';
 import {
   jmapClient,
@@ -181,6 +182,8 @@ function clearDeviceWideAccountData(): void {
   // The next sign-in's idle time counts from that sign-in, not from the
   // activity before this sign-out (lib/session-limits).
   void import('../lib/session-limits').then((m) => m.forgetActivity()).catch(() => undefined);
+  // Cookies a server or its proxy set for the app (lib/app-cookies).
+  void clearAppCookies();
 }
 
 // An account left the registry: signed out, or evicted because its

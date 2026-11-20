@@ -112,6 +112,8 @@ vi.mock('../../lib/push-notifications', () => ({
   forgetPushSubscriptionExpiry: vi.fn(async () => undefined),
 }));
 
+vi.mock('../../lib/app-cookies', () => ({ clearAppCookies: vi.fn(async () => undefined) }));
+
 vi.mock('../../lib/oauth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../lib/oauth')>();
   return { ...actual, forgetRefreshRotations: vi.fn(actual.forgetRefreshRotations) };
@@ -127,6 +129,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { JMAPSession } from '../../api/types';
 import { AuthenticationError, NetworkError, jmapClient } from '../../api/jmap-client';
 import { forgetRefreshRotations } from '../../lib/oauth';
+import { clearAppCookies } from '../../lib/app-cookies';
 import { releaseDeviceSyncBeforeSignOut } from '../../device-sync/app/lifecycle';
 import {
   forgetActivity,
@@ -280,6 +283,7 @@ describe('what a sign-out leaves behind', () => {
     searches: useSearchHistoryStore.getState().recentSearches,
     feeds: useCalendarSubscriptionsStore.getState().subscriptions.map((s) => s.id),
   });
+  beforeEach(() => vi.mocked(clearAppCookies).mockClear());
 
   it("keeps the recent searches and the other accounts' calendar feeds while an account is still signed in", async () => {
     await signedIn(A, B);
@@ -290,6 +294,8 @@ describe('what a sign-out leaves behind', () => {
     await settle();
 
     expect(leftovers()).toEqual({ searches: ['invoice'], feeds: [`sub-${B}`] });
+    // Account B may sit behind the same proxy, whose cookie it still needs.
+    expect(clearAppCookies).not.toHaveBeenCalled();
   });
 
   it("drops a removed account's calendar feeds right away", async () => {
@@ -365,6 +371,7 @@ describe('what a sign-out leaves behind', () => {
     await useAuthStore.getState().logout();
 
     expect(leftovers()).toEqual({ searches: [], feeds: [] });
+    expect(clearAppCookies).toHaveBeenCalled();
   });
 
   it('clears them when everyone signs out at once', async () => {
@@ -375,6 +382,7 @@ describe('what a sign-out leaves behind', () => {
     await useAuthStore.getState().logoutAll();
 
     expect(leftovers()).toEqual({ searches: [], feeds: [] });
+    expect(clearAppCookies).toHaveBeenCalled();
   });
 });
 
