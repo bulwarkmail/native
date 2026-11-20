@@ -1582,6 +1582,23 @@
       "version": "Phiên bản {version}",
       "week_starts": "tuần bắt đầu từ {day}"
     },
+    "sync": {
+      "account": "Lưu trong",
+      "account_desc": "Một tài khoản giữ cài đặt của cả ứng dụng.",
+      "description": "Lưu cài đặt trong tài khoản thư của bạn để các thiết bị khác có cùng cài đặt.",
+      "enabled": "Đồng bộ cài đặt",
+      "enabled_desc": "Các lựa chọn chỉ hợp với một thiết bị, như ô đọc thư và thư ngoại tuyến, sẽ ở lại trên thiết bị đó.",
+      "keep_mine": "Dùng cài đặt của thiết bị này",
+      "replaced": "{count, plural, other {# cài đặt trên thiết bị này giờ theo tài khoản của bạn.}}",
+      "reset_everywhere": "Đồng bộ cài đặt đang bật, nên cài đặt cũng được đặt lại trên các thiết bị khác của bạn.",
+      "status_full": "Tài khoản không còn chỗ cho cài đặt.",
+      "status_signed_out": "Tài khoản giữ cài đặt của bạn đã đăng xuất. Hãy chọn tài khoản để lưu cài đặt.",
+      "status_syncing": "Đang đồng bộ…",
+      "status_unreachable": "Không kết nối được với tài khoản. Sẽ thử lại.",
+      "status_unsupported": "Máy chủ thư của tài khoản này không thể lưu cài đặt.",
+      "title": "Đồng bộ cài đặt",
+      "too_large": "{count, plural, other {# danh sách dài ở lại trên thiết bị này: tài khoản không còn chỗ cho thêm.}}"
+    },
     "tab_groups": {
       "advanced": "Nâng cao",
       "appearance": "Giao diện",
