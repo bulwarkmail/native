@@ -657,6 +657,21 @@ class BulwarkFcmModule(reactContext: ReactApplicationContext)
         }
 
         /**
+         * Cancels notifications of the account (tag and id) and refreshes its
+         * group summary, under the lock [postOnceForAccount] posts under. A
+         * post landing while the refresh runs could otherwise have its
+         * summary cancelled by a refresh that found no notification left,
+         * which takes the new notification down with it.
+         */
+        fun cancelForAccount(ctx: Context, accountId: String, notifications: List<Pair<String, Int>>) {
+            val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            BulwarkNativePushFetcher.cancelOnce(accountId) {
+                for ((tag, id) in notifications) manager.cancel(tag, id)
+                refreshGroupSummaryAfterCancel(ctx, accountId)
+            }
+        }
+
+        /**
          * After notifications of the account were cancelled: posts the group
          * summary again with the new count and lines, keeping its title and
          * colour, or cancels it when no notification is left. A summary posted

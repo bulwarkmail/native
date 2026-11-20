@@ -39,6 +39,15 @@ internal class NotifiedOnce {
             true
         }
 
+    /**
+     * Runs [cancel], which takes down notifications of the account, between
+     * its posts rather than during one. The ring keeps the ids, so a later
+     * push does not bring a removed notification back.
+     */
+    fun cancel(accountId: String, cancel: () -> Unit) {
+        synchronized(lockFor(accountId)) { cancel() }
+    }
+
     /** Forgets the account's ring, after any post already reading it has written. */
     fun forget(store: NotifiedIdsStore, accountId: String) {
         synchronized(lockFor(accountId)) { store.remove(accountId) }

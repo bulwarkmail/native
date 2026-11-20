@@ -1050,6 +1050,10 @@ object BulwarkNativePushFetcher {
     fun postOnce(context: Context, localAccountId: String, ids: List<String>, post: () -> Unit): Boolean =
         notifiedOnce.post(notifiedIdsStore(context), localAccountId, ids, post)
 
+    /** Runs [cancel] under the same lock as [postOnce] (see [NotifiedOnce.cancel]). */
+    fun cancelOnce(localAccountId: String, cancel: () -> Unit) =
+        notifiedOnce.cancel(localAccountId, cancel)
+
     /** Forgets the account's notified ids, under the same lock as [postOnce]. */
     fun forgetNotifiedIds(context: Context, localAccountId: String) =
         notifiedOnce.forget(notifiedIdsStore(context), localAccountId)
@@ -1639,7 +1643,6 @@ object BulwarkNativePushFetcher {
             Log.i(TAG, "Change push: no mail notification showing")
             return
         }
-        val touched = LinkedHashSet<String>()
         for ((key, mails) in shown.groupBy { it.accountId to it.jmapAccountId }) {
             val (accountId, jmapAccountId) = key
             try {
@@ -1668,17 +1671,13 @@ object BulwarkNativePushFetcher {
                     Log.w(TAG, "Change push: unusable Email/get response for $jmapAccountId")
                     continue
                 }
-                for (emailId in stale) {
-                    val mail = byEmail.getValue(emailId)
-                    manager.cancel(mail.tag, mail.id)
-                    touched += mail.accountId
-                }
+                val cancels = stale.map { byEmail.getValue(it) }.map { it.tag to it.id }
+                if (cancels.isNotEmpty()) BulwarkFcmModule.cancelForAccount(context, accountId, cancels)
                 Log.i(TAG, "Change push: removed ${stale.size} of ${mails.size} notification(s) for $jmapAccountId")
             } catch (e: Exception) {
                 Log.w(TAG, "Change push: check failed for $jmapAccountId: ${e.message}")
             }
         }
-        for (accountId in touched) BulwarkFcmModule.refreshGroupSummaryAfterCancel(context, accountId)
     }
 
     private fun fetchTrashMailboxId(

@@ -1618,7 +1618,11 @@ app's system settings when Android no longer asks.
   `reconcile` set, and the push service checks the mail notifications still
   showing for that account with one `Email/get` and removes the ones whose
   message is gone, `$seen`, `$junk` or in none of the mailboxes it was in.
-  With no notification showing it makes no request. A guard at the
+  With no notification showing it makes no request. The removal and the
+  group summary refresh after it run under the account's notify-once lock
+  (#131, `BulwarkFcmModule.cancelForAccount`), so a notification being
+  posted for the account is never taken down with a summary the refresh
+  cancels. A guard at the
   top of `pushBackgroundTask` (`carriesNoMail`) applies the same rules,
   tested with the same cases, so a contact or calendar change can never take
   the legacy "notify the newest unread mail" path.
