@@ -26,4 +26,15 @@ describe('the headers of Mail, Calendar and Contacts', () => {
     expect(source).toContain('<HeaderMenuButton');
     expect(source).not.toMatch(/<Menu\b/);
   });
+
+  it('draws the menu icon in one colour on all three', () => {
+    const header = fs.readFileSync(path.join(src, 'components/ScreenHeader.tsx'), 'utf8');
+    expect(header).toMatch(/<Menu\b[^>]*color=\{c\.text\}/);
+    for (const file of SCREENS) {
+      const source = fs.readFileSync(path.join(src, file), 'utf8');
+      const start = source.indexOf('<HeaderMenuButton');
+      const button = source.slice(start, source.indexOf('/>', start));
+      expect(button, file).not.toMatch(/\bcolor=/);
+    }
+  });
 });

@@ -1708,7 +1708,6 @@ export default function EmailListScreen({
             <HeaderMenuButton
               onPress={() => setDrawerOpen(true)}
               accessibilityLabel={t('sidebar.mobile.toggle_menu', 'Toggle menu')}
-              color={c.textMuted}
             />
           )}
           <Text style={[styles.headerTitle, shortHeight && styles.headerTitleShort]} numberOfLines={1}>

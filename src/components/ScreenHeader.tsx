@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, type ViewStyle } from 'react-native';
 import { Menu } from './icons';
 import { spacing, radius, componentSizes } from '../theme/tokens';
+import { useColors } from '../theme/colors';
 
 // The header row of Mail, Calendar and Contacts. Its height, its padding and
 // the button at its start are the same on all three, so the menu button
@@ -26,11 +27,12 @@ export const headerLeadingButton: ViewStyle = {
 interface HeaderMenuButtonProps {
   onPress: () => void;
   accessibilityLabel: string;
-  color: string;
   hitSlop?: number;
 }
 
-export function HeaderMenuButton({ onPress, accessibilityLabel, color, hitSlop }: HeaderMenuButtonProps) {
+// The same colour on all three screens, the one their other header icons use.
+export function HeaderMenuButton({ onPress, accessibilityLabel, hitSlop }: HeaderMenuButtonProps) {
+  const c = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -39,7 +41,7 @@ export function HeaderMenuButton({ onPress, accessibilityLabel, color, hitSlop }
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
     >
-      <Menu size={20} color={color} />
+      <Menu size={20} color={c.text} />
     </Pressable>
   );
 }

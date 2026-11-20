@@ -1090,7 +1090,6 @@ export default function CalendarScreen() {
             onPress={() => setSidebarVisible(true)}
             hitSlop={8}
             accessibilityLabel={t('calendar.nav_open_menu', 'Open menu')}
-            color={c.text}
           />
         )}
         <Pressable

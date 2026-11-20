@@ -527,7 +527,6 @@ export default function ContactsScreen({ onOpenContact, activeContactId = null }
               onPress={() => setDrawerOpen(true)}
               hitSlop={8}
               accessibilityLabel={t('contacts.open_categories', 'Open categories')}
-              color={c.text}
             />
             <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
             <Text style={styles.headerCount}>{visible.length}</Text>
