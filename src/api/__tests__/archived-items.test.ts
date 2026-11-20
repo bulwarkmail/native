@@ -22,7 +22,12 @@ import {
   resetArchiveFilterMemory,
   restoreArchivedItems,
 } from '../archived-items';
-import { ACCOUNT, LICENSE_REFUSAL, archivedEmail, bigArchive, fakeArchiveServer } from '../../lib/recovery/__tests__/fixtures';
+import { ACCOUNT, LICENSE_REFUSAL, archivedEmail as fixtureEmail, bigArchive, fakeArchiveServer } from '../../lib/recovery/__tests__/fixtures';
+
+// The client drops items whose archivedUntil has passed by the real clock, so
+// these items stay kept for a month from whenever the test runs.
+const archivedEmail = (id: string, fields: Partial<Record<string, unknown>> = {}) =>
+  fixtureEmail(id, { archivedUntil: new Date(Date.now() + 30 * 86_400_000).toISOString(), ...fields });
 
 // Ported from the webmail's lib/__tests__/jmap-archived-items.test.ts.
 
