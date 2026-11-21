@@ -31,6 +31,7 @@ import {
   STATE_TYPES_BY_AUTHORITY,
   syncOnInApp,
 } from '../device-sync/app/prefs';
+import { summarizeRuns } from '../device-sync/engine/report';
 import { collectionDefaultOn } from '../device-sync/engine/selection';
 
 export { syncOnInApp };
@@ -69,6 +70,15 @@ export interface AccountDeviceSync {
   suspended?: boolean;
   /** The JMAP account holding the personal collections, per authority, as last seen. */
   primaryJmapAccounts?: Partial<Record<Authority, string>>;
+  /** Every synced address book gets an Android account of its own, so contacts apps list it as a source. */
+  separateAddressBooks?: boolean;
+  /** The Android accounts the engine made for address books, by book. */
+  addressBookAccounts?: Record<CollectionKey, string>;
+  /**
+   * With a source per address book: the last contacts run of each Android
+   * account, by account name. `lastRun` then holds their summary.
+   */
+  contactRuns?: Record<string, RunStatus>;
 }
 
 export function emptyAccountDeviceSync(): AccountDeviceSync {
@@ -84,7 +94,8 @@ export function emptyAccountDeviceSync(): AccountDeviceSync {
 interface DeviceSyncState {
   accounts: Record<string, AccountDeviceSync>;
   update: (registryId: string, patch: Partial<AccountDeviceSync>) => void;
-  recordRunStatus: (registryId: string, authority: Authority, status: RunStatus) => void;
+  /** `accountName`: the Android account that ran, while every address book has one of its own. */
+  recordRunStatus: (registryId: string, authority: Authority, status: RunStatus, accountName?: string) => void;
   recordKnownState: (registryId: string, jmapAccountId: string, type: string, state: string) => void;
   forget: (registryId: string) => void;
 
@@ -94,6 +105,8 @@ interface DeviceSyncState {
   setCollectionSelected: (registryId: string, authority: Authority, key: CollectionKey, on: boolean) => void;
   /** Where contacts created on the device go; null = the server's default book. */
   setNewContactsAddressBook: (registryId: string, key: CollectionKey | null) => void;
+  /** Remembers the Android account of an address book; null forgets it. */
+  recordAddressBookAccount: (registryId: string, key: CollectionKey, name: string | null) => void;
   setIntervalSeconds: (registryId: string, authority: Authority, seconds: number) => void;
   setReminderOwner: (registryId: string, owner: ReminderOwner | null) => void;
   setRemovedInAndroidSettings: (registryId: string, removed: boolean) => void;
@@ -127,6 +140,9 @@ function sanitizeEntry(value: unknown): AccountDeviceSync | null {
     enabled: optionalRecord(v.enabled) as AccountDeviceSync['enabled'],
     knownStates: knownStates as AccountDeviceSync['knownStates'],
     primaryJmapAccounts: optionalRecord(v.primaryJmapAccounts) as AccountDeviceSync['primaryJmapAccounts'],
+    separateAddressBooks: v.separateAddressBooks === true || undefined,
+    addressBookAccounts: optionalRecord(v.addressBookAccounts) as AccountDeviceSync['addressBookAccounts'],
+    contactRuns: optionalRecord(v.contactRuns) as AccountDeviceSync['contactRuns'],
   };
 }
 
@@ -143,8 +159,13 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
       return {
         accounts: {},
         update: (registryId, patch) => edit(registryId, () => patch),
-        recordRunStatus: (registryId, authority, status) =>
-          edit(registryId, (current) => ({ lastRun: { ...current.lastRun, [authority]: status } })),
+        recordRunStatus: (registryId, authority, status, accountName) =>
+          edit(registryId, (current) => {
+            if (authority !== CONTACTS_AUTHORITY) return { lastRun: { ...current.lastRun, [authority]: status } };
+            if (accountName === undefined) return { lastRun: { ...current.lastRun, [authority]: status }, contactRuns: undefined };
+            const contactRuns = { ...current.contactRuns, [accountName]: status };
+            return { contactRuns, lastRun: { ...current.lastRun, [authority]: summarizeRuns(Object.values(contactRuns)) } };
+          }),
         recordKnownState: (registryId, jmapAccountId, type, state) =>
           edit(registryId, (current) => {
             const known = current.knownStates ?? {};
@@ -167,6 +188,14 @@ export const useDeviceSyncStore = create<DeviceSyncState>()(
           }),
         setNewContactsAddressBook: (registryId, key) =>
           edit(registryId, () => ({ newContactsAddressBook: key ?? undefined })),
+        recordAddressBookAccount: (registryId, key, name) =>
+          edit(registryId, (current) => {
+            const { [key]: previous, ...rest } = current.addressBookAccounts ?? {};
+            if (name) return { addressBookAccounts: { ...rest, [key]: name } };
+            // Its last run goes with the account.
+            const { [previous ?? '']: _run, ...contactRuns } = current.contactRuns ?? {};
+            return { addressBookAccounts: rest, contactRuns };
+          }),
         setIntervalSeconds: (registryId, authority, seconds) =>
           edit(registryId, (current) => ({
             intervalSeconds: { ...current.intervalSeconds, [authority]: Math.max(0, Math.round(seconds)) },
@@ -223,6 +252,8 @@ export function accountSyncPrefs(registryId: string): AccountSyncPrefs {
     calendarSelection: a.calendarSelection,
     newContactsAddressBook: a.newContactsAddressBook,
     reminderOwner: a.reminderOwner ?? 'device',
+    separateAddressBooks: a.separateAddressBooks,
+    addressBookAccounts: a.addressBookAccounts,
   };
 }
 

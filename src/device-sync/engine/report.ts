@@ -94,6 +94,19 @@ export function statusOf(report: RunReport, itemErrorCount = report.itemErrors.l
   return status;
 }
 
+/**
+ * One status for the contacts runs of several Android accounts (a source per
+ * address book): the latest failure, else the latest run with something to
+ * report, else the latest run. A run that was cancelled or found sync paused
+ * is no failure.
+ */
+export function summarizeRuns(runs: readonly RunStatus[]): RunStatus | undefined {
+  const latest = (list: readonly RunStatus[]) => list.reduce<RunStatus | undefined>((a, b) => (a && a.at >= b.at ? a : b), undefined);
+  const failed = runs.filter((r) => r.outcome !== 'ok' && r.outcome !== 'cancelled' && r.outcome !== 'disabled');
+  const noted = runs.filter((r) => r.itemErrors > 0 || r.conflicts > 0);
+  return latest(failed) ?? latest(noted) ?? latest(runs);
+}
+
 const wrote =(counts: RunStats['downloaded']) => counts.created + counts.updated + counts.deleted > 0;
 
 /** A run that wrote nothing either way and had nothing to report: no conflict, item error, note or failure. */

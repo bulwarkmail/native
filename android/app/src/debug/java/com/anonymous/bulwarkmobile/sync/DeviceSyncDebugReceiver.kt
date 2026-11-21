@@ -62,7 +62,9 @@ class DeviceSyncDebugReceiver : BroadcastReceiver() {
                 "enabled=$on"
             }
             "remove" -> "removed=${DeviceSyncAccounts.remove(context, name!!)}"
-            "list" -> DeviceSyncAccounts.list(context).joinToString(";") { (account, registryId) -> "${account.name}=$registryId" }
+            "list" -> DeviceSyncAccounts.list(context).joinToString(";") {
+                "${it.account.name}=${it.registryId}" + (it.collection?.let { book -> " [$book]" } ?: "")
+            }
             "query" -> io(context, intent) { it.query(json(context, intent)) }
             "batch" -> io(context, intent) { it.applyBatch(json(context, intent)) }
             "syncstate" -> io(context, intent) { it.readSyncState().toString() }

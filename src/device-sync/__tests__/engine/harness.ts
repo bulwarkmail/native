@@ -14,9 +14,11 @@ import {
   CALENDAR_AUTHORITY,
   CONTACTS_AUTHORITY,
   type AccountSyncPrefs,
+  type AndroidAccount,
   type Authority,
   type ProviderOp,
   type ProviderPort,
+  type RequestSyncOptions,
   type RunExtras,
   type RunReport,
   type RunStatus,
@@ -60,7 +62,15 @@ export interface Harness {
   checkpoints: { count: number; crashAt: number | null; onCheckpoint?: (n: number) => void };
   /** Batches applied through the engine's provider port; crash after `crashAfter` of them. */
   batches: { applied: number; crashAfter: number | null; log: ProviderOp[][] };
+  /** Android's accounts of our type: the app account's own, and those the engine makes for address books. */
+  androidAccounts: AndroidAccount[];
+  /** Accounts whose sync Android has switched off. */
+  paused: Set<string>;
+  /** Syncs the engine asked Android for. */
+  syncRequests: Array<{ name: string; options: RequestSyncOptions }>;
   run(authority?: Authority, extras?: RunExtras): Promise<RunReport>;
+  /** A contacts sync of the Android account the engine made for an address book. */
+  runBook(key: string, extras?: RunExtras): Promise<RunReport>;
   teardown(authority: Authority, options?: TeardownOptions): Promise<{ pending: number }>;
   state(authority?: Authority): SyncState | null;
   contacts(): Array<{ id: number; sourceId: string | null; name: string | null; dirty: boolean; deleted: boolean; row: Row }>;
@@ -69,7 +79,7 @@ export interface Harness {
   events(): Row[];
   serverNames(accountId?: string): string[];
   /** The status the runs recorded last for the settings (what `deps.lastStatus` answers). */
-  lastStatus(authority?: Authority): RunStatus | undefined;
+  lastStatus(authority?: Authority, accountName?: string): RunStatus | undefined;
 }
 
 export function createHarness(options: { tuning?: Partial<Tuning>; accounts?: 'personal' | 'withShared'; rebuild?: boolean } = {}): Harness {
@@ -87,7 +97,11 @@ export function createHarness(options: { tuning?: Partial<Tuning>; accounts?: 'p
   const prefs: AccountSyncPrefs = { contactsSelection: {}, calendarSelection: {}, reminderOwner: 'device' };
   const checkpoints: Harness['checkpoints'] = { count: 0, crashAt: null };
   const batches: Harness['batches'] = { applied: 0, crashAfter: null, log: [] };
-  const statuses = new Map<Authority, RunStatus>();
+  const statuses = new Map<string, RunStatus>();
+  const statusKey = (authority: Authority, accountName?: string) => `${authority}|${accountName ?? ''}`;
+  const androidAccounts: AndroidAccount[] = [{ name: ANDROID_ACCOUNT, registryId: REGISTRY_ID }];
+  const paused = new Set<string>();
+  const syncRequests: Harness['syncRequests'] = [];
 
   const wrap = (port: ProviderPort): ProviderPort => ({
     accountName: port.accountName,
@@ -121,12 +135,33 @@ export function createHarness(options: { tuning?: Partial<Tuning>; accounts?: 'p
     },
     random: seededRandom(),
     subscriptionCalendars: async () => [],
-    isSyncEnabled: async () => true,
+    isSyncEnabled: async (name) => !paused.has(name),
     deviceZone: () => 'Europe/Berlin',
-    recordStatus: vi.fn((_registryId: string, authority: Authority, status: RunStatus) => {
-      statuses.set(authority, status);
+    recordStatus: vi.fn((_registryId: string, authority: Authority, status: RunStatus, accountName?: string) => {
+      statuses.set(statusKey(authority, accountName), status);
     }),
-    lastStatus: (_registryId, authority) => statuses.get(authority),
+    lastStatus: (_registryId, authority, accountName) => statuses.get(statusKey(authority, accountName)),
+    accounts: {
+      list: async () => androidAccounts.map((a) => ({ ...a })),
+      addAddressBook: async (name, registryId, collection) => {
+        if (androidAccounts.some((a) => a.name === name)) throw new Error(`${name} exists`);
+        androidAccounts.push({ name, registryId, collection });
+      },
+      remove: async (name) => {
+        androidAccounts.splice(0, androidAccounts.length, ...androidAccounts.filter((a) => a.name !== name));
+        device.removeAccount(name);
+      },
+      requestSync: async (name, _authority, options) => {
+        syncRequests.push({ name, options });
+      },
+    },
+    recordAddressBookAccount: (_registryId, key, name) => {
+      const { [key]: _previous, ...rest } = prefs.addressBookAccounts ?? {};
+      prefs.addressBookAccounts = name ? { ...rest, [key]: name } : rest;
+    },
+    deselectAddressBook: (_registryId, key) => {
+      prefs.contactsSelection[key] = false;
+    },
     recordKnownState: vi.fn(),
     notifyAuthProblem: vi.fn(),
     yieldThread: async () => undefined,
@@ -135,6 +170,11 @@ export function createHarness(options: { tuning?: Partial<Tuning>; accounts?: 'p
   };
 
   let runs = 0;
+  const run = (accountName: string, authority: Authority, extras: RunExtras, collection?: string) =>
+    runDeviceSync(
+      { runId: `run-${++runs}`, accountName, registryId: REGISTRY_ID, collection, authority, extras, deadline: clock.now + RUN_BUDGET },
+      deps,
+    );
   const harness: Harness = {
     server,
     device,
@@ -145,11 +185,15 @@ export function createHarness(options: { tuning?: Partial<Tuning>; accounts?: 'p
     clock,
     checkpoints,
     batches,
-    run: (authority = CONTACTS_AUTHORITY, extras = {}) =>
-      runDeviceSync(
-        { runId: `run-${++runs}`, accountName: ANDROID_ACCOUNT, registryId: REGISTRY_ID, authority, extras, deadline: clock.now + RUN_BUDGET },
-        deps,
-      ),
+    androidAccounts,
+    paused,
+    syncRequests,
+    run: (authority = CONTACTS_AUTHORITY, extras = {}) => run(ANDROID_ACCOUNT, authority, extras),
+    runBook: (key, extras = {}) => {
+      const account = androidAccounts.find((a) => a.collection === key);
+      if (!account) throw new Error(`no Android account for address book ${key}`);
+      return run(account.name, CONTACTS_AUTHORITY, extras, key);
+    },
     teardown: (authority, teardownOptions) => teardownAuthority(deps, REGISTRY_ID, ANDROID_ACCOUNT, authority, teardownOptions),
     state: (authority = CONTACTS_AUTHORITY) => parseJsonColumn<SyncState>(device.readSyncState(ANDROID_ACCOUNT, authority)),
     contacts: () =>
@@ -175,7 +219,7 @@ export function createHarness(options: { tuning?: Partial<Tuning>; accounts?: 'p
         .filter((c) => c.kind !== 'group')
         .map((c) => String((c.name as { full?: string } | undefined)?.full ?? ''))
         .sort(),
-    lastStatus: (authority = CONTACTS_AUTHORITY) => statuses.get(authority),
+    lastStatus: (authority = CONTACTS_AUTHORITY, accountName) => statuses.get(statusKey(authority, accountName)),
   };
   return harness;
 }

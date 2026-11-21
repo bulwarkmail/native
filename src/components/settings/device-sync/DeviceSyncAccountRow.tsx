@@ -25,6 +25,7 @@ import {
 } from '../../../stores/device-sync-store';
 import {
   changeReminderOwner,
+  changeSeparateAddressBooks,
   changeSyncInterval,
   disableDeviceSync,
   enableDeviceSync,
@@ -375,6 +376,20 @@ export function DeviceSyncAccountRow({ account, authority }: Props) {
                 value={newContactsValue}
                 onChange={(v) => useDeviceSyncStore.getState().setNewContactsAddressBook(account.id, v || null)}
                 options={newContactsOptions}
+              />
+            </SettingItem>
+          ) : null}
+          {isContacts ? (
+            <SettingItem
+              label={t('settings.device_sync.separate_books_label', 'Each address book as its own account')}
+              description={t(
+                'settings.device_sync.separate_books_desc',
+                'Contacts apps then list every synced address book separately, so you can show or hide each one there.',
+              )}
+            >
+              <ToggleSwitch
+                checked={!!entry.separateAddressBooks}
+                onChange={(next) => { void changeSeparateAddressBooks(account.id, next); }}
               />
             </SettingItem>
           ) : (

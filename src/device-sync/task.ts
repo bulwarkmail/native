@@ -29,8 +29,19 @@ import { calendarPlanner } from './calendar/planner';
 import { contactsPlanner } from './contacts/planner';
 import { emptyStats } from './engine/report';
 import { openJmapPort } from './jmap/client-port';
-import { createProviderPort, finishRun, getSyncSettings, isRunCancelled, showSyncProblem } from './native';
-import type { Authority, RunPayload, RunReport } from './types';
+import {
+  createProviderPort,
+  ensureAndroidAccount,
+  finishRun,
+  getSyncSettings,
+  isRunCancelled,
+  listAndroidAccounts,
+  removeAndroidAccount,
+  requestSync,
+  setPeriodicSync,
+  showSyncProblem,
+} from './native';
+import { CONTACTS_AUTHORITY, type Authority, type RunPayload, type RunReport } from './types';
 
 // Mirrors the persist names of the locale and feed-subscription stores; read
 // straight from storage so a headless run loads neither store.
@@ -88,16 +99,19 @@ function deviceZone(): string {
   }
 }
 
-async function notifyAuthProblem(_registryId: string, accountName: string): Promise<void> {
+async function notifyAuthProblem(registryId: string, accountName: string): Promise<void> {
   const locale = await appLocale();
+  await waitForDeviceSyncHydration();
+  // One notification per app account, also when the accounts of several address books fail.
+  const account = accountDeviceSync(registryId).androidAccountName ?? accountName;
   await showSyncProblem(
-    accountName,
+    account,
     translate(locale, 'device_sync.auth_problem_title', 'Sign in again to keep syncing'),
     translate(
       locale,
       'device_sync.auth_problem_text',
       'The server no longer accepts the sign-in of {account}, so its contacts and calendars on this device stopped syncing. Sign in again to resume. Changes made on this device are kept.',
-      { account: accountName },
+      { account },
     ),
     SIGN_IN_URI,
     translate(locale, 'device_sync.problem_channel', 'Sync problems'),
@@ -120,17 +134,38 @@ export function createTaskDeps(): EngineDeps {
     isSyncEnabled: async (accountName, authority) => (await getSyncSettings(accountName)).authorities?.[authority]?.automatic === true,
     deviceZone,
     // zustand 5 persists on every set(), hydrated or not: wait, or the stored preferences are overwritten.
-    recordStatus: async (registryId, authority, status) => {
+    recordStatus: async (registryId, authority, status, accountName) => {
       await waitForDeviceSyncHydration();
-      useDeviceSyncStore.getState().recordRunStatus(registryId, authority, status);
+      useDeviceSyncStore.getState().recordRunStatus(registryId, authority, status, accountName);
     },
-    lastStatus: async (registryId, authority) => {
+    lastStatus: async (registryId, authority, accountName) => {
       await waitForDeviceSyncHydration();
-      return accountDeviceSync(registryId).lastRun[authority];
+      const entry = accountDeviceSync(registryId);
+      return accountName === undefined ? entry.lastRun[authority] : entry.contactRuns?.[accountName];
     },
     recordKnownState: async (registryId, jmapAccountId, type, state) => {
       await waitForDeviceSyncHydration();
       useDeviceSyncStore.getState().recordKnownState(registryId, jmapAccountId, type, state);
+    },
+    accounts: {
+      list: listAndroidAccounts,
+      addAddressBook: async (name, registryId, collection) => {
+        await ensureAndroidAccount(name, registryId, collection);
+        // The app account's own account keeps the schedule and asks for the books' syncs.
+        await setPeriodicSync(name, CONTACTS_AUTHORITY, 0);
+      },
+      remove: async (name) => {
+        await removeAndroidAccount(name);
+      },
+      requestSync,
+    },
+    recordAddressBookAccount: async (registryId, collection, name) => {
+      await waitForDeviceSyncHydration();
+      useDeviceSyncStore.getState().recordAddressBookAccount(registryId, collection, name);
+    },
+    deselectAddressBook: async (registryId, collection) => {
+      await waitForDeviceSyncHydration();
+      useDeviceSyncStore.getState().setCollectionSelected(registryId, CONTACTS_AUTHORITY, collection, false);
     },
     notifyAuthProblem,
     // Notes like "account d left out" only inform; an exception is worth a

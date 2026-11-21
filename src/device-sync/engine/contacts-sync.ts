@@ -15,7 +15,8 @@ import type {
   LocalContact,
   LocalGroup,
 } from '../planner';
-import { CONTACTS_AUTHORITY, type Row } from '../types';
+import type { CapabilityAccount } from '../jmap/session';
+import { CONTACTS_AUTHORITY, type CollectionKey, type Row } from '../types';
 import { ADDRESS_BOOK_PROPERTIES, CONTACT_CARD_PROPERTIES } from '../wire';
 import type { Work } from './batch';
 import type { RunEnv } from './context';
@@ -35,6 +36,14 @@ import { accountOf, type StateChange, type SyncState } from './sync-state';
 export interface ContactsRunContext extends ContactsContext {
   /** SOURCE_IDs of the group cards whose `members` include this uid. */
   groupsOf(uid: string): string[];
+}
+
+/** An address book the server lists, and whether the user's selection has it sync. */
+export interface ListedAddressBook {
+  key: CollectionKey;
+  name: string;
+  account: CapabilityAccount;
+  selected: boolean;
 }
 
 const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -312,9 +321,10 @@ export class ContactsSync extends ItemSync {
       const { list, state } = containers;
       this.books.set(account.id, list);
       for (const book of list) {
-        if (isCollectionSelected(this.env.prefs.contactsSelection, account, CONTACTS_AUTHORITY, book)) {
-          this.syncedKeys.add(collectionKey(account.id, book.id));
-        }
+        const key = collectionKey(account.id, book.id);
+        // The account of one address book syncs that book, while it is selected.
+        if (this.env.collection && key !== this.env.collection) continue;
+        if (isCollectionSelected(this.env.prefs.contactsSelection, account, CONTACTS_AUTHORITY, book)) this.syncedKeys.add(key);
       }
       if (state) {
         this.collectionStates.set(account.id, state);
@@ -322,6 +332,25 @@ export class ContactsSync extends ItemSync {
       }
     }
     if (write) await this.ensureSettingsRow();
+  }
+
+  /**
+   * Every address book of the accounts that list theirs, for the Android
+   * accounts of single books; `unreadable` names the accounts that refused
+   * (see `containersOf`), whose books are unknown rather than gone.
+   */
+  async addressBooks(): Promise<{ books: ListedAddressBook[]; unreadable: Set<string> }> {
+    await this.collections(false);
+    const readable = new Set(this.accountIds());
+    const books: ListedAddressBook[] = [];
+    for (const account of this.env.accounts) {
+      if (!readable.has(account.id)) continue;
+      for (const book of this.books.get(account.id) ?? []) {
+        const key = collectionKey(account.id, book.id);
+        books.push({ key, name: book.name?.trim() || book.id, account, selected: this.syncedKeys.has(key) });
+      }
+    }
+    return { books, unreadable: new Set(this.env.accounts.map((a) => a.id).filter((id) => !readable.has(id))) };
   }
 
   /** One Settings row per account with UNGROUPED_VISIBLE=1: the default 0 hides every contact without a visible group. */
@@ -351,6 +380,9 @@ export class ContactsSync extends ItemSync {
    * synced writable book; null when there is none.
    */
   createTarget(): string | null {
+    // What is created in the account of one address book belongs to that book, also while the book is being deselected.
+    const own = this.env.collection;
+    if (own) return this.writable(own) ? own : null;
     const chosen = this.env.prefs.newContactsAddressBook;
     if (chosen && this.syncedKeys.has(chosen) && this.writable(chosen)) return chosen;
     const primary = this.env.accounts.find((a) => a.primary) ?? this.env.accounts[0];
@@ -379,7 +411,8 @@ export class ContactsSync extends ItemSync {
       mintUid: () => env.mintUid(),
       selectedCollections: (card) => this.cardKeys(acct, card).filter((k) => this.syncedKeys.has(k)),
       isReadOnly: (card) => this.inReadOnlyBooksOnly(acct, card),
-      isSelected: (key) => this.syncedKeys.has(key),
+      // The book of its own account stays the rows' own while it is deselected: a deletion made there leaves that book only.
+      isSelected: (key) => this.syncedKeys.has(key) || key === this.env.collection,
       createTarget: () => this.createTarget(),
       photoBytes: (entry) => this.photoBytes(entry),
       devicePhoto: (rawContactId) => this.devicePhotos.get(rawContactId) ?? null,

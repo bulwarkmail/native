@@ -11,7 +11,9 @@ import com.anonymous.bulwarkmobile.R
 
 /**
  * The Android accounts of device sync (#34) and their sync settings. One
- * account per app account that has device sync on; see docs/device-sync.md.
+ * account per app account that has device sync on, plus one per synced
+ * address book when the app account shows each book as a contact source of
+ * its own (#155); see docs/device-sync.md.
  *
  * Android's own sync settings are the source of truth for on/off: the
  * Contacts and Calendar toggles in Settings → Accounts are
@@ -26,14 +28,25 @@ object DeviceSyncAccounts {
     /** userData key holding the app account (`AccountEntry.id`) an Android account belongs to. */
     const val USER_DATA_REGISTRY_ID = "registryId"
 
+    /**
+     * userData key of an address book's account: the book it holds, as
+     * `<jmapAccountId>/<addressBookId>`. The app account's own account has none.
+     */
+    const val USER_DATA_COLLECTION = "collection"
+
     /** `<applicationId>.account`, set in build.gradle so the package name is never hard-coded. */
     fun accountType(context: Context): String = context.getString(R.string.device_sync_account_type)
 
     fun account(context: Context, name: String) = Account(name, accountType(context))
 
-    fun list(context: Context): List<Pair<Account, String?>> {
+    /** An account of ours with the app account and, for an address book's account, the book it belongs to. */
+    data class Entry(val account: Account, val registryId: String?, val collection: String?)
+
+    fun list(context: Context): List<Entry> {
         val manager = AccountManager.get(context)
-        return manager.getAccountsByType(accountType(context)).map { it to manager.getUserData(it, USER_DATA_REGISTRY_ID) }
+        return manager.getAccountsByType(accountType(context)).map {
+            Entry(it, manager.getUserData(it, USER_DATA_REGISTRY_ID), manager.getUserData(it, USER_DATA_COLLECTION))
+        }
     }
 
     fun exists(context: Context, name: String): Boolean =
@@ -42,43 +55,62 @@ object DeviceSyncAccounts {
     /**
      * Adds the account when it is missing. Both authorities start syncable
      * with automatic sync off; the app turns on the ones the user picked.
+     * An address book's account ([collection] set) syncs contacts only and
+     * starts with that on: it follows the app account's own switch, and one
+     * left off by a failed second step would look switched off by the user.
      * Returns true when the account was created, false when it exists for
-     * [registryId] already. An account that belongs to another registry id
-     * keeps it ([AccountConflictException]): its rows and SyncState were
-     * written for that app account.
+     * [registryId] and [collection] already. An account that belongs to
+     * another registry id or address book keeps it
+     * ([AccountConflictException]): its rows and SyncState were written for
+     * that one.
      */
-    fun ensure(context: Context, name: String, registryId: String): Boolean {
+    fun ensure(context: Context, name: String, registryId: String, collection: String? = null): Boolean {
         val manager = AccountManager.get(context)
         val account = account(context, name)
         val exists = manager.getAccountsByType(account.type).any { it.name == name }
         val current = if (exists) manager.getUserData(account, USER_DATA_REGISTRY_ID) else null
-        when (ensureAction(exists, current, registryId)) {
+        val currentCollection = if (exists) manager.getUserData(account, USER_DATA_COLLECTION) else null
+        when (ensureAction(exists, current, registryId, currentCollection, collection)) {
             EnsureAction.KEEP -> return false
             EnsureAction.ADOPT -> {
                 manager.setUserData(account, USER_DATA_REGISTRY_ID, registryId)
+                manager.setUserData(account, USER_DATA_COLLECTION, collection)
                 return false
             }
             EnsureAction.CONFLICT -> throw AccountConflictException(
-                "The Android account $name belongs to another app account ($current)",
+                "The Android account $name belongs to another app account or address book ($current)",
             )
             EnsureAction.CREATE -> Unit
         }
-        val userData = Bundle().apply { putString(USER_DATA_REGISTRY_ID, registryId) }
+        val userData = Bundle().apply {
+            putString(USER_DATA_REGISTRY_ID, registryId)
+            if (collection != null) putString(USER_DATA_COLLECTION, collection)
+        }
         check(manager.addAccountExplicitly(account, null, userData)) { "Android refused to add the account" }
         for (authority in AUTHORITIES) {
-            ContentResolver.setIsSyncable(account, authority, 1)
-            ContentResolver.setSyncAutomatically(account, authority, false)
+            val syncable = collection == null || authority == CONTACTS_AUTHORITY
+            ContentResolver.setIsSyncable(account, authority, if (syncable) 1 else 0)
+            ContentResolver.setSyncAutomatically(account, authority, collection != null && syncable)
         }
         return true
     }
 
     enum class EnsureAction { CREATE, KEEP, ADOPT, CONFLICT }
 
-    /** An existing account without a registry id (never completed) is adopted; one with another id is not touched. */
-    fun ensureAction(exists: Boolean, currentRegistryId: String?, registryId: String): EnsureAction = when {
+    /**
+     * An existing account without a registry id (never completed) is adopted;
+     * one with another id, or of another address book, is not touched.
+     */
+    fun ensureAction(
+        exists: Boolean,
+        currentRegistryId: String?,
+        registryId: String,
+        currentCollection: String? = null,
+        collection: String? = null,
+    ): EnsureAction = when {
         !exists -> EnsureAction.CREATE
-        currentRegistryId == registryId -> EnsureAction.KEEP
         currentRegistryId.isNullOrEmpty() -> EnsureAction.ADOPT
+        currentRegistryId == registryId && currentCollection.orEmpty() == collection.orEmpty() -> EnsureAction.KEEP
         else -> EnsureAction.CONFLICT
     }
 

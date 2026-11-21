@@ -15,6 +15,10 @@
  *   app account the registry dropped is suspended (sync off, one notification,
  *   data kept); an app account whose Android account was removed in Android
  *   Settings shows sync off and is never recreated on its own.
+ * - With a contact source per address book (#155) every synced book has an
+ *   Android account of its own. The engine makes and removes those in the
+ *   contacts sync of the app account's own account, which they follow; here
+ *   they are only emptied and removed along with it.
  *
  * The engine (`../task`) is imported on first use only, so starting the app
  * does not load it.
@@ -35,6 +39,7 @@ import {
 import {
   AUTHORITIES,
   CALENDAR_AUTHORITY,
+  CONTACTS_AUTHORITY,
   type AndroidAccount,
   type Authority,
   type ReminderOwner,
@@ -98,6 +103,20 @@ async function readRegistry(): Promise<ReturnType<typeof useAccountStore.getStat
 
 // ─── Android account names ─────────────────────────────
 
+/** The app account's own Android account; the accounts of its address books name their book. */
+function ownAccount(androidAccounts: readonly AndroidAccount[], registryId: string): AndroidAccount | undefined {
+  return androidAccounts.find((a) => a.registryId === registryId && !a.collection);
+}
+
+/** The Android accounts of the app account's address books, as far as they can be listed. */
+async function addressBookAccountsOf(registryId: string): Promise<AndroidAccount[]> {
+  try {
+    return (await listAndroidAccounts()).filter((a) => a.registryId === registryId && !!a.collection);
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The Android account name for an app account: its login, or its registry id
  * when another app account's Android account already has that name (the same
@@ -115,7 +134,7 @@ export function preferredAndroidAccountName(registryId: string, androidAccounts:
 /** Creates the app account's Android account if needed; resolves its name. */
 async function ensureAccountFor(registryId: string): Promise<string> {
   const androidAccounts = await listAndroidAccounts();
-  const own = androidAccounts.find((a) => a.registryId === registryId);
+  const own = ownAccount(androidAccounts, registryId);
   if (own) return own.name;
   const name = preferredAndroidAccountName(registryId, androidAccounts);
   try {
@@ -132,7 +151,7 @@ async function ensureAccountFor(registryId: string): Promise<string> {
 
 async function androidAccountOf(registryId: string): Promise<AndroidAccount | null> {
   try {
-    return (await listAndroidAccounts()).find((a) => a.registryId === registryId) ?? null;
+    return ownAccount(await listAndroidAccounts(), registryId) ?? null;
   } catch {
     return null;
   }
@@ -313,6 +332,35 @@ async function teardown(
   }
 }
 
+/** The teardown of the authority's rows in the app account's own account and, for contacts, in those of its address books. */
+async function teardownAll(registryId: string, accountName: string, authority: Authority, force: boolean): Promise<TeardownResult> {
+  const result = await teardown(registryId, accountName, authority, force);
+  if (authority !== CONTACTS_AUTHORITY) return result;
+  let books: AndroidAccount[];
+  try {
+    books = (await listAndroidAccounts()).filter((a) => a.registryId === registryId && !!a.collection);
+  } catch {
+    // Unknown whether a book's account holds changes: nothing is removed.
+    return { ...result, failed: true };
+  }
+  for (const book of books) {
+    const emptied = await teardown(registryId, book.name, authority, force);
+    result.pending += emptied.pending;
+    result.failed ||= emptied.failed;
+  }
+  return result;
+}
+
+/** Removes the (emptied) Android accounts of the app account's address books. */
+async function removeAddressBookAccounts(registryId: string): Promise<void> {
+  const books = await addressBookAccountsOf(registryId);
+  // Forgotten first: the engine takes a remembered account that is gone for one removed in Android Settings.
+  if (useDeviceSyncStore.getState().accounts[registryId]) {
+    useDeviceSyncStore.getState().update(registryId, { addressBookAccounts: undefined, contactRuns: undefined });
+  }
+  for (const book of books) await removeAndroidAccount(book.name).catch(noop);
+}
+
 /** The authority's JMAP states, dropped with its rows so no old state passes for an echo. */
 function withoutAuthorityStates(entry: AccountDeviceSync, authority: Authority): AccountDeviceSync['knownStates'] {
   if (!entry.knownStates) return undefined;
@@ -351,10 +399,11 @@ async function disable(registryId: string, authority: Authority, options: { forc
     return { done: true, pending: 0 };
   }
   await setSyncEnabled(accountName, authority, false).catch(noop);
-  const result = await teardown(registryId, accountName, authority, !!options.force);
+  const result = await teardownAll(registryId, accountName, authority, !!options.force);
   if (result.failed || result.pending > 0) {
     return { done: false, pending: result.pending, failed: result.failed || undefined };
   }
+  if (authority === CONTACTS_AUTHORITY) await removeAddressBookAccounts(registryId);
 
   const before = accountDeviceSync(registryId);
   const { [authority]: _lastRun, ...lastRun } = before.lastRun;
@@ -423,7 +472,7 @@ async function release(
     androidAccounts = [];
   }
   const targets = registryIds.flatMap((registryId) => {
-    const accountName = androidAccounts.find((a) => a.registryId === registryId)?.name
+    const accountName = ownAccount(androidAccounts, registryId)?.name
       ?? accountDeviceSync(registryId).androidAccountName;
     return accountName ? [{ registryId, accountName }] : [];
   });
@@ -439,7 +488,7 @@ async function release(
     cancelDeviceSyncRequests(registryId);
     for (const authority of AUTHORITIES) {
       await setSyncEnabled(accountName, authority, false).catch(noop);
-      const result = await teardown(registryId, accountName, authority, false);
+      const result = await teardownAll(registryId, accountName, authority, false);
       if (result.failed || result.pending > 0) {
         leftovers.push({ registryId, accountName, authority });
         pending += result.pending;
@@ -459,7 +508,7 @@ async function release(
       return false;
     }
     for (const { registryId, accountName, authority } of leftovers) {
-      await teardown(registryId, accountName, authority, true);
+      await teardownAll(registryId, accountName, authority, true);
     }
   }
 
@@ -469,7 +518,8 @@ async function release(
     cancelDeviceSyncRequests(registryId);
     useDeviceSyncStore.getState().forget(registryId);
   }
-  for (const { accountName } of targets) {
+  for (const { registryId, accountName } of targets) {
+    await removeAddressBookAccounts(registryId);
     await removeAndroidAccount(accountName).catch(noop);
     await clearSyncProblem(accountName).catch(noop);
   }
@@ -584,6 +634,8 @@ async function reconcile(): Promise<void> {
       enabled: {},
       suspended: undefined,
       knownStates: undefined,
+      addressBookAccounts: undefined,
+      contactRuns: undefined,
       removedInAndroidSettings: anySyncOnInApp(entry) || entry.removedInAndroidSettings || undefined,
     });
     void refreshPushSubscriptionTypes(registryId).catch(noop);
@@ -592,6 +644,15 @@ async function reconcile(): Promise<void> {
   for (const account of androidAccounts) {
     const registryId = account.registryId;
     if (!registryId) continue;
+    if (account.collection) {
+      // An address book's account goes with the app account's own (removed in Android Settings), once
+      // what it changed is on the server. One that cannot upload stays, unsynced, for the user to remove.
+      if (!ownAccount(androidAccounts, registryId) && !accountDeviceSync(registryId).androidAccountName) {
+        const emptied = await teardown(registryId, account.name, CONTACTS_AUTHORITY, false);
+        if (!emptied.failed && emptied.pending === 0) await removeAndroidAccount(account.name).catch(noop);
+      }
+      continue;
+    }
     if (!registryIds.has(registryId)) {
       await suspendAccount({ ...account, registryId });
       continue;
@@ -621,10 +682,32 @@ async function reconcile(): Promise<void> {
       store().update(registryId, { androidAccountName: account.name, enabled, removedInAndroidSettings: undefined });
     }
   }
+  // An address book's account removed in Android Settings: the next contacts sync stops syncing that book.
+  for (const [registryId, entry] of Object.entries(store().accounts)) {
+    const missing = Object.values(entry.addressBookAccounts ?? {}).some((name) => !androidAccounts.some((a) => a.name === name));
+    if (missing && entry.androidAccountName && syncOnInApp(entry, CONTACTS_AUTHORITY)) {
+      await requestSync(entry.androidAccountName, CONTACTS_AUTHORITY, {}).catch(noop);
+    }
+  }
   await refreshPushRoutes();
 }
 
 // ─── Settings actions ──────────────────────────────────
+
+/**
+ * Whether every synced address book is a contact source of its own on this
+ * device (an Android account per book) or all share the app account's. The
+ * next contacts sync moves the contacts over, after uploading what the
+ * device changed.
+ */
+export async function changeSeparateAddressBooks(registryId: string, separate: boolean): Promise<void> {
+  await waitForDeviceSyncHydration();
+  if (!!accountDeviceSync(registryId).separateAddressBooks === separate) return;
+  useDeviceSyncStore.getState().update(registryId, { separateAddressBooks: separate || undefined });
+  const entry = accountDeviceSync(registryId);
+  if (!deviceSyncAvailable() || !entry.androidAccountName || !syncOnInApp(entry, CONTACTS_AUTHORITY)) return;
+  await requestSync(entry.androidAccountName, CONTACTS_AUTHORITY, { manual: true }).catch(noop);
+}
 
 /** The periodic sync interval (0 = manual only). */
 export async function changeSyncInterval(registryId: string, authority: Authority, seconds: number): Promise<void> {
@@ -691,6 +774,7 @@ export async function removeSuspendedAccount(registryId: string): Promise<void> 
   cancelDeviceSyncRequests(registryId);
   // Forgotten first, so the removal's `accountsChanged` finds nothing to mark.
   useDeviceSyncStore.getState().forget(registryId);
+  await removeAddressBookAccounts(registryId);
   if (accountName) {
     await removeAndroidAccount(accountName).catch(noop);
     await clearSyncProblem(accountName).catch(noop);

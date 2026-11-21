@@ -958,6 +958,8 @@
       "remove_message": "Kontoens kontakter og kalendere fjernes fra denne enheten. Endringer som er gjort her og ikke har nådd serveren, går tapt.",
       "remove_title": "Vil du fjerne fra denne enheten?",
       "review_deletions": "Gå gjennom slettinger",
+      "separate_books_desc": "Kontaktapper viser da hver synkroniserte adressebok for seg, slik at du kan vise eller skjule hver enkelt der.",
+      "separate_books_label": "Hver adressebok som egen konto",
       "shared_by": "Delt av {name}",
       "sign_in_again": "Logg på igjen",
       "status_auth": "Serveren godtar ikke lenger påloggingen. Logg på igjen for å fortsette synkroniseringen.",

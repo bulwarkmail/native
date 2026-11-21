@@ -958,6 +958,8 @@
       "remove_message": "Kontoens kontakter og kalendere fjernes fra denne enhed. Ændringer foretaget her, som ikke er nået frem til serveren, går tabt.",
       "remove_title": "Fjern fra denne enhed?",
       "review_deletions": "Gennemgå sletninger",
+      "separate_books_desc": "Kontaktapps viser så hver synkroniseret adressebog for sig, så du kan vise eller skjule hver enkelt der.",
+      "separate_books_label": "Hver adressebog som sin egen konto",
       "shared_by": "Delt af {name}",
       "sign_in_again": "Log ind igen",
       "status_auth": "Serveren accepterer ikke længere login. Log ind igen for at fortsætte synkroniseringen.",

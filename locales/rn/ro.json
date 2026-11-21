@@ -961,6 +961,8 @@
       "remove_message": "Contactele și calendarele contului vor fi eliminate de pe acest dispozitiv. Modificările făcute aici care nu au ajuns pe server se vor pierde.",
       "remove_title": "Eliminați de pe acest dispozitiv?",
       "review_deletions": "Verificați ștergerile",
+      "separate_books_desc": "Aplicațiile de contacte afișează atunci separat fiecare agendă de adrese sincronizată, astfel încât să o puteți afișa sau ascunde acolo.",
+      "separate_books_label": "Fiecare agendă de adrese ca un cont separat",
       "shared_by": "Distribuit de {name}",
       "sign_in_again": "Autentificați-vă din nou",
       "status_auth": "Serverul nu mai acceptă autentificarea. Autentificați-vă din nou pentru a continua sincronizarea.",

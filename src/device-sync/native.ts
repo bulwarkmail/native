@@ -23,6 +23,7 @@ import {
   type BatchFailure,
   type BatchResult,
   type Cell,
+  type CollectionKey,
   type DeviceSyncNativeModule,
   type OpResult,
   type PhotoData,
@@ -157,12 +158,13 @@ export async function listAndroidAccounts(): Promise<AndroidAccount[]> {
 }
 
 /**
- * Adds the Android account for an app account. Resolves true when it was
- * created, false when it exists for this registry id already; rejects with
- * code `conflict` when an account of that name belongs to another one.
+ * Adds the Android account for an app account, or with `collection` for one
+ * of its address books. Resolves true when it was created, false when it
+ * exists for this registry id and address book already; rejects with code
+ * `conflict` when an account of that name belongs to another one.
  */
-export async function ensureAndroidAccount(name: string, registryId: string): Promise<boolean> {
-  return requireModule().ensureAccount(name, registryId);
+export async function ensureAndroidAccount(name: string, registryId: string, collection?: CollectionKey): Promise<boolean> {
+  return requireModule().ensureAccount(name, registryId, collection ?? null);
 }
 
 /** Removes the Android account; the providers drop all of its rows. */
