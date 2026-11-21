@@ -144,6 +144,34 @@ class NotifiedOnceTest {
     }
 
     @Test
+    fun `a cancel for the account waits for a post in progress`() {
+        val rings = Rings()
+        val gate = NotifiedOnce()
+        val events = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val posting = CountDownLatch(1)
+        val releasePost = CountDownLatch(1)
+        val poster = thread(name = "push") {
+            gate.post(rings, "alice", listOf("m1")) {
+                posting.countDown()
+                releasePost.await(10, TimeUnit.SECONDS)
+                events += "posted"
+            }
+        }
+        assertTrue(posting.await(10, TimeUnit.SECONDS))
+
+        val canceller = thread(name = "change push") { gate.cancel("alice") { events += "cancelled" } }
+        while (canceller.state != Thread.State.BLOCKED && canceller.isAlive) Thread.onSpinWait()
+        val waited = canceller.isAlive
+        releasePost.countDown()
+        poster.joinOrFail()
+        canceller.joinOrFail()
+
+        assertTrue(waited)
+        assertEquals(listOf("posted", "cancelled"), events)
+        assertEquals(listOf("m1"), rings.rings["alice"])
+    }
+
+    @Test
     fun `another account's push does not wait for a post in progress`() {
         val rings = Rings()
         val gate = NotifiedOnce()
