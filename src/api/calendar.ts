@@ -214,7 +214,7 @@ const CALENDAR_EVENT_PROPERTIES = [
   'replyTo', 'organizerCalendarAddress', 'isOrigin', 'sequence',
   'locations', 'virtualLocations',
   'progress', 'due', 'priority', 'percentComplete',
-  'links', 'created', 'updated',
+  'links', 'created', 'updated', 'color',
 ];
 
 /** The second get of getEvents: the overrides, by id. */
