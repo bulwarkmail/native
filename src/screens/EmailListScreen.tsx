@@ -60,6 +60,7 @@ import { reportFailure } from '../lib/report-failure';
 import { createDepartures } from '../lib/departures';
 import { ROW_PRESS_DELAY_MS } from '../components/swipe-gesture';
 import { usePullRefresh } from '../lib/pull-refresh';
+import { refreshWithSession } from '../lib/session-recovery';
 import { useLayout } from '../lib/use-layout';
 import { useSendUndoStore } from '../stores/send-undo-store';
 import { useLocaleStore } from '../stores/locale-store';
@@ -1050,7 +1051,8 @@ export default function EmailListScreen({
     ],
   );
   const handleEndReached = React.useCallback(() => { void loadMoreEmails(); }, [loadMoreEmails]);
-  const pullRefresh = usePullRefresh(refreshEmails);
+  // A pull also brings a session that failed to come up back (#172).
+  const pullRefresh = usePullRefresh(() => refreshWithSession(() => refreshEmails()));
 
   const clearSelection = React.useCallback(() => {
     setSelectedIds(new Set());

@@ -95,6 +95,7 @@ import { SessionTimeoutGuard } from './src/components/SessionTimeoutGuard';
 import { useOfflineCacheStore } from './src/stores/offline-cache-store';
 import { useOutboxStore } from './src/stores/outbox-store';
 import { runOfflineSync } from './src/lib/offline-sync';
+import { watchSessionRecovery } from './src/lib/session-recovery';
 import { spacing, typography, type ThemePalette } from './src/theme/tokens';
 import { perfEndAfterPaint, perfMarksEnabled, perfStart } from './src/lib/perf-marks';
 import { useColors } from './src/theme/colors';
@@ -476,16 +477,13 @@ export default function App() {
     return undefined;
   }, [isAuthenticated]);
 
-  // When the network flips back on while we're authenticated-but-offline
-  // (no live JMAP session), retry the session so the user lands back on
-  // live data without needing to relaunch.
+  // Signed in without a live JMAP session (no network at start, a session
+  // discovery the server refused): try again when the network comes back
+  // and when the app comes to the foreground, so the user lands back on
+  // live data without a relaunch (#172).
   React.useEffect(() => {
     if (!isAuthenticated) return;
-    return useNetworkStore.subscribe((state, prev) => {
-      if (state.online && !prev.online && !useAuthStore.getState().session) {
-        void useAuthStore.getState().retrySession();
-      }
-    });
+    return watchSessionRecovery();
   }, [isAuthenticated]);
 
   React.useEffect(() => {

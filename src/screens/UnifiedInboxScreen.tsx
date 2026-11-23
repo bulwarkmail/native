@@ -17,6 +17,7 @@ import SidebarDrawer from '../components/SidebarDrawer';
 import { SwipeableRow } from '../components/SwipeableRow';
 import { SwipeLockedFlatList } from '../components/SwipeLockedFlatList';
 import { usePullRefresh } from '../lib/pull-refresh';
+import { refreshWithSession } from '../lib/session-recovery';
 import { ROW_PRESS_DELAY_MS } from '../components/swipe-gesture';
 import { RowHoverActions, useRowHoverList } from '../components/RowHoverActions';
 import { rowHoverActions, type RowHoverAction } from '../lib/row-hover-actions';
@@ -200,7 +201,8 @@ export default function UnifiedInboxScreen({ navigation, role = 'inbox', view, w
     }
   }, [accountIds, fetchOpts, reloadTracker, highlight]);
 
-  const pullRefresh = usePullRefresh(load);
+  // A pull also brings a session that failed to come up back (#172).
+  const pullRefresh = usePullRefresh(() => refreshWithSession(load));
 
   const loadMore = React.useCallback(async () => {
     if (loading || loadingMore || !hasMoreRef.current) return;
