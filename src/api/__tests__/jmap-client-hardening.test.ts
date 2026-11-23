@@ -399,6 +399,35 @@ describe('JMAPClient hardening', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps its requests within the maxConcurrentRequests of the session (#172)', async () => {
+    const limited = {
+      ...SESSION,
+      capabilities: {
+        ...SESSION.capabilities,
+        'urn:ietf:params:jmap:core': { maxObjectsInSet: 50, maxSizeUpload: 1024, maxConcurrentRequests: 2 },
+      },
+    };
+    mockFetch([{ status: 200, json: limited }]);
+    const client = new JMAPClient();
+    await client.connect('https://mail.example.com', 'user', 'pass');
+
+    let inFlight = 0;
+    let most = 0;
+    const fetch = vi.fn(async () => {
+      inFlight += 1;
+      most = Math.max(most, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight -= 1;
+      return makeResponse({ status: 200, json: { methodResponses: [['Mailbox/get', { list: [] }, '0']] } });
+    });
+    global.fetch = fetch as unknown as typeof globalThis.fetch;
+
+    await Promise.all(Array.from({ length: 7 }, () => client.request([['Mailbox/get', { accountId: 'acc-1' }, '0']])));
+
+    expect(fetch).toHaveBeenCalledTimes(7);
+    expect(most).toBe(2);
+  });
+
   it('surfaces the response body on a failed request and guards JSON parsing', async () => {
     const client = await connected();
     mockFetch([{ status: 500, text: 'boom happened' }]);

@@ -16,6 +16,7 @@ import {
   type OAuthTokenSource,
 } from '../lib/oauth';
 import { FirstTouchGate } from './first-touch-gate';
+import { RequestSlots } from './request-slots';
 import { downloadNameSegment } from './download-name';
 import { writeSharedSecret, moveToSharedGroup } from '../lib/ios-push-shared';
 import { beginOwnWrite, recordOwnEmailWrites } from './own-writes';
@@ -188,6 +189,10 @@ export class JMAPClient {
    */
   private sessionCacheId: string | null = null;
   private firstTouchGate = new FirstTouchGate();
+  // API requests and session fetches in flight, kept within the server's
+  // maxConcurrentRequests (#172). A refusal that still comes - another
+  // process of the app, a request of the webmail - is replayed.
+  private requestSlots = new RequestSlots(() => this.coreCapability?.maxConcurrentRequests);
   private rateLimitedUntil = 0;
   private authFailureListeners = new Set<(err: AuthenticationError) => void>();
   private rateLimitListeners = new Set<(retryAfterMs: number) => void>();
@@ -1104,7 +1109,8 @@ export class JMAPClient {
     // replays a refused POST (#172). Any other answer is returned as it came.
     const getSessionDoc = async (url: string): Promise<Response> => {
       for (let attempt = 0; ; attempt++) {
-        const r = await this.authenticatedFetch(url, { headers: { Accept: 'application/json' } });
+        const r = await this.requestSlots.run(() =>
+          this.authenticatedFetch(url, { headers: { Accept: 'application/json' } }));
         if (r.status !== 400 || attempt >= CONCURRENT_REQUEST_RETRY_DELAYS_MS.length) return r;
         // Only the status of another 400 is read below, so its body may be spent here.
         if (!isConcurrentRequestRefusal(r.status, await readBodyText(r))) return r;
@@ -1276,16 +1282,22 @@ export class JMAPClient {
     const idempotent = !hasNonIdempotentMethod(methodCalls);
 
     for (let attempt = 0; ; attempt++) {
-      const response = await this.firstTouchGate.run(methodCalls, () =>
-        this.authenticatedFetch(
-          apiUrl,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: serialized,
-          },
-          { idempotent },
-        ),
+      // The slot is taken inside the gate: a request the gate holds back
+      // must not hold one while the request it waits for needs one. It is
+      // kept until the answer is read, as the server works until then.
+      const { response, responseText } = await this.firstTouchGate.run(methodCalls, () =>
+        this.requestSlots.run(async () => {
+          const r = await this.authenticatedFetch(
+            apiUrl,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: serialized,
+            },
+            { idempotent },
+          );
+          return { response: r, responseText: r.status === 401 ? '' : await readBodyText(r) };
+        }),
       );
 
       if (response.status === 401) {
@@ -1293,8 +1305,6 @@ export class JMAPClient {
         this.notifyAuthFailure(err);
         throw err;
       }
-
-      const responseText = await readBodyText(response);
 
       if (!response.ok) {
         // Stalwart caps parallel API requests per user (maxConcurrentRequests,
@@ -1355,10 +1365,10 @@ export class JMAPClient {
   }
 
   private get coreCapability():
-    | { maxObjectsInGet?: number; maxObjectsInSet?: number; maxCallsInRequest?: number; maxSizeUpload?: number; maxSizeRequest?: number }
+    | { maxObjectsInGet?: number; maxObjectsInSet?: number; maxCallsInRequest?: number; maxSizeUpload?: number; maxSizeRequest?: number; maxConcurrentRequests?: number }
     | undefined {
     return this.session?.capabilities?.[CAPABILITIES.CORE] as
-      | { maxObjectsInGet?: number; maxObjectsInSet?: number; maxCallsInRequest?: number; maxSizeUpload?: number; maxSizeRequest?: number }
+      | { maxObjectsInGet?: number; maxObjectsInSet?: number; maxCallsInRequest?: number; maxSizeUpload?: number; maxSizeRequest?: number; maxConcurrentRequests?: number }
       | undefined;
   }
 
