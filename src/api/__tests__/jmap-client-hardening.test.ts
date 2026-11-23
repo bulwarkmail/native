@@ -375,6 +375,30 @@ describe('JMAPClient hardening', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
+  it('replays a session discovery the server refused as one request too many (#172)', async () => {
+    vi.useFakeTimers();
+    const refusal = { type: 'urn:ietf:params:jmap:error:limit', status: 400, limit: 'maxConcurrentRequests' };
+    const fetch = mockFetch([
+      { status: 400, json: refusal },
+      { status: 400, json: refusal },
+      { status: 200, json: SESSION },
+    ]);
+    const client = new JMAPClient();
+    const p = client.connect('https://mail.example.com', 'user', 'pass');
+    await vi.advanceTimersByTimeAsync(3000);
+    await p;
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(Array(3).fill('https://mail.example.com/jmap/session'));
+    expect(client.accountId).toBe('acc-1');
+  });
+
+  it('fails session discovery on any other 400 without replaying it', async () => {
+    const fetch = mockFetch([{ status: 400, json: { type: 'urn:ietf:params:jmap:error:notRequest' } }]);
+    const client = new JMAPClient();
+    await expect(client.connect('https://mail.example.com', 'user', 'pass')).rejects.toThrow('Session discovery failed: 400');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('surfaces the response body on a failed request and guards JSON parsing', async () => {
     const client = await connected();
     mockFetch([{ status: 500, text: 'boom happened' }]);

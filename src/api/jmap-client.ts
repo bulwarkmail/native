@@ -36,6 +36,12 @@ export const BLOB_TIMEOUT_MS = 300_000;
 // too many in parallel (maxConcurrentRequests, #780).
 const CONCURRENT_REQUEST_RETRY_DELAYS_MS = [200, 400, 800];
 
+/** The wait before replay `attempt` of a refused request: its base plus up to as much jitter. */
+function concurrentRequestBackOff(attempt: number): Promise<void> {
+  const base = CONCURRENT_REQUEST_RETRY_DELAYS_MS[attempt];
+  return new Promise((r) => setTimeout(r, base + Math.random() * base));
+}
+
 // Delay before the single transient-network retry of an idempotent request.
 const TRANSIENT_RETRY_DELAY_MS = 1000;
 
@@ -1092,11 +1098,24 @@ export class JMAPClient {
     const primary = `${baseUrl}/jmap/session`;
     const fallback = `${baseUrl}/.well-known/jmap`;
     let requested = primary;
+    // The session GET counts against maxConcurrentRequests like an API call:
+    // in the burst of a launch Stalwart refuses it with the same 400 limit
+    // error, before doing anything, so it is replayed the way postRequest
+    // replays a refused POST (#172). Any other answer is returned as it came.
+    const getSessionDoc = async (url: string): Promise<Response> => {
+      for (let attempt = 0; ; attempt++) {
+        const r = await this.authenticatedFetch(url, { headers: { Accept: 'application/json' } });
+        if (r.status !== 400 || attempt >= CONCURRENT_REQUEST_RETRY_DELAYS_MS.length) return r;
+        // Only the status of another 400 is read below, so its body may be spent here.
+        if (!isConcurrentRequestRefusal(r.status, await readBodyText(r))) return r;
+        await concurrentRequestBackOff(attempt);
+      }
+    };
     const fetchSessionDoc = async () => {
-      const r = await this.authenticatedFetch(primary, { headers: { Accept: 'application/json' } });
+      const r = await getSessionDoc(primary);
       if (r.status !== 404) return r;
       requested = fallback;
-      return this.authenticatedFetch(fallback, { headers: { Accept: 'application/json' } });
+      return getSessionDoc(fallback);
     };
     let response = await fetchSessionDoc();
 
@@ -1118,7 +1137,7 @@ export class JMAPClient {
         throw new Error(`Session discovery failed: redirected to ${finalUrl}`);
       }
       refetched = true;
-      return this.authenticatedFetch(finalUrl, { headers: { Accept: 'application/json' } });
+      return getSessionDoc(finalUrl);
     };
     if (redirected && response.status === 401) {
       response = await refetchRedirected();
@@ -1286,8 +1305,7 @@ export class JMAPClient {
           attempt < CONCURRENT_REQUEST_RETRY_DELAYS_MS.length &&
           isConcurrentRequestRefusal(response.status, responseText)
         ) {
-          const base = CONCURRENT_REQUEST_RETRY_DELAYS_MS[attempt];
-          await new Promise((r) => setTimeout(r, base + Math.random() * base));
+          await concurrentRequestBackOff(attempt);
           continue;
         }
         const detail = responseText ? ` - ${responseText.substring(0, 200)}` : '';
