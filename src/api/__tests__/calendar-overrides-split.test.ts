@@ -97,6 +97,21 @@ describe.each<StalwartVersion>(['0.16', '1.0'])('calendar reads on Stalwart %s',
     expect(server.gets()[0].args.properties).not.toContain('recurrenceOverrides');
   });
 
+  it(`reads an event's own colour, stored and expanded, on Stalwart ${version}`, async () => {
+    server = createStalwartCalendarMock({
+      version,
+      objects: { b: { ...SERIES, color: 'turquoise' }, d: SINGLE },
+      occurrences: { maaaaab: { ...OCCURRENCE, color: 'turquoise' } },
+    });
+    mockRequest.mockImplementation(server.request);
+
+    const [series] = await getEvents(['b']);
+    const [occurrence] = await getEvents(['maaaaab'], undefined, { expanded: true });
+
+    expect(series.color).toBe('turquoise');
+    expect(occurrence.color).toBe('turquoise');
+  });
+
   it(`gives an expanded occurrence its series' overrides from a get without utc* on Stalwart ${version}`, async () => {
     const occurrences = await getEvents(['maaaaab'], undefined, { expanded: true });
     const [hydrated] = await hydrateExpandedOccurrences(occurrences);
