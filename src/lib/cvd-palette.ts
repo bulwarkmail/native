@@ -11,6 +11,8 @@
  * one; the names next to them still tell them apart.
  */
 
+import { NAMED_COLORS } from './css-named-colors';
+
 export const CVD_COLORS = {
   vermillion: '#D55E00',
   orange: '#E69F00',
@@ -88,7 +90,8 @@ function hueAndSaturation(color: string): { hue: number; saturation: number } | 
 export function cvdHue(color: string | null | undefined): CvdHue | null {
   if (!color) return null;
   const paletteName = color.replace(/-(light|dark)$/, '');
-  const parsed = hueAndSaturation(PALETTE_HUES[paletteName] ?? color);
+  const named = NAMED_COLORS[color.trim().toLowerCase()];
+  const parsed = hueAndSaturation(PALETTE_HUES[paletteName] ?? (named ? `#${named}` : color));
   if (!parsed) return null;
   const { hue, saturation } = parsed;
   if (saturation < 0.15) return 'grey';

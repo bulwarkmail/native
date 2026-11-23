@@ -25,8 +25,13 @@ describe('parseColor', () => {
     expect(parseColor('rgb(100%, 0%, 0%)')).toEqual({ r: 255, g: 0, b: 0, a: 1 });
   });
 
+  it('reads CSS colour names, the form of an iCalendar COLOR', () => {
+    expect(parseColor('blue')).toEqual({ r: 0, g: 0, b: 255, a: 1 });
+    expect(parseColor(' Turquoise ')).toEqual({ r: 64, g: 224, b: 208, a: 1 });
+  });
+
   it('gives null for what it does not understand', () => {
-    expect(parseColor('blue')).toBeNull();
+    expect(parseColor('bleu')).toBeNull();
     expect(parseColor('#12')).toBeNull();
     expect(parseColor('#12345')).toBeNull();
     expect(parseColor('rgb(1, 2)')).toBeNull();
@@ -57,8 +62,13 @@ describe('readableTextOn', () => {
     expect(readableTextOn('#60a5fa')).toBe(readableTextOn('#60A5FA'));
   });
 
+  it('reads named fills like hex ones', () => {
+    expect(readableTextOn('yellow')).toBe(DARK_EVENT_TEXT);
+    expect(readableTextOn('navy')).toBe('#ffffff');
+  });
+
   it('falls back to white for colours it cannot read', () => {
-    expect(readableTextOn('tomato')).toBe('#ffffff');
+    expect(readableTextOn('var(--event)')).toBe('#ffffff');
   });
 });
 
@@ -76,7 +86,7 @@ describe('mixColors', () => {
   });
 
   it('gives null when a colour cannot be read', () => {
-    expect(mixColors('blue', '#000000', 0.5)).toBeNull();
+    expect(mixColors('bleu', '#000000', 0.5)).toBeNull();
     expect(mixColors('#000000', 'nope', 0.5)).toBeNull();
   });
 });
@@ -90,7 +100,7 @@ describe('inactiveEventTextColor', () => {
   });
 
   it('falls back to the text colour', () => {
-    expect(inactiveEventTextColor('teal', '#0f172a')).toBe('#0f172a');
+    expect(inactiveEventTextColor('var(--calendar)', '#0f172a')).toBe('#0f172a');
   });
 });
 

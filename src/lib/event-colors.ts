@@ -5,6 +5,8 @@
 // React Native has no color-mix(), so the declined/cancelled label colour is
 // mixed here too.
 
+import { NAMED_COLORS } from './css-named-colors';
+
 export interface Rgba {
   /** 0–255 */
   r: number;
@@ -44,13 +46,15 @@ function alpha(token: string): number | null {
 }
 
 /**
- * Parses `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, and `rgb()` / `rgba()` in
- * both the comma and the space-separated syntax. Anything else (named
- * colours, hsl()) gives null.
+ * Parses `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()` / `rgba()` in
+ * both the comma and the space-separated syntax, and CSS colour names (an
+ * event's iCalendar COLOR is one). Anything else (hsl()) gives null.
  */
 export function parseColor(input: string | null | undefined): Rgba | null {
   if (!input) return null;
-  const s = input.trim().toLowerCase();
+  const trimmed = input.trim().toLowerCase();
+  const named = NAMED_COLORS[trimmed];
+  const s = named ? `#${named}` : trimmed;
 
   const hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.exec(s);
   if (hex) {

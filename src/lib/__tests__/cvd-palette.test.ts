@@ -36,6 +36,12 @@ describe('cvdHue', () => {
     expect(cvdHue('hsl(220, 80%, 50%)')).toBe('blue');
   });
 
+  it('reads CSS colour names, and tag palette names first', () => {
+    expect(cvdHue('turquoise')).toBe('skyBlue');
+    expect(cvdHue('DarkOrange')).toBe('orange');
+    expect(cvdHue('purple')).toBe('reddishPurple');
+  });
+
   it('turns greys grey and gives up on what it cannot read', () => {
     expect(cvdHue('#777777')).toBe('grey');
     expect(cvdHue('var(--color-primary)')).toBeNull();
