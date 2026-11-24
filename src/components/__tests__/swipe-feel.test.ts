@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   fingerTravel,
+  panTravel,
+  decidePanActivation,
+  nextArmedState,
   dragOffset,
   resolveRelease,
   armChange,
@@ -14,6 +17,7 @@ import {
   FLY_MAX_MS,
   CLAIM_DX,
   COMMIT_THRESHOLD,
+  DISARM_THRESHOLD,
   REVEAL_WIDTH,
   type SwipeConfig,
 } from '../swipe-gesture';
@@ -39,6 +43,61 @@ describe('the row starts where the finger claimed it', () => {
     expect(fingerTravel(CLAIM_DX + 20)).toBe(20);
     expect(fingerTravel(-CLAIM_DX - 20)).toBe(-20);
     expect(fingerTravel(CLAIM_DX + 21) - fingerTravel(CLAIM_DX + 20)).toBe(1);
+  });
+
+  it('tracks a shaky reversal smoothly across zero without a sticky dead zone', () => {
+    const claimX = 100 + CLAIM_DX;
+    expect(panTravel(claimX, claimX, true, CLAIM_DX)).toBe(0);
+    expect(panTravel(claimX + 30, claimX, true, CLAIM_DX + 30)).toBe(30);
+    expect(panTravel(claimX - 4, claimX, true, CLAIM_DX - 4)).toBe(-4);
+    expect(panTravel(claimX - 12, claimX, true, CLAIM_DX - 12)).toBe(-12);
+  });
+});
+
+describe('scroll vs swipe balance handles diagonal and shaky thumbs cleanly', () => {
+  it('claims horizontal and natural diagonal thumb swipes instead of scrolling', () => {
+    expect(decidePanActivation(CLAIM_DX, 0, instant(), null)).toBe('activate');
+    expect(decidePanActivation(-CLAIM_DX, 0, instant(), null)).toBe('activate');
+    expect(decidePanActivation(12, 8, instant(), null)).toBe('activate');
+    expect(decidePanActivation(22, 14, instant(), null)).toBe('activate');
+    expect(decidePanActivation(-20, -12, instant(), null)).toBe('activate');
+  });
+
+  it('fails promptly to vertical scroll when vertical movement dominates', () => {
+    expect(decidePanActivation(0, 10, instant(), null)).toBe('fail');
+    expect(decidePanActivation(5, 11, instant(), null)).toBe('fail');
+    expect(decidePanActivation(10, 14, instant(), null)).toBe('fail');
+    expect(decidePanActivation(14, 24, instant(), null)).toBe('fail');
+  });
+
+  it('waits on tiny resting jitter so taps do not misfire', () => {
+    expect(decidePanActivation(4, 3, instant(), null)).toBe('wait');
+    expect(decidePanActivation(-6, 7, instant(), null)).toBe('wait');
+  });
+
+  it('declines horizontal drags toward a disabled side unless closing an open reveal band', () => {
+    expect(decidePanActivation(12, 0, instant({ rightAction: 'none' }), null)).toBe('fail');
+    expect(decidePanActivation(-12, 0, reveal({ leftAction: 'none' }), 'right')).toBe('activate');
+  });
+});
+
+describe('shaky cursor stability around the commit line', () => {
+  it('keeps an armed swipe steady when shaking slightly back across the commit threshold', () => {
+    expect(nextArmedState(COMMIT_THRESHOLD, false, instant(), null)).toBe(true);
+    expect(nextArmedState(COMMIT_THRESHOLD - 6, true, instant(), null)).toBe(true);
+    expect(nextArmedState(DISARM_THRESHOLD, true, instant(), null)).toBe(true);
+    expect(nextArmedState(DISARM_THRESHOLD - 1, true, instant(), null)).toBe(false);
+    expect(nextArmedState(COMMIT_THRESHOLD - 6, false, instant(), null)).toBe(false);
+    expect(nextArmedState(-COMMIT_THRESHOLD, false, instant(), null)).toBe(true);
+    expect(nextArmedState(-DISARM_THRESHOLD, true, instant(), null)).toBe(true);
+    expect(nextArmedState(-(DISARM_THRESHOLD - 1), true, instant(), null)).toBe(false);
+  });
+
+  it('commits a shaky lift-off once armed instead of aborting on minor hand tremor', () => {
+    expect(resolveRelease(g(COMMIT_THRESHOLD + 6, -0.2), instant(), null, true)).toMatchObject({ kind: 'fire', direction: 1 });
+    expect(resolveRelease(g(DISARM_THRESHOLD + 4, 0), instant(), null, true)).toMatchObject({ kind: 'fire', direction: 1 });
+    expect(resolveRelease(g(COMMIT_THRESHOLD + 20, -1), instant(), null, true)).toEqual({ kind: 'settle' });
+    expect(resolveRelease(g(DISARM_THRESHOLD + 4, 0), instant(), null, false)).toEqual({ kind: 'settle' });
   });
 });
 

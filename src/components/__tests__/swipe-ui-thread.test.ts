@@ -32,7 +32,7 @@ describe('swipe keeps its momentum on release', () => {
   it('decides the release and starts its animation on the UI thread, at the finger’s release velocity', () => {
     const row = read('src/components/SwipeableRow.tsx');
     const onEnd = row.slice(row.indexOf('.onEnd('), row.indexOf('.onFinalize('));
-    expect(onEnd).toMatch(/const outcome = resolveRelease\(\{ dx: tx\.value - restingOffset\(side\), dy: e\.translationY, vx \}, config, side\)/);
+    expect(onEnd).toMatch(/const outcome = resolveRelease\(\{ dx: tx\.value - restingOffset\(side\), dy: e\.translationY, vx \}, config, side, armed\.value\)/);
     expect(onEnd).toMatch(/const plan = flyPlan\(toValue - tx\.value, vx\);/);
     expect(onEnd).toMatch(/tx\.value = withTiming\(toValue,/);
     expect(onEnd).toMatch(/springBack\(0, vx\)/);

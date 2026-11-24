@@ -9,15 +9,15 @@
 
 import type { SwipeAction, SwipeMode } from '../stores/settings-store';
 
-// Instant mode: distance the user must drag past on release to fire the action.
 export const COMMIT_THRESHOLD = 96;
-// Reveal mode: drag past this on release to snap to the open (revealed) state.
+export const DISARM_THRESHOLD = 82;
 export const ACTIVATION_THRESHOLD = 32;
-// Reveal mode: width of the action band shown when revealed.
 export const REVEAL_WIDTH = 88;
 
-const DIRECTION_BIAS = 1.5; // dx must dominate dy by this factor
-const MIN_DX_TO_CLAIM = 6;
+const SWIPE_SLOPE_MAX = 0.85;
+const SCROLL_FAIL_DY = 10;
+const MAX_AMBIGUOUS_DY = 14;
+const REVERSE_FLICK_VX = 0.35;
 export const CLAIM_DX = 8;
 export const ROW_PRESS_DELAY_MS = 90;
 const MIN_FLICK_TRAVEL = 24;
@@ -58,30 +58,45 @@ export type ReleaseOutcome =
   /** Not far enough — spring back to rest without firing. */
   | { kind: 'settle' };
 
-/**
- * Whether the pan should be claimed from whatever else might want it (the
- * list's vertical scroll, mainly). Declining leaves the gesture to the parent.
- */
-export function shouldClaimGesture(
-  g: SwipeGestureState,
-  config: SwipeConfig,
-  openSide: OpenSide,
-): boolean {
-  if (Math.abs(g.dx) < MIN_DX_TO_CLAIM) return false;
-  if (Math.abs(g.dx) < Math.abs(g.dy) * DIRECTION_BIAS) return false;
-  // An already-open row claims any horizontal drag so the user can drag it
-  // shut, even in the direction whose action is 'none'.
-  if (config.mode === 'reveal' && openSide !== null) return true;
-  if (g.dx > 0 && config.rightAction === 'none') return false;
-  if (g.dx < 0 && config.leftAction === 'none') return false;
-  return true;
-}
-
 export function fingerTravel(translationX: number): number {
   'worklet';
   if (translationX > CLAIM_DX) return translationX - CLAIM_DX;
   if (translationX < -CLAIM_DX) return translationX + CLAIM_DX;
   return 0;
+}
+
+export function panTravel(
+  absoluteX: number | undefined,
+  claimX: number,
+  hasClaimX: boolean,
+  translationX: number,
+): number {
+  'worklet';
+  if (hasClaimX && typeof absoluteX === 'number' && !Number.isNaN(absoluteX)) {
+    return absoluteX - claimX;
+  }
+  return fingerTravel(translationX);
+}
+
+export function decidePanActivation(
+  dx: number,
+  dy: number,
+  config: SwipeConfig,
+  openSide: OpenSide,
+): 'activate' | 'fail' | 'wait' {
+  'worklet';
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  if (ax < CLAIM_DX && ay < SCROLL_FAIL_DY) return 'wait';
+  if (ax >= CLAIM_DX && ay <= ax * SWIPE_SLOPE_MAX) {
+    if (config.mode === 'reveal' && openSide !== null) return 'activate';
+    if (dx > 0 && config.rightAction === 'none') return 'fail';
+    if (dx < 0 && config.leftAction === 'none') return 'fail';
+    return 'activate';
+  }
+  if (ay >= SCROLL_FAIL_DY && ay >= ax) return 'fail';
+  if (ay >= MAX_AMBIGUOUS_DY) return 'fail';
+  return 'wait';
 }
 
 function stretch(overshoot: number, dimension: number): number {
@@ -123,6 +138,20 @@ export function releaseWouldAct(offset: number, config: SwipeConfig, openSide: O
   return false;
 }
 
+export function nextArmedState(
+  offset: number,
+  wasArmed: boolean,
+  config: SwipeConfig,
+  openSide: OpenSide,
+): boolean {
+  'worklet';
+  if (config.mode === 'reveal') return releaseWouldAct(offset, config, openSide);
+  const threshold = wasArmed ? DISARM_THRESHOLD : COMMIT_THRESHOLD;
+  if (offset > 0) return config.rightAction !== 'none' && offset >= threshold;
+  if (offset < 0) return config.leftAction !== 'none' && offset <= -threshold;
+  return false;
+}
+
 export const FLY_MIN_MS = 110;
 export const FLY_MAX_MS = 240;
 const FLY_MAX_START_SLOPE = 2.4;
@@ -151,6 +180,7 @@ export function resolveRelease(
   g: SwipeGestureState,
   config: SwipeConfig,
   openSide: OpenSide,
+  wasArmed = false,
 ): ReleaseOutcome {
   'worklet';
   if (config.mode === 'reveal') {
@@ -164,11 +194,15 @@ export function resolveRelease(
     }
     return { kind: 'close' };
   }
-  const projected = g.dx + g.vx * PROJECTION_MS;
-  if (g.dx >= MIN_FLICK_TRAVEL && projected >= COMMIT_THRESHOLD && config.rightAction !== 'none') {
+  const threshold = wasArmed ? DISARM_THRESHOLD : COMMIT_THRESHOLD;
+  const minorBackRight = g.dx >= threshold && g.vx < 0 && -g.vx < REVERSE_FLICK_VX;
+  const minorBackLeft = g.dx <= -threshold && g.vx > 0 && g.vx < REVERSE_FLICK_VX;
+  const projectedRight = g.dx + (minorBackRight ? 0 : g.vx * PROJECTION_MS);
+  const projectedLeft = g.dx + (minorBackLeft ? 0 : g.vx * PROJECTION_MS);
+  if (g.dx >= MIN_FLICK_TRAVEL && projectedRight >= threshold && config.rightAction !== 'none') {
     return { kind: 'fire', action: config.rightAction, direction: 1 };
   }
-  if (g.dx <= -MIN_FLICK_TRAVEL && projected <= -COMMIT_THRESHOLD && config.leftAction !== 'none') {
+  if (g.dx <= -MIN_FLICK_TRAVEL && projectedLeft <= -threshold && config.leftAction !== 'none') {
     return { kind: 'fire', action: config.leftAction, direction: -1 };
   }
   return { kind: 'settle' };
