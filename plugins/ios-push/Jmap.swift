@@ -8,6 +8,7 @@ struct PushedEmail {
   let sender: String
   let subject: String
   let preview: String
+  let receivedAt: Date?
 }
 
 struct JmapFetchResult {
@@ -192,63 +193,92 @@ enum Jmap {
     return "no answer"
   }
 
-  static func fetch(apiUrl: URL, accountId: String, emailIds: [String], authorization: String) async throws -> JmapFetchResult {
-    var request = URLRequest(url: apiUrl)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("application/json", forHTTPHeaderField: "Accept")
-    request.setValue(authorization, forHTTPHeaderField: "Authorization")
-    let body: [String: Any] = [
-      "using": ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"],
-      "methodCalls": [
-        ["Email/get", [
-          "accountId": accountId,
-          "ids": Array(emailIds.prefix(5)),
-          "properties": ["threadId", "from", "subject", "preview"],
-        ], "0"],
-        ["Mailbox/query", ["accountId": accountId, "filter": ["role": "inbox"]], "1"],
-        ["Mailbox/get", [
-          "accountId": accountId,
-          "#ids": ["resultOf": "1", "name": "Mailbox/query", "path": "/ids"],
-          "properties": ["unreadEmails"],
-        ], "2"],
-      ],
-    ]
-    request.httpBody = try JSONSerialization.data(withJSONObject: body)
-    let (data, response) = try await session.data(for: request)
-    guard let http = response as? HTTPURLResponse else { throw JmapError.badResponse }
-    guard http.statusCode == 200 else { throw JmapError.http(http.statusCode) }
-    guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          let responses = root["methodResponses"] as? [[Any]] else { throw JmapError.badResponse }
+  static let emailProperties = ["threadId", "from", "subject", "preview", "receivedAt"]
+  static let mailUsing = ["urn:ietf:params:jmap:core", "urn:ietf:params:jmap:mail"]
 
-    var emails: [PushedEmail] = []
+  static func fetch(apiUrl: URL, accountId: String, emailIds: [String], authorization: String) async throws -> JmapFetchResult {
+    let methodCalls: [[Any]] = [
+      ["Email/get", [
+        "accountId": accountId,
+        "ids": Array(emailIds.prefix(5)),
+        "properties": emailProperties,
+      ], "0"],
+      ["Mailbox/query", ["accountId": accountId, "filter": ["role": "inbox"]], "1"],
+      ["Mailbox/get", [
+        "accountId": accountId,
+        "#ids": ["resultOf": "1", "name": "Mailbox/query", "path": "/ids"],
+        "properties": ["unreadEmails"],
+      ], "2"],
+    ]
+    let responses = try await call(apiUrl: apiUrl, authorization: authorization, using: mailUsing, methodCalls: methodCalls)
     var inboxUnread: Int?
-    for response in responses where response.count >= 2 {
-      guard let name = response[0] as? String, let args = response[1] as? [String: Any] else { continue }
-      if name == "Email/get", let list = args["list"] as? [[String: Any]] {
-        // Keep the order the push gave (newest first from the server's filter).
-        // Stalwart can list an id twice; keep the first.
-        let byId = Dictionary(list.compactMap { item -> (String, [String: Any])? in
-          guard let id = item["id"] as? String else { return nil }
-          return (id, item)
-        }, uniquingKeysWith: { first, _ in first })
-        for id in emailIds {
-          guard let item = byId[id] else { continue }
-          let from = (item["from"] as? [[String: Any]])?.first
-          let name = (from?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-          let sender = name ?? (from?["email"] as? String) ?? ""
-          emails.append(PushedEmail(
-            id: id,
-            threadId: item["threadId"] as? String ?? "",
-            sender: sender,
-            subject: item["subject"] as? String ?? "",
-            preview: item["preview"] as? String ?? ""
-          ))
-        }
-      } else if name == "Mailbox/get", let list = args["list"] as? [[String: Any]] {
-        inboxUnread = (list.first?["unreadEmails"] as? NSNumber)?.intValue
+    for response in responses where response.count >= 2 && response[0] as? String == "Mailbox/get" {
+      let list = (response[1] as? [String: Any])?["list"] as? [[String: Any]]
+      inboxUnread = (list?.first?["unreadEmails"] as? NSNumber)?.intValue
+    }
+    return JmapFetchResult(emails: emails(in: responses, order: emailIds), inboxUnread: inboxUnread)
+  }
+
+  static func fetchNewestUnread(apiUrl: URL, accountId: String, authorization: String, limit: Int) async throws -> JmapFetchResult {
+    let mailboxes = try await call(apiUrl: apiUrl, authorization: authorization, using: mailUsing, methodCalls: [
+      ["Mailbox/get", ["accountId": accountId, "ids": NSNull(), "properties": ["id", "role", "unreadEmails"]], "0"],
+    ])
+    guard let inbox = inbox(in: mailboxes) else { return JmapFetchResult(emails: [], inboxUnread: nil) }
+    let responses = try await call(apiUrl: apiUrl, authorization: authorization, using: mailUsing, methodCalls: [
+      ["Email/query", [
+        "accountId": accountId,
+        "filter": ["inMailbox": inbox.id, "notKeyword": "$seen"],
+        "sort": [["property": "receivedAt", "isAscending": false]],
+        "limit": limit,
+      ], "0"],
+      ["Email/get", [
+        "accountId": accountId,
+        "#ids": ["resultOf": "0", "name": "Email/query", "path": "/ids"],
+        "properties": emailProperties,
+      ], "1"],
+    ])
+    return JmapFetchResult(emails: emails(in: responses, order: queryIds(in: responses)), inboxUnread: inbox.unread)
+  }
+
+  static func inbox(in responses: [[Any]]) -> (id: String, unread: Int?)? {
+    for response in responses where response.count >= 2 && response[0] as? String == "Mailbox/get" {
+      let list = (response[1] as? [String: Any])?["list"] as? [[String: Any]] ?? []
+      for mailbox in list where mailbox["role"] as? String == "inbox" {
+        guard let id = mailbox["id"] as? String else { continue }
+        return (id, (mailbox["unreadEmails"] as? NSNumber)?.intValue)
       }
     }
-    return JmapFetchResult(emails: emails, inboxUnread: inboxUnread)
+    return nil
+  }
+
+  static func queryIds(in responses: [[Any]]) -> [String] {
+    for response in responses where response.count >= 2 && response[0] as? String == "Email/query" {
+      return (response[1] as? [String: Any])?["ids"] as? [String] ?? []
+    }
+    return []
+  }
+
+  static func emails(in responses: [[Any]], order: [String]) -> [PushedEmail] {
+    for response in responses where response.count >= 2 && response[0] as? String == "Email/get" {
+      let list = (response[1] as? [String: Any])?["list"] as? [[String: Any]] ?? []
+      let byId = Dictionary(list.compactMap { item -> (String, [String: Any])? in
+        guard let id = item["id"] as? String else { return nil }
+        return (id, item)
+      }, uniquingKeysWith: { first, _ in first })
+      return order.compactMap { id in
+        guard let item = byId[id] else { return nil }
+        let from = (item["from"] as? [[String: Any]])?.first
+        let name = (from?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        return PushedEmail(
+          id: id,
+          threadId: item["threadId"] as? String ?? "",
+          sender: name ?? (from?["email"] as? String) ?? "",
+          subject: item["subject"] as? String ?? "",
+          preview: item["preview"] as? String ?? "",
+          receivedAt: PushRenewal.parseDate(item["receivedAt"] as? String)
+        )
+      }
+    }
+    return []
   }
 }

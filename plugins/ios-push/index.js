@@ -37,7 +37,7 @@ const { addTargetFiles, hasTarget } = require('../ios-target-files');
 
 const TARGET = 'NotificationService';
 const DEPLOYMENT_TARGET = '15.1';
-const SOURCE_FILES = ['NotificationService.swift', 'SharedKeychain.swift', 'Jmap.swift', 'PushRenewal.swift'];
+const SOURCE_FILES = ['NotificationService.swift', 'SharedKeychain.swift', 'Jmap.swift', 'PushRenewal.swift', 'NewMail.swift'];
 // Compiled into the app as well: the renewal on foreground and in the
 // background refresh task.
 const APP_SOURCE_FILES = ['SharedKeychain.swift', 'Jmap.swift', 'PushRenewal.swift', 'PushRenewalTask.swift'];
