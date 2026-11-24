@@ -1,5 +1,5 @@
 import type { Mailbox } from '../api/types';
-import { ownMailboxes } from './mailbox-tree';
+import { mailboxesForSiblingOf, ownMailboxes } from './mailbox-tree';
 
 /** What Android back does on a list screen (mail, contacts). */
 export type ListBackStep = 'clear-selection' | 'clear-search' | 'open-inbox' | 'leave';
@@ -25,12 +25,19 @@ export function listBackStep(state: {
 }
 
 /**
- * The Inbox back leads to from the open folder: the user's own, also from a
- * shared account's folder, since that is where the app starts. Null when the
- * Inbox is open already or the account has none.
+ * The Inbox back leads to from the open folder. Within a shared account it is
+ * that account's Inbox first, as other mail apps keep back inside the account
+ * that is open; from there, or from a shared account without one, it is the
+ * user's own Inbox, where the app starts. Null when the user's own Inbox is
+ * open already or there is none.
  */
 export function inboxBackTarget(mailboxes: Mailbox[], currentMailboxId: string | null): string | null {
-  const inbox = ownMailboxes(mailboxes).find((m) => m.role === 'inbox');
-  if (!inbox || !currentMailboxId || inbox.id === currentMailboxId) return null;
-  return inbox.id;
+  const own = ownMailboxes(mailboxes).find((m) => m.role === 'inbox');
+  if (!own || !currentMailboxId || own.id === currentMailboxId) return null;
+  const current = mailboxes.find((m) => m.id === currentMailboxId);
+  if (current?.isShared && current.role !== 'inbox') {
+    const shared = mailboxesForSiblingOf(mailboxes, currentMailboxId).find((m) => m.role === 'inbox');
+    if (shared) return shared.id;
+  }
+  return own.id;
 }
