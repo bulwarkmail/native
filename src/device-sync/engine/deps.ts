@@ -6,7 +6,15 @@
  */
 import type { CalendarPlanner, ContactsPlanner } from '../planner';
 import type { RandomSource } from '../common/ids';
-import type { AccountSyncPrefs, Authority, ProviderPort, RunStatus } from '../types';
+import type {
+  AccountSyncPrefs,
+  AndroidAccount,
+  Authority,
+  CollectionKey,
+  ProviderPort,
+  RequestSyncOptions,
+  RunStatus,
+} from '../types';
 import type { JmapConnection } from '../jmap/connection';
 
 export type { JmapConnection };
@@ -16,6 +24,16 @@ export interface SubscriptionCalendar {
   /** JMAP account of the mirror calendar; null for subscriptions saved before accounts were recorded (the primary). */
   jmapAccountId: string | null;
   calendarId: string;
+}
+
+/** Android's accounts of our type, as far as the accounts of single address books need them. */
+export interface AndroidAccountsPort {
+  list(): Promise<AndroidAccount[]>;
+  /** Adds the account of one address book: contacts sync on (in the same step, so none is left switched off), no periodic sync of its own. */
+  addAddressBook(name: string, registryId: string, collection: CollectionKey): Promise<void>;
+  /** Removes the account; the provider drops its rows. */
+  remove(name: string): Promise<void>;
+  requestSync(name: string, authority: Authority, options: RequestSyncOptions): Promise<void>;
 }
 
 export interface EngineDeps {
@@ -37,12 +55,21 @@ export interface EngineDeps {
   isSyncEnabled(accountName: string, authority: Authority): Promise<boolean>;
   /** The device's IANA time zone (floating events are written in it). */
   deviceZone(): string;
-  /** The last run's status for the settings UI. */
-  recordStatus(registryId: string, authority: Authority, status: RunStatus): void | Promise<void>;
+  /**
+   * The last run's status for the settings UI. `accountName` is given while
+   * every address book has an Android account of its own: each account's
+   * contacts run is then kept apart, and the settings show their summary.
+   */
+  recordStatus(registryId: string, authority: Authority, status: RunStatus, accountName?: string): void | Promise<void>;
   /** The status `recordStatus` stored last, if any (a run that did nothing keeps its details). */
-  lastStatus(registryId: string, authority: Authority): RunStatus | undefined | Promise<RunStatus | undefined>;
+  lastStatus(registryId: string, authority: Authority, accountName?: string): RunStatus | undefined | Promise<RunStatus | undefined>;
   /** The latest state the engine synced for a JMAP account and type, so the app skips the echo of our own writes. */
   recordKnownState(registryId: string, jmapAccountId: string, type: string, state: string): void | Promise<void>;
+  accounts: AndroidAccountsPort;
+  /** Remembers the Android account made for an address book; null forgets it. */
+  recordAddressBookAccount(registryId: string, collection: CollectionKey, name: string | null): void | Promise<void>;
+  /** The address book no longer syncs: the user removed its Android account in Android Settings. */
+  deselectAddressBook(registryId: string, collection: CollectionKey): void | Promise<void>;
   /** One notification that deep-links to sign-in, after an auth failure the rebuild did not fix. */
   notifyAuthProblem(registryId: string, accountName: string, authority: Authority): void | Promise<void>;
   /** Lets the JS thread render between chunks (default: `setTimeout(0)`). */

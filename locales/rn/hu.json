@@ -957,6 +957,8 @@
       "remove_message": "A fiók névjegyei és naptárai törlődnek erről az eszközről. Az itt végzett, a szerverre még el nem jutott módosítások elvesznek.",
       "remove_title": "Eltávolítod erről az eszközről?",
       "review_deletions": "Törlések áttekintése",
+      "separate_books_desc": "A névjegyalkalmazások így minden szinkronizált címjegyzéket külön jelenítenek meg, így ott egyenként megjelenítheted vagy elrejtheted őket.",
+      "separate_books_label": "Minden címjegyzék külön fiókként",
       "shared_by": "Megosztotta: {name}",
       "sign_in_again": "Újbóli bejelentkezés",
       "status_auth": "A szerver már nem fogadja el a bejelentkezést. Jelentkezz be újra a szinkronizálás folytatásához.",

@@ -960,6 +960,8 @@
       "remove_message": "Kontakty a kalendáre účtu sa z tohto zariadenia odstránia. Zmeny vykonané tu, ktoré sa nedostali na server, sa stratia.",
       "remove_title": "Odstrániť z tohto zariadenia?",
       "review_deletions": "Skontrolovať odstránenia",
+      "separate_books_desc": "Aplikácie na kontakty potom zobrazia každý synchronizovaný adresár zvlášť, takže v nich môžete každý zobraziť alebo skryť.",
+      "separate_books_label": "Každý adresár ako samostatný účet",
       "shared_by": "Zdieľané od {name}",
       "sign_in_again": "Znova sa prihlásiť",
       "status_auth": "Server už neprijíma prihlásenie. Ak chcete ďalej synchronizovať, znova sa prihláste.",

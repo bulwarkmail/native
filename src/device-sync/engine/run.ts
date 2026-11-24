@@ -13,6 +13,7 @@ import {
   JMAP_CALENDARS,
   JMAP_CONTACTS,
   type Authority,
+  type CollectionKey,
   type RunExtras,
   type RunPayload,
   type RunReport,
@@ -25,7 +26,9 @@ import { Checkpoints } from './checkpoint';
 import { ContactsSync } from './contacts-sync';
 import type { RunEnv } from './context';
 import { DEFAULT_TUNING, type EngineDeps, type Tuning } from './deps';
+import { foldAddressBookAccounts, ownerAccountSyncs, syncAddressBookAccounts } from './address-books';
 import { classifyFailure, RunAbort } from './errors';
+import { accountOfRef } from './kinds';
 import { acquireLock, lockKey, stopRequested } from './mutex';
 import { flag, ProviderReader, str } from './provider';
 import { isQuietRun, ReportBuilder, statusOf, statusToRecord } from './report';
@@ -88,6 +91,8 @@ export interface EnvOptions {
   report: ReportBuilder;
   stored: SyncState;
   connection: JmapConnection;
+  /** The address book the Android account holds, when it is the account of one book. */
+  collection?: CollectionKey;
 }
 
 /**
@@ -98,12 +103,17 @@ export interface EnvOptions {
 export async function createEnv(options: EnvOptions): Promise<{ env: RunEnv; sync: ItemSync }> {
   const { deps, tuning, registryId, authority, connection } = options;
   const jmap = new JmapCaller(connection.port, () => deps.now());
-  const accounts = accountsWithCapability(jmap.session(), capabilityOf(authority));
-  if (!accounts.length) {
+  const capable = accountsWithCapability(jmap.session(), capabilityOf(authority));
+  if (!capable.length) {
     throw new RunAbort('unsupported', `The server offers no ${authority === CONTACTS_AUTHORITY ? 'contacts' : 'calendars'} for this account`);
   }
+  // A book whose JMAP account left the session leaves no account: its clean rows go, like those of a deselected book.
+  const owner = accountOfRef(options.collection ?? null);
+  const accounts = options.collection ? capable.filter((a) => a.id === owner) : capable;
   const prefs = await deps.prefs(registryId);
   const recordKnownState = (jmapAccountId: string, type: string, state: string) => {
+    // The account of one address book speaks for itself only: the echo skip must not keep the other books from a change.
+    if (options.collection) return;
     try {
       void Promise.resolve(deps.recordKnownState(registryId, jmapAccountId, type, state)).catch(() => undefined);
     } catch {
@@ -132,6 +142,7 @@ export async function createEnv(options: EnvOptions): Promise<{ env: RunEnv; syn
     mode: options.mode,
     registryId,
     accountName: options.accountName,
+    collection: options.collection,
     authority,
     extras: options.extras,
     reader: options.reader,
@@ -189,8 +200,19 @@ export async function runDeviceSync(payload: RunPayload, deps: EngineDeps): Prom
  */
 async function recordStatus(payload: RunPayload, deps: EngineDeps, status: RunStatus): Promise<void> {
   try {
-    const previous = isQuietRun(status) ? await deps.lastStatus(payload.registryId, payload.authority) : undefined;
-    await deps.recordStatus(payload.registryId, payload.authority, statusToRecord(status, previous));
+    const { registryId, authority, accountName } = payload;
+    const separate = authority === CONTACTS_AUTHORITY && !!(await deps.prefs(registryId)).separateAddressBooks;
+    if (!separate) {
+      // A book's account left over from "an account per address book" only reports that it is off.
+      if (payload.collection) return;
+      const previous = isQuietRun(status) ? await deps.lastStatus(registryId, authority) : undefined;
+      await deps.recordStatus(registryId, authority, statusToRecord(status, previous));
+      return;
+    }
+    // Several Android accounts run for the app account: each one's status is kept apart. The own account
+    // syncs no contacts, so its runs all look quiet: its status is always its latest.
+    const previous = payload.collection && isQuietRun(status) ? await deps.lastStatus(registryId, authority, accountName) : undefined;
+    await deps.recordStatus(registryId, authority, statusToRecord(status, previous), accountName);
   } catch (error) {
     deps.log?.('recording the run status failed', error);
   }
@@ -202,6 +224,11 @@ async function runLocked(payload: RunPayload, deps: EngineDeps, tuning: Tuning, 
   const extras = payload.extras ?? {};
   try {
     if (!(await deps.isSyncEnabled(payload.accountName, payload.authority))) {
+      return finish('disabled', { message: 'Sync is off for this account' });
+    }
+    const separate = payload.authority === CONTACTS_AUTHORITY && !!(await deps.prefs(payload.registryId)).separateAddressBooks;
+    // The account of one address book follows the app account's own: its Contacts switch, and whether books still get accounts.
+    if (payload.collection && !(separate && (await ownerAccountSyncs(deps, payload.registryId)))) {
       return finish('disabled', { message: 'Sync is off for this account' });
     }
     const reader = new ProviderReader(deps.provider(payload.accountName, payload.authority));
@@ -217,7 +244,7 @@ async function runLocked(payload: RunPayload, deps: EngineDeps, tuning: Tuning, 
     if (stored.owner && stored.owner.origin !== connection.origin) {
       return finish('internal', { message: 'The rows on this device were written for another server' });
     }
-    const { sync } = await createEnv({
+    const { env, sync } = await createEnv({
       deps,
       tuning,
       mode: 'sync',
@@ -231,7 +258,16 @@ async function runLocked(payload: RunPayload, deps: EngineDeps, tuning: Tuning, 
       report,
       stored: readable ? stored : emptySyncState(),
       connection,
+      collection: payload.collection,
     });
+    if (payload.authority === CONTACTS_AUTHORITY && !payload.collection) {
+      // The app account's own account: with a source per address book it holds no contacts and keeps the books' accounts.
+      if (separate) {
+        await syncAddressBookAccounts(env, sync as ContactsSync);
+        return finish('ok');
+      }
+      if (!(await foldAddressBookAccounts(env))) return finish('ok');
+    }
     await sync.sync();
     return finish(report.tooManyDeletions ? 'tooManyDeletions' : 'ok');
   } catch (error) {

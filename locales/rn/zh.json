@@ -960,6 +960,8 @@
       "remove_message": "该账户的联系人和日历将从此设备移除。在此处所做但尚未到达服务器的更改将丢失。",
       "remove_title": "从此设备移除？",
       "review_deletions": "查看删除项",
+      "separate_books_desc": "联系人应用会分别列出每个已同步的通讯录，您可以在其中单独显示或隐藏。",
+      "separate_books_label": "每个通讯录作为独立账户",
       "shared_by": "由 {name} 共享",
       "sign_in_again": "重新登录",
       "status_auth": "服务器不再接受登录。请重新登录以继续同步。",

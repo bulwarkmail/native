@@ -92,18 +92,19 @@ class BulwarkDeviceSyncModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun listAccounts(promise: Promise) = settle(promise) {
         Arguments.createArray().apply {
-            for ((account, registryId) in DeviceSyncAccounts.list(reactApplicationContext)) {
+            for (entry in DeviceSyncAccounts.list(reactApplicationContext)) {
                 pushMap(Arguments.createMap().apply {
-                    putString("name", account.name)
-                    putString("registryId", registryId)
+                    putString("name", entry.account.name)
+                    putString("registryId", entry.registryId)
+                    putString("collection", entry.collection)
                 })
             }
         }
     }
 
     @ReactMethod
-    fun ensureAccount(name: String, registryId: String, promise: Promise) = settle(promise) {
-        DeviceSyncAccounts.ensure(reactApplicationContext, name, registryId)
+    fun ensureAccount(name: String, registryId: String, collection: String?, promise: Promise) = settle(promise) {
+        DeviceSyncAccounts.ensure(reactApplicationContext, name, registryId, collection)
     }
 
     @ReactMethod

@@ -963,6 +963,8 @@
       "remove_message": "I contatti e i calendari dell'account vengono rimossi da questo dispositivo. Le modifiche fatte qui che non hanno raggiunto il server andranno perse.",
       "remove_title": "Rimuovere da questo dispositivo?",
       "review_deletions": "Controlla eliminazioni",
+      "separate_books_desc": "Le app dei contatti elencano così ogni rubrica sincronizzata separatamente, in modo che tu possa mostrare o nascondere ciascuna lì.",
+      "separate_books_label": "Ogni rubrica come account separato",
       "shared_by": "Condiviso da {name}",
       "sign_in_again": "Accedi di nuovo",
       "status_auth": "Il server non accetta più l'accesso. Accedi di nuovo per continuare a sincronizzare.",

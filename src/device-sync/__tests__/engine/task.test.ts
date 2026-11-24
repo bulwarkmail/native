@@ -5,12 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../native', () => ({
   createProviderPort: vi.fn(),
+  ensureAndroidAccount: vi.fn(async () => true),
   finishRun: vi.fn(async () => true),
   getSyncSettings: vi.fn(async () => ({
     masterAutomatic: true,
     authorities: { 'com.android.contacts': { automatic: false, syncable: 1, periodicSeconds: 0, active: false, pending: false } },
   })),
   isRunCancelled: vi.fn(async () => false),
+  listAndroidAccounts: vi.fn(async () => []),
+  removeAndroidAccount: vi.fn(async () => true),
+  requestSync: vi.fn(async () => undefined),
+  setPeriodicSync: vi.fn(async () => undefined),
+  setSyncEnabled: vi.fn(async () => undefined),
   showSyncProblem: vi.fn(async () => undefined),
 }));
 

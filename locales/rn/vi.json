@@ -1101,6 +1101,8 @@
       "remove_message": "Danh bạ và lịch của tài khoản sẽ bị gỡ khỏi thiết bị này. Các thay đổi ở đây chưa đến được máy chủ sẽ bị mất.",
       "remove_title": "Gỡ khỏi thiết bị này?",
       "review_deletions": "Xem lại các mục đã xóa",
+      "separate_books_desc": "Khi đó các ứng dụng danh bạ liệt kê riêng từng sổ địa chỉ được đồng bộ, nên bạn có thể hiện hoặc ẩn từng sổ ở đó.",
+      "separate_books_label": "Mỗi sổ địa chỉ là một tài khoản riêng",
       "shared_by": "Được chia sẻ bởi {name}",
       "sign_in_again": "Đăng nhập lại",
       "status_auth": "Máy chủ không còn chấp nhận thông tin đăng nhập. Hãy đăng nhập lại để tiếp tục đồng bộ.",

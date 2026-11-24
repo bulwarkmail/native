@@ -234,7 +234,10 @@ describe('accounts and sync settings', () => {
     const module = installModule();
     await expect(listAndroidAccounts()).resolves.toEqual([{ name: ACCOUNT, registryId: 'alice@example.org@mail.example.org' }]);
     await expect(ensureAndroidAccount(ACCOUNT, 'reg')).resolves.toBe(true);
-    expect(module.ensureAccount).toHaveBeenCalledWith(ACCOUNT, 'reg');
+    expect(module.ensureAccount).toHaveBeenCalledWith(ACCOUNT, 'reg', null);
+    // The account of one address book.
+    await ensureAndroidAccount(`${ACCOUNT} – Flat`, 'reg', 'a/b2');
+    expect(module.ensureAccount).toHaveBeenCalledWith(`${ACCOUNT} – Flat`, 'reg', 'a/b2');
     await expect(removeAndroidAccount(ACCOUNT)).resolves.toBe(true);
     expect(module.removeAccount).toHaveBeenCalledWith(ACCOUNT);
     await expect(getSyncSettings(ACCOUNT)).resolves.toEqual(SETTINGS);
