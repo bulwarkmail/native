@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  shouldClaimGesture,
+  decidePanActivation,
   dragOffset,
   resolveRelease,
   restingOffset,
@@ -21,41 +21,39 @@ const instant = (over: Partial<SwipeConfig> = {}): SwipeConfig => ({
 
 const reveal = (over: Partial<SwipeConfig> = {}): SwipeConfig => instant({ mode: 'reveal', ...over });
 
-// PanResponder hands over dx/dy/vx; the rest of the gesture state is unused.
 const g = (dx: number, opts: { dy?: number; vx?: number } = {}) => ({
   dx,
   dy: opts.dy ?? 0,
   vx: opts.vx ?? 0,
 });
 
-describe('shouldClaimGesture', () => {
-  it('ignores drags too short to be intentional', () => {
-    expect(shouldClaimGesture(g(4), instant(), null)).toBe(false);
-    expect(shouldClaimGesture(g(-4), instant(), null)).toBe(false);
+describe('decidePanActivation', () => {
+  it('waits on drags too short to be intentional', () => {
+    expect(decidePanActivation(4, 0, instant(), null)).toBe('wait');
+    expect(decidePanActivation(-4, 0, instant(), null)).toBe('wait');
   });
 
   it('leaves mostly-vertical drags to the list scroll', () => {
-    expect(shouldClaimGesture(g(20, { dy: 40 }), instant(), null)).toBe(false);
-    expect(shouldClaimGesture(g(40, { dy: 20 }), instant(), null)).toBe(true);
+    expect(decidePanActivation(20, 40, instant(), null)).toBe('fail');
+    expect(decidePanActivation(40, 20, instant(), null)).toBe('activate');
   });
 
   it("declines the direction whose action is 'none'", () => {
     const config = instant({ rightAction: 'none' });
-    expect(shouldClaimGesture(g(50), config, null)).toBe(false);
-    expect(shouldClaimGesture(g(-50), config, null)).toBe(true);
+    expect(decidePanActivation(50, 0, config, null)).toBe('fail');
+    expect(decidePanActivation(-50, 0, config, null)).toBe('activate');
   });
 
   it("declines both directions in selection mode, where both actions are 'none'", () => {
     const config = instant({ leftAction: 'none', rightAction: 'none' });
-    expect(shouldClaimGesture(g(50), config, null)).toBe(false);
-    expect(shouldClaimGesture(g(-50), config, null)).toBe(false);
+    expect(decidePanActivation(50, 0, config, null)).toBe('fail');
+    expect(decidePanActivation(-50, 0, config, null)).toBe('fail');
   });
 
   it('claims any direction while a reveal band is open, so it can be dragged shut', () => {
     const config = reveal({ leftAction: 'none', rightAction: 'archive' });
-    expect(shouldClaimGesture(g(-50), config, 'right')).toBe(true);
-    // ...but not once it is closed again.
-    expect(shouldClaimGesture(g(-50), config, null)).toBe(false);
+    expect(decidePanActivation(-50, 0, config, 'right')).toBe('activate');
+    expect(decidePanActivation(-50, 0, config, null)).toBe('fail');
   });
 });
 

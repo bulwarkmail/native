@@ -15,12 +15,12 @@ import { useLocaleStore } from '../stores/locale-store';
 import type { SwipeAction, SwipeMode } from '../stores/settings-store';
 import { haptic } from '../lib/haptics';
 import {
-  shouldClaimGesture, dragOffset, resolveRelease, exitsRow, releaseWouldAct, flyPlan, flyProgress, fingerTravel,
-  restingOffset, armChange, releaseHaptic,
-  CLAIM_DX, COMMIT_THRESHOLD, REVEAL_WIDTH, SETTLE_SPRING,
+  dragOffset, resolveRelease, exitsRow, releaseWouldAct, nextArmedState, flyPlan, flyProgress,
+  panTravel, decidePanActivation, restingOffset, armChange, releaseHaptic,
+  CLAIM_DX, COMMIT_THRESHOLD, DISARM_THRESHOLD, REVEAL_WIDTH, SETTLE_SPRING,
   type SwipeConfig,
 } from './swipe-gesture';
-import { SwipeScrollLockContext } from './SwipeLockedFlatList';
+import { SwipeScrollGestureContext, SwipeScrollLockContext } from './SwipeLockedFlatList';
 
 interface SwipeableRowProps {
   children: React.ReactNode;
@@ -98,13 +98,14 @@ function sameRowProps(prev: SwipeableRowProps, next: SwipeableRowProps): boolean
   );
 }
 
-const FAIL_DY = 10;
-const FAR = 1e6;
-const ARM_POP = { stiffness: 600, damping: 18, mass: 1 };
+const ARM_POP = { stiffness: 550, damping: 24, mass: 1 };
 const ICON_POP = 0.12;
 const FILL_LIT_AT = 0.6;
 const FILL_MIN_DP = 1;
 const ICON_REVEAL = 48;
+const BAND_PAD = 16;
+const EDGE_MARGIN = 8;
+const RIDE_GAP = 16;
 const MUTED_TOWARD = '#6b7280';
 const MUTED_MIX = 0.55;
 
@@ -117,6 +118,34 @@ function mixHex(from: string, to: string, amount: number): string {
 function bandColors(action: SwipeAction): { muted: string; full: string } {
   const full = action === 'none' ? MUTED_TOWARD : ACTION_META[action].bg;
   return { muted: mixHex(full, MUTED_TOWARD, MUTED_MIX), full };
+}
+
+function bandIconStyle(offset: number, armed: number, sign: 1 | -1, contentWidth: number) {
+  'worklet';
+  const reach = Math.max(0, sign * offset);
+  const grow = interpolate(reach, [0, COMMIT_THRESHOLD], [0.75, 1], Extrapolation.CLAMP);
+  const baseScale = grow * (1 + ICON_POP * armed);
+  let scale = baseScale;
+  let shift = Math.min(armed, 1) * Math.max(0, reach - COMMIT_THRESHOLD);
+  if (contentWidth > 0) {
+    const fitWidth = Math.max(DISARM_THRESHOLD, reach) - 2 * EDGE_MARGIN;
+    scale = Math.min(baseScale, fitWidth / contentWidth);
+    const unshiftedCenter = BAND_PAD + contentWidth / 2;
+    const halfScaled = (contentWidth * scale) / 2;
+    const needed = BAND_PAD + contentWidth * (1 + ICON_POP / 2) + RIDE_GAP;
+    const ride = Math.min(armed, 1) * Math.max(0, reach - Math.max(COMMIT_THRESHOLD, needed));
+    const minCenter = EDGE_MARGIN + halfScaled;
+    const maxCenter = reach - EDGE_MARGIN - halfScaled;
+    const targetCenter = Math.max(minCenter, Math.min(unshiftedCenter + ride, maxCenter));
+    shift = targetCenter - unshiftedCenter;
+  }
+  return {
+    opacity: interpolate(reach, [0, ICON_REVEAL], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      { translateX: sign * shift },
+      { scale },
+    ],
+  };
 }
 const ROW_EXIT = FadeOut.duration(150);
 const ROW_ENTER = FadeIn.duration(250);
@@ -131,12 +160,22 @@ export const SwipeableRow = React.memo(function SwipeableRow({
   const tx = useSharedValue(0);
   const armed = useSharedValue(false);
   const armedProgress = useSharedValue(0);
+  const armedSide = useSharedValue<0 | 1 | -1>(0);
   const startTx = useSharedValue(0);
+  const downX = useSharedValue(0);
+  const downY = useSharedValue(0);
+  const claimX = useSharedValue(0);
+  const hasClaimX = useSharedValue(false);
+  const decided = useSharedValue(false);
   const rowWidth = useSharedValue(Dimensions.get('window').width || EXIT_DISTANCE);
   const started = useSharedValue(false);
+  const leftIconWidth = useSharedValue(0);
+  const rightIconWidth = useSharedValue(0);
   const [bandsMounted, setBandsMounted] = useState(false);
   const dragging = useRef(false);
+  const touching = useRef(false);
   const scrollLock = useContext(SwipeScrollLockContext);
+  const scrollGestures = useContext(SwipeScrollGestureContext);
   const scrollLockRef = useRef(scrollLock);
   scrollLockRef.current = scrollLock;
 
@@ -157,7 +196,7 @@ export const SwipeableRow = React.memo(function SwipeableRow({
       releaseHeld = null;
     };
     const unmountBandsAtRest = () => {
-      if (dragging.current || openSideRef.current !== null) return;
+      if (touching.current || dragging.current || openSideRef.current !== null) return;
       setBandsMounted(false);
     };
     const springTo = (toValue: number, velocity = 0) => {
@@ -166,7 +205,10 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         armedProgress.value = withSpring(0, ARM_POP);
       }
       tx.value = withSpring(toValue, { ...SETTLE_SPRING, velocity }, (finished) => {
-        if (finished && toValue === 0) runOnJS(unmountBandsAtRest)();
+        if (finished && toValue === 0) {
+          armedSide.value = 0;
+          runOnJS(unmountBandsAtRest)();
+        }
       });
     };
     const setOpen = (side: 'left' | 'right' | null) => {
@@ -198,21 +240,26 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         latest.current.onAction(action);
       }
     };
-    const prepare = () => setBandsMounted(true);
+    const prepare = () => {
+      touching.current = true;
+      setBandsMounted(true);
+    };
     const begin = () => {
       releaseScroll();
       releaseHeld = scrollLockRef.current.hold();
+      touching.current = true;
       dragging.current = true;
       setBandsMounted(true);
     };
     const endDrag = () => {
+      touching.current = false;
       dragging.current = false;
     };
     return {
       releaseScroll, unmountBandsAtRest, close, setOpen, startLeaving, afterFly, fireInPlace,
       fireFromBandTap, prepare, begin, endDrag,
     };
-  }, [tx, armed, armedProgress]);
+  }, [tx, armed, armedProgress, armedSide]);
   const {
     releaseScroll, unmountBandsAtRest, close, setOpen, startLeaving, afterFly, fireInPlace,
     fireFromBandTap, prepare, begin, endDrag,
@@ -225,7 +272,6 @@ export const SwipeableRow = React.memo(function SwipeableRow({
   const pan = React.useMemo(() => {
     const config: SwipeConfig = { leftAction, rightAction, mode };
     const side = openSide;
-    const claims = (dx: number) => shouldClaimGesture({ dx, dy: 0, vx: 0 }, config, side);
     const springBack = (toValue: number, velocity: number) => {
       'worklet';
       if (toValue === 0) {
@@ -233,13 +279,52 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         armedProgress.value = withSpring(0, ARM_POP);
       }
       tx.value = withSpring(toValue, { ...SETTLE_SPRING, velocity: velocity * 1000 }, (finished) => {
-        if (finished && toValue === 0) runOnJS(unmountBandsAtRest)();
+        if (finished && toValue === 0) {
+          armedSide.value = 0;
+          runOnJS(unmountBandsAtRest)();
+        }
       });
     };
-    return Gesture.Pan()
+    const gesture = Gesture.Pan()
       .enabled(!leaving)
-      .activeOffsetX([claims(-CLAIM_DX) ? -CLAIM_DX : -FAR, claims(CLAIM_DX) ? CLAIM_DX : FAR])
-      .failOffsetY([-FAIL_DY, FAIL_DY])
+      .manualActivation(true)
+      .onTouchesDown((e) => {
+        const touch = e.changedTouches[0];
+        if (!touch) return;
+        downX.value = touch.absoluteX;
+        downY.value = touch.absoluteY;
+        hasClaimX.value = false;
+        decided.value = false;
+      })
+      .onTouchesMove((e, stateManager) => {
+        if (decided.value) return;
+        const touch = e.allTouches[0] ?? e.changedTouches[0];
+        if (!touch) return;
+        const dx = touch.absoluteX - downX.value;
+        const dy = touch.absoluteY - downY.value;
+        const verdict = decidePanActivation(dx, dy, config, side);
+        if (verdict === 'activate') {
+          decided.value = true;
+          claimX.value = downX.value + (dx > 0 ? Math.min(dx, CLAIM_DX) : Math.max(dx, -CLAIM_DX));
+          hasClaimX.value = true;
+          stateManager.activate();
+        } else if (verdict === 'fail') {
+          decided.value = true;
+          stateManager.fail();
+        }
+      })
+      .onTouchesUp((e, stateManager) => {
+        if (e.numberOfTouches === 0 && !started.value) {
+          decided.value = true;
+          stateManager.fail();
+        }
+      })
+      .onTouchesCancelled((_e, stateManager) => {
+        if (!started.value) {
+          decided.value = true;
+          stateManager.fail();
+        }
+      })
       .onBegin(() => {
         started.value = false;
         runOnJS(prepare)();
@@ -248,15 +333,25 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         cancelAnimation(tx);
         started.value = true;
         startTx.value = tx.value;
-        armed.value = releaseWouldAct(tx.value, config, side);
+        const alreadyArmed = releaseWouldAct(tx.value, config, side);
+        armed.value = alreadyArmed;
+        armedSide.value = alreadyArmed ? (tx.value > 0 ? 1 : -1) : 0;
         runOnJS(begin)();
       })
       .onUpdate((e) => {
-        const next = dragOffset({ dx: fingerTravel(e.translationX), dy: e.translationY, vx: 0 }, config, side, startTx.value);
+        const travel = panTravel(e.absoluteX, claimX.value, hasClaimX.value, e.translationX);
+        const next = dragOffset({ dx: travel, dy: e.translationY, vx: 0 }, config, side, startTx.value);
         tx.value = next;
-        const nowArmed = releaseWouldAct(next, config, side);
+        if ((armedSide.value === 1 && next <= 0) || (armedSide.value === -1 && next >= 0)) {
+          armed.value = false;
+          armedSide.value = 0;
+          cancelAnimation(armedProgress);
+          armedProgress.value = 0;
+        }
+        const nowArmed = nextArmedState(next, armed.value, config, side);
         if (armChange(armed.value, nowArmed)) {
           armed.value = nowArmed;
+          if (nowArmed) armedSide.value = next > 0 ? 1 : -1;
           runOnJS(haptic)('selection');
           armedProgress.value = withSpring(nowArmed ? 1 : 0, ARM_POP);
         }
@@ -268,12 +363,13 @@ export const SwipeableRow = React.memo(function SwipeableRow({
           runOnJS(setOpen)(null);
           return;
         }
-        const outcome = resolveRelease({ dx: tx.value - restingOffset(side), dy: e.translationY, vx }, config, side);
+        const outcome = resolveRelease({ dx: tx.value - restingOffset(side), dy: e.translationY, vx }, config, side, armed.value);
         const tick = releaseHaptic(outcome, armed.value);
         if (tick) runOnJS(haptic)(tick);
         if (outcome.kind === 'fire') {
           const action = outcome.action;
           armed.value = true;
+          armedSide.value = outcome.direction;
           armedProgress.value = withSpring(1, ARM_POP);
           if (exitsRow(action)) {
             const toValue = outcome.direction * rowWidth.value;
@@ -302,12 +398,16 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         }
       })
       .onFinalize(() => {
+        hasClaimX.value = false;
+        decided.value = false;
         runOnJS(endDrag)();
         runOnJS(releaseScroll)();
         if (!started.value) runOnJS(unmountBandsAtRest)();
       });
+    return scrollGestures.length > 0 ? gesture.blocksExternalGesture(...scrollGestures) : gesture;
   }, [
-    leftAction, rightAction, mode, openSide, leaving, tx, armed, armedProgress, startTx, started, rowWidth,
+    leftAction, rightAction, mode, openSide, leaving, scrollGestures, tx, armed, armedProgress, armedSide,
+    startTx, downX, downY, claimX, hasClaimX, decided, started, rowWidth,
     prepare, begin, endDrag, setOpen, startLeaving, afterFly, fireInPlace, releaseScroll, unmountBandsAtRest,
   ]);
 
@@ -323,7 +423,8 @@ export const SwipeableRow = React.memo(function SwipeableRow({
   const hasFill = mode !== 'reveal' && (leftAction !== 'none' || rightAction !== 'none');
   const fillStyle = useAnimatedStyle(() => {
     const toRight = tx.value > 0;
-    const lit = Math.min(1, Math.max(0, armedProgress.value / FILL_LIT_AT));
+    const progress = (toRight && armedSide.value === -1) || (!toRight && armedSide.value === 1) ? 0 : armedProgress.value;
+    const lit = Math.min(1, Math.max(0, progress / FILL_LIT_AT));
     return {
       opacity: Math.abs(tx.value) < FILL_MIN_DP ? 0 : 1,
       backgroundColor: toRight
@@ -331,21 +432,12 @@ export const SwipeableRow = React.memo(function SwipeableRow({
         : interpolateColor(lit, [0, 1], [rightColors.muted, rightColors.full]),
     };
   }, [leftColors.muted, leftColors.full, rightColors.muted, rightColors.full]);
-  const iconStyle = (sign: 1 | -1) => {
-    'worklet';
-    const reach = Math.max(0, sign * tx.value);
-    const p = armedProgress.value;
-    const grow = interpolate(reach, [0, COMMIT_THRESHOLD], [0.75, 1], Extrapolation.CLAMP);
-    return {
-      opacity: interpolate(reach, [0, ICON_REVEAL], [0, 1], Extrapolation.CLAMP),
-      transform: [
-        { translateX: sign * Math.min(p, 1) * Math.max(0, reach - COMMIT_THRESHOLD) },
-        { scale: grow * (1 + ICON_POP * p) },
-      ],
-    };
-  };
-  const leftIconStyle = useAnimatedStyle(() => iconStyle(1));
-  const rightIconStyle = useAnimatedStyle(() => iconStyle(-1));
+  const leftIconStyle = useAnimatedStyle(() =>
+    bandIconStyle(tx.value, armedSide.value === -1 ? 0 : armedProgress.value, 1, leftIconWidth.value),
+  );
+  const rightIconStyle = useAnimatedStyle(() =>
+    bandIconStyle(tx.value, armedSide.value === 1 ? 0 : armedProgress.value, -1, rightIconWidth.value),
+  );
 
   const onLayout = (e: { nativeEvent: { layout: { width: number } } }) => {
     if (e.nativeEvent.layout.width > 0) rowWidth.value = e.nativeEvent.layout.width;
@@ -409,7 +501,16 @@ export const SwipeableRow = React.memo(function SwipeableRow({
           side === 'left' ? { justifyContent: 'flex-start' } : { justifyContent: 'flex-end' },
         ]}
       >
-        <Animated.View style={[styles.bandInner, side === 'left' ? leftIconStyle : rightIconStyle]}>
+        <Animated.View
+          style={[styles.bandInner, side === 'left' ? leftIconStyle : rightIconStyle]}
+          onLayout={(e) => {
+            const width = e.nativeEvent.layout.width;
+            if (width > 0) {
+              if (side === 'left') leftIconWidth.value = width;
+              else rightIconWidth.value = width;
+            }
+          }}
+        >
           <Icon size={22} color="#fff" />
           <Text style={styles.bandLabel}>{label}</Text>
         </Animated.View>
@@ -452,7 +553,7 @@ function makeStyles(c: ThemePalette) {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 24,
+      paddingHorizontal: BAND_PAD,
     },
     bandReveal: {
       position: 'absolute',
