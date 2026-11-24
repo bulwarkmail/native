@@ -293,4 +293,55 @@ class BulwarkNativePushFetcherTest {
         assertFalse(BulwarkNativePushFetcher.subscriptionNeedsExtension(iso(now + 7 * day), now))
         assertFalse(BulwarkNativePushFetcher.subscriptionNeedsExtension(iso(now + 80 * day), now))
     }
+
+    @Test
+    fun `stale check asks only for keywords and mailboxes of the shown ids`() {
+        val body = BulwarkNativePushFetcher.buildJmapStaleCheckBody("c", listOf("m1", "m2"))
+        val call = body.getJSONArray("methodCalls").getJSONArray(0)
+        assertEquals("Email/get", call.getString(0))
+        val args = call.getJSONObject(1)
+        assertEquals("c", args.getString("accountId"))
+        assertEquals("[\"m1\",\"m2\"]", args.getJSONArray("ids").toString())
+        assertEquals("[\"id\",\"keywords\",\"mailboxIds\"]", args.getJSONArray("properties").toString())
+    }
+
+    @Test
+    fun `read, junk, moved and deleted messages are stale, the rest stay`() {
+        val response = """
+            {"methodResponses":[["Email/get",{"accountId":"c","list":[
+              {"id":"unread","keywords":{},"mailboxIds":{"inbox":true}},
+              {"id":"read","keywords":{"${'$'}seen":true},"mailboxIds":{"inbox":true}},
+              {"id":"junk","keywords":{"${'$'}junk":true},"mailboxIds":{"inbox":true}},
+              {"id":"moved","keywords":{},"mailboxIds":{"archive":true}},
+              {"id":"labelled","keywords":{},"mailboxIds":{"inbox":true,"work":true}},
+              {"id":"unknown-folders","keywords":{},"mailboxIds":{"archive":true}}
+            ],"notFound":["deleted","not-shown"]},"0"]]}
+        """.trimIndent()
+        val shown = mapOf(
+            "unread" to setOf("inbox"),
+            "read" to setOf("inbox"),
+            "junk" to setOf("inbox"),
+            "moved" to setOf("inbox"),
+            "labelled" to setOf("inbox"),
+            "unknown-folders" to emptySet(),
+            "deleted" to setOf("inbox"),
+            "not-in-response" to setOf("inbox"),
+        )
+        assertEquals(
+            setOf("read", "junk", "moved", "deleted"),
+            BulwarkNativePushFetcher.parseStaleEmailIds(response, shown),
+        )
+    }
+
+    @Test
+    fun `an error response removes nothing`() {
+        val shown = mapOf("m1" to setOf("inbox"))
+        for (response in listOf(
+            """{"methodResponses":[["error",{"type":"serverFail"},"0"]]}""",
+            """{"methodResponses":[]}""",
+            "not json",
+        )) {
+            assertNull(response, BulwarkNativePushFetcher.parseStaleEmailIds(response, shown))
+        }
+    }
 }
