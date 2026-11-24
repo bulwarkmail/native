@@ -809,7 +809,25 @@ describe('push types with a delivery filter (#169)', () => {
 
     expect(createMock.mock.calls[0][0].types).toEqual([]);
     expect(createMock.mock.calls[0][0].emailPush).toBeDefined();
+    // Android keeps Email, for the changes that clear notifications (#96).
+    expect(typesWritten()).toEqual([['new-server-id', ['Email']]]);
+  });
+
+  it('never adds EmailDelivery back to a subscription it wrote Email into', async () => {
+    await AsyncStorage.setItem(SUB_KEY, 'existing');
+    await AsyncStorage.setItem(EMPTY_TYPES_TRIED_KEY, '1');
+    listMock.mockResolvedValue([subscription('existing', ['Email'], 2)]);
+
+    await setupPushNotifications({ relayBaseUrl: RELAY });
+
+    expect(createMock).not.toHaveBeenCalled();
+    expect(updateMock.mock.calls.some((c) => c[1].expires)).toBe(true);
     expect(typesWritten()).toEqual([]);
+
+    vi.clearAllMocks();
+    await syncContacts();
+    await refreshPushSubscriptionTypes(ACCOUNT_ID);
+    expect(typesWritten()).toEqual([['existing', ['Email', 'ContactCard', 'AddressBook']]]);
   });
 
   it('sets EmailDelivery where the server filled the list in (before 1.0.3)', async () => {
@@ -827,7 +845,7 @@ describe('push types with a delivery filter (#169)', () => {
     await setupPushNotifications({ relayBaseUrl: RELAY });
 
     expect(createMock.mock.calls[0][0].types).toEqual([]);
-    expect(typesWritten()).toEqual([['new-server-id', ['ContactCard', 'AddressBook']]]);
+    expect(typesWritten()).toEqual([['new-server-id', ['Email', 'ContactCard', 'AddressBook']]]);
 
     // And with it where the server filled the list in.
     vi.clearAllMocks();
@@ -866,20 +884,21 @@ describe('push types with a delivery filter (#169)', () => {
 
     expect(createMock).not.toHaveBeenCalled();
     expect(updateMock.mock.calls.some((c) => c[1].expires)).toBe(true);
-    expect(typesWritten()).toEqual([]);
+    // Made by a build that left Email out too: it goes in with the refresh.
+    expect(typesWritten()).toEqual([['existing', ['Email']]]);
 
     // Device sync turned on: its types, still without EmailDelivery.
     vi.clearAllMocks();
     await syncContacts();
     await refreshPushSubscriptionTypes(ACCOUNT_ID);
-    expect(typesWritten()).toEqual([['existing', ['ContactCard', 'AddressBook']]]);
+    expect(typesWritten()).toEqual([['existing', ['Email', 'ContactCard', 'AddressBook']]]);
 
     // And off again.
     vi.clearAllMocks();
     await AsyncStorage.removeItem(DEVICE_SYNC_KEY);
-    listMock.mockResolvedValue([subscription('existing', ['ContactCard', 'AddressBook'])]);
+    listMock.mockResolvedValue([subscription('existing', ['Email', 'ContactCard', 'AddressBook'])]);
     await refreshPushSubscriptionTypes(ACCOUNT_ID);
-    expect(typesWritten()).toEqual([['existing', []]]);
+    expect(typesWritten()).toEqual([['existing', ['Email']]]);
   });
 
   it('never leaves EmailDelivery out of a subscription that listens to other mail types', async () => {

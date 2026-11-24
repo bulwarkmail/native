@@ -1593,7 +1593,9 @@ app's system settings when Android no longer asks.
   The follow-up finds nothing to do, so it stays one.
 - **App closed:** while an account has device sync on, its push subscription
   adds `ContactCard`, `AddressBook` (contacts) and `CalendarEvent`, `Calendar`
-  (calendar) to the mail types (`EmailDelivery`, and `Email` on Android), per
+  (calendar) to the mail types (`EmailDelivery`, and `Email` on Android;
+  `Email` alone where the server kept `EmailDelivery` out because new mail
+  comes as EmailPush, Stalwart 1.0.3 and later, #169), per
   account, when the account's session
   advertises `urn:ietf:params:jmap:contacts` or
   `urn:ietf:params:jmap:calendars`. A server that refuses a subscription
@@ -1618,7 +1620,8 @@ app's system settings when Android no longer asks.
   `reconcile` set, and the push service checks the mail notifications still
   showing for that account with one `Email/get` and removes the ones whose
   message is gone, `$seen`, `$junk` or in none of the mailboxes it was in.
-  With no notification showing it makes no request. The removal and the
+  With no notification showing it makes no request. The relay sends these
+  pushes at normal FCM priority and only new mail at high. The removal and the
   group summary refresh after it run under the account's notify-once lock
   (#131, `BulwarkFcmModule.cancelForAccount`), so a notification being
   posted for the account is never taken down with a summary the refresh

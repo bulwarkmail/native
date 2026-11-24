@@ -312,14 +312,20 @@ export const PUSH_TYPES: readonly string[] =
 // name a mail type, and an empty list on create is filled in with every type.
 // The session doesn't say which version answers, so a subscription whose
 // filter covers every account is created with an empty list and read back:
-// kept empty, the mail types stay out (device sync's types are added back);
-// filled in, it gets the types it would have had. The mail types are left out
-// of a later write only when the server kept them out before.
+// kept empty, EmailDelivery stays out (device sync's types are added back);
+// filled in, it gets the types it would have had. EmailDelivery is left out of
+// a later write only when the server kept it out before.
+//
+// Android's `Email` goes back in (#96): the server sends a StateChange only
+// for the types listed, so a draft saved elsewhere arrives as `Email` without
+// `EmailDelivery`, which the push router takes for a change and never for new
+// mail. A list with `Email` but without the other mail types is one this code
+// wrote, never one the server filled in.
 //
 // Subscriptions made before this have EmailDelivery and are replaced once per
 // device and account; this key says the empty list was tried here.
 const EMPTY_TYPES_TRIED_PREFIX = 'push:emptyTypesTried:v1:';
-const MAIL_STATE_TYPES: readonly string[] = ['EmailDelivery', 'Email', 'Mailbox', 'Thread'];
+const DELIVERY_STATE_TYPES: readonly string[] = ['EmailDelivery', 'Mailbox', 'Thread'];
 
 function emptyTypesTriedKey(accountId: string): string {
   return EMPTY_TYPES_TRIED_PREFIX + accountId;
@@ -327,18 +333,19 @@ function emptyTypesTriedKey(accountId: string): string {
 
 /**
  * The types to write to a subscription that has `current`, for an account that
- * wants `wanted` (pushTypesFor): without the mail types where the server kept
- * them out (see EMPTY_TYPES_TRIED_PREFIX) and the delivery filter is in use.
+ * wants `wanted` (pushTypesFor): without EmailDelivery, Mailbox and Thread
+ * where the server kept them out (see EMPTY_TYPES_TRIED_PREFIX) and the
+ * delivery filter is in use. `Email` stays when it is wanted.
  */
 export function subscriptionTypes(
   current: readonly string[] | null | undefined,
   wanted: readonly string[],
   emailPushInUse: boolean,
 ): string[] {
-  const mailTypesKeptOut = emailPushInUse
+  const deliveryTypesKeptOut = emailPushInUse
     && Array.isArray(current)
-    && !current.some((type) => MAIL_STATE_TYPES.includes(type));
-  return mailTypesKeptOut ? wanted.filter((type) => !MAIL_STATE_TYPES.includes(type)) : [...wanted];
+    && !current.some((type) => DELIVERY_STATE_TYPES.includes(type));
+  return deliveryTypesKeptOut ? wanted.filter((type) => !DELIVERY_STATE_TYPES.includes(type)) : [...wanted];
 }
 
 // The capability a server advertises for the data types of an authority.
