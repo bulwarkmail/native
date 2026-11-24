@@ -55,7 +55,7 @@ import { useKeywordsStore, currentTagsLogin, type KeywordDef } from '../stores/k
 import { formatKeyword } from '../lib/keyword-nesting';
 import { mergeSharedTags } from '../lib/shared-tags';
 import { useBackWhileFocused } from '../lib/use-back-while-focused';
-import { listBackStep } from '../lib/list-back';
+import { inboxBackTarget, listBackStep } from '../lib/list-back';
 import { reportFailure } from '../lib/report-failure';
 import { createDepartures } from '../lib/departures';
 import { ROW_PRESS_DELAY_MS } from '../components/swipe-gesture';
@@ -1293,11 +1293,14 @@ export default function EmailListScreen({
   // In the panel under the focused field, else a chip while a search is on.
   const searchEverythingAt = searchEverythingPlacement({ searchFocused, hasActiveSearchOrFilter });
 
-  // Back first leaves the selection, then the search and filters; only then
-  // does it leave the app (it used to exit with a search still open).
+  // Back first leaves the selection, then the search and filters, then goes
+  // from another folder to the Inbox; only then does it leave the app (it
+  // used to exit with a search or another folder still open).
+  const backInbox = inboxBackTarget(mailboxes, currentMailboxId);
   const backStep = listBackStep({
     selecting: selectionMode,
     searching: hasActiveSearchOrFilter || searchInput.length > 0,
+    outsideInbox: backInbox !== null,
   });
   const handleBack = React.useCallback(() => {
     if (backStep === 'clear-selection') {
@@ -1305,8 +1308,10 @@ export default function EmailListScreen({
     } else if (backStep === 'clear-search') {
       setSearchInput('');
       clearSearchAndFilters();
+    } else if (backStep === 'open-inbox' && backInbox) {
+      void selectMailbox(backInbox);
     }
-  }, [backStep, clearSelection, clearSearchAndFilters]);
+  }, [backStep, backInbox, clearSelection, clearSearchAndFilters, selectMailbox]);
   useBackWhileFocused(backStep !== 'leave' && !covered, handleBack);
   const openRole = currentMailbox?.role;
   const folderScope = effectiveFolderScope(storeSearchQuery, filters, openRole, searchDefaultScope);
