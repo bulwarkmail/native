@@ -7,9 +7,12 @@ import android.content.SharedPreferences
 import android.database.sqlite.SQLiteDatabase
 import android.os.Build
 import android.util.Log
+import com.facebook.react.modules.network.ForwardingCookieHandler
+import com.facebook.react.modules.network.ReactCookieJarContainer
 import com.reactnativecommunity.asyncstorage.AsyncLocalStorageUtil
 import com.reactnativecommunity.asyncstorage.ReactDatabaseSupplier
 import okhttp3.FormBody
+import okhttp3.JavaNetCookieJar
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -94,9 +97,13 @@ object BulwarkNativePushFetcher {
     /** Sender icons are fetched only with this much of the budget left (3 s connect + 3 s read). */
     const val FAVICON_MIN_LEFT_MS = 6_000L
 
+    // The cookie store of the app's own requests, set up as React Native's
+    // networking module does: an authenticating proxy in front of the server
+    // may require the cookie it set on them.
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .cookieJar(ReactCookieJarContainer().apply { setCookieJar(JavaNetCookieJar(ForwardingCookieHandler())) })
         .build()
 
     // The refresh token goes in the body: a redirect must not carry it to

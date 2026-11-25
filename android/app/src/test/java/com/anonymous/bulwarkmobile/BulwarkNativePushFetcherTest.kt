@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.facebook.react.modules.network.ReactCookieJarContainer
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -343,5 +344,13 @@ class BulwarkNativePushFetcherTest {
         )) {
             assertNull(response, BulwarkNativePushFetcher.parseStaleEmailIds(response, shown))
         }
+    }
+
+    @Test
+    fun `the native clients carry the system cookie jar`() {
+        // Wiring only: the JVM has no CookieManager, so which cookies go out is not tested here.
+        val (jmap, token) = BulwarkNativePushFetcher.clientsFor(null) { error("no certificate here") }
+        assertTrue(jmap.cookieJar is ReactCookieJarContainer)
+        assertTrue(token.cookieJar is ReactCookieJarContainer)
     }
 }
