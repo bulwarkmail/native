@@ -31,6 +31,8 @@ export type MessageSpacing = 'auto' | 'always' | 'edge';
 // a11y-reading: the webmail's reading fonts (lib/accessibility-settings.ts AppFont).
 export type AppFont = 'default' | 'atkinson' | 'lexend' | 'opendyslexic';
 export const APP_FONTS: readonly AppFont[] = ['default', 'atkinson', 'lexend', 'opendyslexic'];
+export type ReadingWidth = 'full' | 'comfortable';
+export const READING_WIDTHS: readonly ReadingWidth[] = ['full', 'comfortable'];
 export type ReadReceiptResponse = 'ask' | 'always' | 'never';
 export type PostExportAction = 'keep' | 'archive' | 'trash';
 export type SwipeAction =
@@ -188,6 +190,7 @@ export interface PersistedSettings {
   // settings.ts, same keys for export/import). The reading font for the
   // app's text and plain-text mail (theme/reading-fonts).
   appFont: AppFont;
+  readingWidth: ReadingWidth;
   // Tag and calendar colours drawn in the colour-blind-safe palette
   // (lib/cvd-palette, theme/colors).
   colorBlindPalette: boolean;
@@ -432,6 +435,7 @@ export const DEFAULT_PERSISTED: PersistedSettings = {
   activeThemeId: null,
   // a11y-reading:
   appFont: 'default',
+  readingWidth: 'full',
   colorBlindPalette: false,
   plainLanguage: false,
 
@@ -726,6 +730,7 @@ const VALIDATORS: Partial<Record<keyof PersistedSettings, (v: unknown) => boolea
   fontSize: oneOf(FONT_SIZES),
   // a11y-reading:
   appFont: oneOf(APP_FONTS),
+  readingWidth: oneOf(READING_WIDTHS),
   density: oneOf(['extra-compact', 'compact', 'regular', 'comfortable']),
   attachmentReminderKeywords: stringArray,
   // Same set the webmail accepts (stores/settings-store.ts importSettings).

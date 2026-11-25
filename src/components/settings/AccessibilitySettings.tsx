@@ -6,7 +6,8 @@ import { spacing } from '../../theme/tokens';
 import { useLocaleStore } from '../../stores/locale-store';
 import { usePolicyStore, useSettingHidden, useSettingLocked } from '../../stores/policy-store';
 import { isLockedSetting, policyAllowsValue } from '../../lib/org-policy';
-import { APP_FONTS, FONT_SIZES, useSettingsStore, type AppFont, type FontSize } from '../../stores/settings-store';
+import { APP_FONTS, FONT_SIZES, READING_WIDTHS, useSettingsStore, type AppFont, type FontSize, type ReadingWidth } from '../../stores/settings-store';
+import { useLayout } from '../../lib/use-layout';
 import { uiFontsBundled } from '../../theme/reading-fonts';
 import { toast } from '../../stores/toast-store';
 import {
@@ -78,6 +79,9 @@ export function AccessibilitySettings() {
   const update = useSettingsStore((s) => s.updateSetting);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const appFont = useSettingsStore((s) => s.appFont);
+  const readingWidth = useSettingsStore((s) => s.readingWidth);
+  const readingWidthLocked = useSettingLocked('readingWidth');
+  const { isSplit } = useLayout();
   const colorBlindPalette = useSettingsStore((s) => s.colorBlindPalette);
   const plainLanguage = useSettingsStore((s) => s.plainLanguage);
   const animationsEnabled = useSettingsStore((s) => s.animationsEnabled);
@@ -189,6 +193,24 @@ export function AccessibilitySettings() {
             }))}
           />
         </SettingItem>
+        {isSplit && (
+          <SettingItem
+            label={t('settings.accessibility.reading_width.label', 'Reading width')}
+            description={t('settings.accessibility.reading_width.description', "Shows messages in a centred column, so your eyes don't have to travel as far.")}
+            locked={readingWidthLocked}
+          >
+            <Select
+              value={readingWidth}
+              onChange={(v) => update('readingWidth', v as ReadingWidth)}
+              options={READING_WIDTHS.map((width) => ({
+                value: width,
+                label: width === 'full'
+                  ? t('settings.accessibility.reading_width.full', 'Full width')
+                  : t('settings.accessibility.reading_width.comfortable', 'Comfortable'),
+              }))}
+            />
+          </SettingItem>
+        )}
         <SettingItem
           label={t('settings.accessibility.plain_language.label', 'Plain language')}
           description={t('settings.accessibility.plain_language.description_mobile', 'Simpler wording for settings and error messages. Available in English, German and Vietnamese.')}

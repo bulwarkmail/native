@@ -52,6 +52,7 @@ export interface MessageContentProps {
    * the body starts at the full page height instead of growing into it.
    */
   fill?: boolean;
+  fillWidth?: boolean;
 }
 
 /**
@@ -62,7 +63,7 @@ export interface MessageContentProps {
  */
 export function MessageContent({
   email, jmapAccountId, identities, currentMailboxRole, active, themeOverride, plainView, onShowFormatted,
-  onSwipe, onZoomChange, onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled, fill,
+  onSwipe, onZoomChange, onToggleStar, onAddressPress, onEmailPatched, compact, deferBody, onBodySettled, fill, fillWidth,
 }: MessageContentProps) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -168,6 +169,7 @@ export function MessageContent({
             bodyOverride={bodyOverride}
             onSettled={onBodySettled}
             fill={fill}
+            fillWidth={fillWidth}
           />
         )}
       </View>
