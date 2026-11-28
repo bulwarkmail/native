@@ -117,7 +117,7 @@ describe('the Xcode project after the iOS config plugins', () => {
       expect.arrayContaining(['SharedKeychain.swift', 'Jmap.swift', 'PushRenewal.swift', 'PushRenewalTask.swift'].map((f) => `${PROJECT}/${f}`)),
     );
     expect([...sources.NotificationService].sort()).toEqual(
-      ['Jmap.swift', 'NotificationService.swift', 'PushRenewal.swift', 'SharedKeychain.swift'].map((f) => `NotificationService/${f}`),
+      ['Jmap.swift', 'NewMail.swift', 'NotificationService.swift', 'PushRenewal.swift', 'SharedKeychain.swift'].map((f) => `NotificationService/${f}`),
     );
     expect([...sources.BulwarkWidget].sort()).toEqual(['BulwarkWidget/BulwarkWidget.swift', 'BulwarkWidget/SharedKeychain.swift']);
     // Every copy sits where the plugins put the file.

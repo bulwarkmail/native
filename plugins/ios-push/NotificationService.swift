@@ -107,15 +107,19 @@ final class NotificationService: UNNotificationServiceExtension {
 
     do {
       let authorization = try await Jmap.authorization(credentialsKey: credentialsKey)
-      let result = try await Jmap.fetch(apiUrl: apiUrl, accountId: accountId, emailIds: emailIds, authorization: authorization)
-      pushLog.info("fetched \(result.emails.count, privacy: .public) of \(emailIds.count, privacy: .public) messages")
+      let lookUp = emailIds.isEmpty && NewMail.mayCarryMail(push)
+      let result = lookUp
+        ? try await Jmap.fetchNewestUnread(apiUrl: apiUrl, accountId: accountId, authorization: authorization, limit: NewMail.queryLimit)
+        : try await Jmap.fetch(apiUrl: apiUrl, accountId: accountId, emailIds: emailIds, authorization: authorization)
+      let shown = NewMail.claim(result.emails, key: "\(credentialsKey)/\(accountId)", lookUp: lookUp, now: Date())
+      pushLog.info("fetched \(result.emails.count, privacy: .public) of \(emailIds.count, privacy: .public) messages, \(shown.count, privacy: .public) new, lookup \(lookUp, privacy: .public)")
 
-      if let first = result.emails.first {
+      if let first = shown.first {
         content.title = first.sender
         content.subtitle = first.subject.isEmpty ? (strings["noSubject"] ?? "(no subject)") : first.subject
         content.body = first.preview
-        if result.emails.count > 1 {
-          let more = (strings["more"] ?? "and {count} more").replacingOccurrences(of: "{count}", with: String(result.emails.count - 1))
+        if shown.count > 1 {
+          let more = (strings["more"] ?? "and {count} more").replacingOccurrences(of: "{count}", with: String(shown.count - 1))
           content.body = first.preview.isEmpty ? more : "\(first.preview)\n\(more)"
         }
         body["emailId"] = first.id
