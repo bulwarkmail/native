@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import type { Mailbox } from '../../api/types';
 import { inboxBackTarget, listBackStep } from '../list-back';
 
-function mailbox(id: string, role: string | null, isShared = false): Mailbox {
-  return { id, name: id, role, isShared, totalEmails: 0, unreadEmails: 0, totalThreads: 0, unreadThreads: 0 } as Mailbox;
+function mailbox(id: string, role: string | null, isShared = false, accountId = isShared ? 'team' : undefined): Mailbox {
+  return { id, name: id, role, isShared, accountId, totalEmails: 0, unreadEmails: 0, totalThreads: 0, unreadThreads: 0 } as Mailbox;
 }
 
 describe('listBackStep', () => {
@@ -39,9 +39,22 @@ describe('inboxBackTarget', () => {
     expect(inboxBackTarget(mailboxes, 'custom')).toBe('in');
   });
 
-  it('leads from a shared account to the user\'s own Inbox', () => {
-    expect(inboxBackTarget(mailboxes, 'team:docs')).toBe('in');
+  it('leads from a shared account\'s folder to that account\'s Inbox', () => {
+    expect(inboxBackTarget(mailboxes, 'team:docs')).toBe('team:in');
+  });
+
+  it('leads from a shared account\'s Inbox to the user\'s own', () => {
     expect(inboxBackTarget(mailboxes, 'team:in')).toBe('in');
+  });
+
+  it('leads from a shared account without an Inbox to the user\'s own', () => {
+    const noInbox = [mailbox('in', 'inbox'), mailbox('team:docs', null, true)];
+    expect(inboxBackTarget(noInbox, 'team:docs')).toBe('in');
+  });
+
+  it('stays inside the shared account that is open', () => {
+    const two = [...mailboxes, mailbox('other:in', 'inbox', true, 'other')];
+    expect(inboxBackTarget(two, 'team:docs')).toBe('team:in');
   });
 
   it('has nowhere to go from the Inbox', () => {
