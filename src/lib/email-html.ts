@@ -724,7 +724,7 @@ export function hasRemoteContent(html: string): boolean {
 // Emails are authored for light mode; they are rendered true-to-life, and in
 // dark mode their colours are rewritten after layout by the injected pass in
 // ./email-dark-mode.
-function baseStyles(bodyPadding: string): string {
+function baseStyles(bodyPadding: string, fillWidth: boolean): string {
   return `
 html { background: #ffffff; height: auto !important; }
 /* The injected reporter lays wide content out at its natural width and scales
@@ -745,12 +745,12 @@ body {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
-/* A wide reading pane (tablet): keep lines readable instead of running
+${fillWidth ? '' : `/* A wide reading pane (tablet): keep lines readable instead of running
    150+ characters across. Phones never reach the breakpoint. */
 @media (min-width: 840px) {
   body { max-width: 720px; margin-left: auto; margin-right: auto; }
 }
-/* Only force the cap on images and tables that set no max-width of their own:
+`}/* Only force the cap on images and tables that set no max-width of their own:
    an !important 100% also overrides a sender's inline max-width, so an image
    sized by max-width + max-height + width:100% grows to the pane width while
    its max-height still clamps the height (squashed), and a table with
@@ -866,6 +866,7 @@ export interface WrapOptions {
   isDark?: boolean;
   darkCanvas?: string;
   messageSpacing?: MessageSpacing;
+  fillWidth?: boolean;
 }
 
 export interface PreparedEmailHtml {
@@ -910,7 +911,7 @@ function buildCsp(strict: boolean): string {
  * decision was native #49).
  */
 export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): PreparedEmailHtml {
-  const { blockRemoteImages = false, cidMap, isDark = true, darkCanvas, messageSpacing = 'auto' } = options;
+  const { blockRemoteImages = false, cidMap, isDark = true, darkCanvas, messageSpacing = 'auto', fillWidth = false } = options;
   const cleaned = stripDangerousTags(innerHtml);
   const withCids = cidMap ? replaceCidRefs(cleaned, cidMap) : cleaned;
   let processed = withCids;
@@ -947,7 +948,7 @@ export function prepareEmailHtml(innerHtml: string, options: WrapOptions = {}): 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta http-equiv="Content-Security-Policy" content="${buildCsp(blockRemoteImages)}">
 <meta name="referrer" content="no-referrer">
-<style>${baseStyles(bodyPadding)}${word ? WORD_HTML_CSS : ''}${darkCss}</style>
+<style>${baseStyles(bodyPadding, fillWidth)}${word ? WORD_HTML_CSS : ''}${darkCss}</style>
 </head>
 <body${bodyDir}>${resolveColorSchemeMedia(processed, isDark)}<style>html,body{height:auto!important;min-height:0!important;max-height:none!important}</style></body>
 </html>`;
@@ -991,9 +992,10 @@ export function wrapPlainTextEmail(
      * body in the app document; monospace stays monospace.
      */
     readingFont?: AppFont;
+    fillWidth?: boolean;
   } = {},
 ): string {
-  const { isDark = true, font = 'sans', fontPx = 14, darkColors, readingFont } = options;
+  const { isDark = true, font = 'sans', fontPx = 14, darkColors, readingFont, fillWidth = false } = options;
   const cleaned = stripDangerousTags(innerHtml);
   const reading = font === 'sans' ? readingFont : undefined;
 
@@ -1025,9 +1027,9 @@ body {
 }
 a { color: ${link}; text-decoration: underline; }
 details > summary::-webkit-details-marker { display: none; }
-/* A wide reading pane (tablet): about 80 characters a line. */
+${fillWidth ? '' : `/* A wide reading pane (tablet): about 80 characters a line. */
 @media (min-width: 840px) { body { max-width: 80ch; } }
-`;
+`}`;
 
   return `<!doctype html>
 <html style="color-scheme: ${isDark ? 'dark' : 'light'};">

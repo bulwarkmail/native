@@ -37,6 +37,7 @@ export interface BodyDocumentInput {
   plainDarkColors?: PlainTextColors;
   /** The reading font (Settings > Accessibility > Font) for a plain-text body. */
   appFont?: AppFont;
+  fillWidth?: boolean;
 }
 
 export interface BodyDocument {
@@ -59,11 +60,12 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       isDark,
       darkCanvas: input.darkCanvas,
       messageSpacing: input.messageSpacing,
+      fillWidth: input.fillWidth,
     });
     return { ...res, isHtml: true };
   }
   if (!text) {
-    const res = prepareEmailHtml(`<em style="color:#71717a">${input.emptyLabel}</em>`, { isDark, darkCanvas: input.darkCanvas });
+    const res = prepareEmailHtml(`<em style="color:#71717a">${input.emptyLabel}</em>`, { isDark, darkCanvas: input.darkCanvas, fillWidth: input.fillWidth });
     return { ...res, isHtml: true };
   }
   const safe = collapsePlainTextQuotes(plainTextToSafeHtml(text), input.quoteLabels);
@@ -74,6 +76,7 @@ export function buildBodyDocument(input: BodyDocumentInput): BodyDocument {
       fontPx: mailBaseFontPx(input.textFactor ?? 1),
       darkColors: input.plainDarkColors,
       readingFont: input.appFont,
+      fillWidth: input.fillWidth,
     }),
     recolorDark: false,
     hasNativeDark: false,
@@ -103,7 +106,7 @@ export function bodyDocument(input: BodyDocumentInput): BodyDocument {
   const key = JSON.stringify([
     input.key, input.blockRemoteImages, input.isDark, input.messageSpacing, input.plainTextFont,
     input.quoteLabels.show, input.quoteLabels.hide, input.emptyLabel, input.textFactor ?? 1,
-    input.plainDarkColors ?? null, input.appFont ?? 'default', input.darkCanvas ?? null,
+    input.plainDarkColors ?? null, input.appFont ?? 'default', input.darkCanvas ?? null, input.fillWidth ?? false,
   ]);
   const hit = documents.get(key);
   if (hit && sameSources(hit.input, input)) {

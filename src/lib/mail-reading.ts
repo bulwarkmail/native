@@ -6,6 +6,15 @@
  */
 
 import { PAGE_DOM_SOURCE } from './page-dom';
+import type { ReadingWidth } from '../stores/settings-store';
+import type { Layout } from './use-layout';
+
+export const READING_CARD_MAX_WIDTH = 882;
+export const READING_CARD_GUTTER = 20;
+
+export function showsReadingCard(readingWidth: ReadingWidth, layout: Layout): boolean {
+  return readingWidth === 'comfortable' && layout.isSplit;
+}
 
 /** Size of body text in a message, in CSS px at 100 %: what mail used to be fixed at. */
 export const MAIL_BASE_FONT_PX = 14;

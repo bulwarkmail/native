@@ -51,6 +51,7 @@ import { useKeywordsStore, useAccountKeywordDefs, keywordToken, type KeywordDef 
 import { useSheetDrag } from '../lib/use-sheet-drag';
 import { useKeyboardObstruction } from '../lib/use-keyboard-obstruction';
 import { useLayout } from '../lib/use-layout';
+import { READING_CARD_GUTTER, READING_CARD_MAX_WIDTH, showsReadingCard } from '../lib/mail-reading';
 import { useLocaleStore } from '../stores/locale-store';
 import {
   findArchiveMailbox, findTrashMailbox, mailboxAccountId, mailboxesOfAccount, mailboxOfEmail,
@@ -1160,6 +1161,9 @@ function EmailPane({
   const t = useLocaleStore((s) => s.t);
   // The quick reply box can be turned off (webmail #1370).
   const quickReplyEnabled = useSettingsStore((s) => s.quickReplyEnabled);
+  const readingWidth = useSettingsStore((s) => s.readingWidth);
+  const layout = useLayout();
+  const readingCard = showsReadingCard(readingWidth, layout);
   // An encrypted message whose sender obscured the subject (RFC 9788).
   const protectedSubject = useProtectedSubject(email);
   // Freeze the pane's vertical scroll while a pinch is in flight so a two-
@@ -1224,6 +1228,7 @@ function EmailPane({
   const scrollRef = React.useRef<ScrollView>(null);
   const isInputFocused = React.useRef(false);
   const cardsTopRef = React.useRef(0);
+  const cardFrameTopRef = React.useRef(0);
   // The cards above the open one settle over a few frames (their rows fill
   // in), so the reveal waits until the open card stops moving, gives up
   // after a moment, and never fights a scroll the user started.
@@ -1239,7 +1244,7 @@ function EmailPane({
       // Only when the card starts low on the screen (a short conversation
       // is fine as it is); keep the bottom of the previous card in sight so
       // it reads as a thread.
-      const top = cardsTopRef.current + cardY;
+      const top = cardFrameTopRef.current + cardsTopRef.current + cardY;
       if (top < viewportHeightRef.current * 0.6) return;
       scrollRef.current?.scrollTo({ y: top - OPENED_CARD_PEEK, animated: false });
     }, 250);
@@ -1320,20 +1325,8 @@ function EmailPane({
     isInputFocused.current = false;
   };
 
-  return (
-    <ScrollView
-      ref={scrollRef}
-      style={styles.scroll}
-      // At least a page tall: a single message's body takes the space below
-      // its header, and the quick reply stays at the bottom however the body
-      // grows or shrinks once it has measured itself.
-      contentContainerStyle={[styles.paneContent, { paddingBottom: bottomPadding }]}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-      onScrollBeginDrag={stopReveal}
-      onLayout={(e) => { viewportHeightRef.current = e.nativeEvent.layout.height; }}
-      scrollEnabled={!pinching}
-    >
+  const paneBody = (
+    <>
       {/* Subject block */}
       <View style={styles.subjectBlock}>
         <View style={styles.subjectRow}>
@@ -1383,6 +1376,7 @@ function EmailPane({
               key={m.id}
               bare={!asConversation}
               fill={!asConversation}
+              fillWidth={readingCard}
               email={full ?? m}
               expanded={open}
               replyActions={cardReplyActions(m, !!full, scheduledIds)}
@@ -1427,6 +1421,29 @@ function EmailPane({
             onBlur={handleQuickReplyBlur}
           />
         )}
+      </View>
+    </>
+  );
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      style={[styles.scroll, readingCard && styles.readingCardPage]}
+      // At least a page tall: a single message's body takes the space below
+      // its header, and the quick reply stays at the bottom however the body
+      // grows or shrinks once it has measured itself.
+      contentContainerStyle={[styles.paneContent, readingCard && styles.readingCardPageContent, { paddingBottom: bottomPadding }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      onScrollBeginDrag={stopReveal}
+      onLayout={(e) => { viewportHeightRef.current = e.nativeEvent.layout.height; }}
+      scrollEnabled={!pinching}
+    >
+      <View
+        style={readingCard ? styles.readingCard : styles.paneFill}
+        onLayout={(e) => { cardFrameTopRef.current = e.nativeEvent.layout.y; }}
+      >
+        {paneBody}
       </View>
       <Watermark />
     </ScrollView>
@@ -1946,6 +1963,18 @@ function makeStyles(c: ThemePalette, typography: ScaledTypography = tokenTypogra
   subjectSpinner: { marginTop: 6 },
   paneContent: { flexGrow: 1 },
   paneFill: { flexGrow: 1 },
+  readingCardPage: { backgroundColor: c.surface },
+  readingCardPageContent: { paddingHorizontal: READING_CARD_GUTTER, paddingTop: READING_CARD_GUTTER },
+  readingCard: {
+    width: '100%',
+    maxWidth: READING_CARD_MAX_WIDTH,
+    alignSelf: 'center',
+    backgroundColor: c.background,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
   quickReplySlot: { marginTop: 'auto' },
 
   // Loading skeleton

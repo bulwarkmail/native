@@ -62,6 +62,7 @@ interface EmailBodyViewProps {
    * page below the header) rather than a guessed height.
    */
   fill?: boolean;
+  fillWidth?: boolean;
   /**
    * Per-message "Show as plain text" from the More sheet; null or undefined
    * follows the "Plain Text Only" setting.
@@ -450,7 +451,7 @@ const PINCH_ZOOM = `
 `;
 
 export default function EmailBodyView({
-  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill,
+  email, senderEmail, jmapAccountId, onSwipe, onZoomChange, themeOverride, bodyOverride, onSettled, fill, fillWidth,
   plainView: plainViewOverride, onShowFormatted,
 }: EmailBodyViewProps) {
   const c = useColors();
@@ -554,7 +555,7 @@ export default function EmailBodyView({
   // had the last time it was shown, else (see `fill`) an estimate. Never a
   // fixed strip that then grows in steps.
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const heightKey = `${jmapAccountId ?? ''}|${email.id}`;
+  const heightKey = `${jmapAccountId ?? ''}|${email.id}${fillWidth ? '|fill' : ''}`;
   const [measured, setMeasured] = React.useState<{ key: string; height: number } | null>(null);
   const knownHeight = measured?.key === heightKey
     ? measured.height
@@ -640,9 +641,10 @@ export default function EmailBodyView({
     textFactor,
     plainDarkColors,
     appFont,
+    fillWidth,
   }), [
     jmapAccountId, email.id, rawHtml, text, email.preview, emptyLabel, shouldBlock, cidMap, renderAsDark, darkCanvas,
-    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont,
+    messageSpacing, plainTextFont, quoteLabels, textFactor, plainDarkColors, appFont, fillWidth,
   ]);
 
   // Reported as phishing ($phishing, on this device or elsewhere): every
